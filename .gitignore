@@ -98,6 +98,7 @@ compile_commands.json
 .dir-locals.el
 .devcontainer/devcontainer.env.user
 .devcontainer/docker-compose.override.yml
+examples/scaffolding/contrib/mcp/agent_tools/.env
 
 # Enroot sqsh files
 enroot/sw-tensorrt-docker+*.sqsh

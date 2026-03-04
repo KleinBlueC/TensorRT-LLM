@@ -1,0 +1,30 @@
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+
+[project]
+name = "agent_tools"
+version = "0.1.0"
+description = "MCP server exposing search, scholar, visit, and python tools for agent use"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "e2b-code-interpreter>=0.3.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.9.0",
+    "scholarly>=1.7.0",
+    "starlette>=0.38.0",
+    "tavily-python>=0.5.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Show print() output (query and result) when running tests
+addopts = "-s"

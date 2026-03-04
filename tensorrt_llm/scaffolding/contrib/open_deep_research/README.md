@@ -100,6 +100,14 @@ To enable sub-request marking for detailed tracing:
 ENABLE_SUB_REQUEST_MARKER=1 python run_deep_research.py --enable_statistics
 ```
 
+## Implementation Notes: MCP Interaction
+
+Open Deep Research uses the **core scaffolding** MCP support, not `tensorrt_llm.scaffolding.contrib.mcp`:
+
+- **ChatWithMCPController** (`scaffolding.controller`) and **MCPWorker** (`scaffolding.worker`) handle tool calls.
+- **Researcher** is the only component that talks to MCP: it builds a `ChatTask` with `tools=[web_search_tool, reflection_tool]` and passes it to `ChatWithMCPController`. When the LLM returns `tool_calls`, the controller yields `MCPCallTask`s; `MCPWorker` executes them via SSE against the MCP server (e.g. Tavily) and writes results back. With `max_iterations=1`, one generation round and one tool-call round are performed per research topic.
+- Tool schemas are defined in `tools.py` (OpenAI format); the MCP server must expose tools with the same names (`web_search`, `reflection`).
+
 ## Acknowledgments
 
 This implementation follows the design of [Open Deep Research](https://github.com/langchain-ai/open_deep_research) by LangChain.
