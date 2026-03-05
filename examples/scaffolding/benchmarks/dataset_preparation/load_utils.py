@@ -1,8 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# Utilities to load normalized deep-search benchmark JSONL for scaffolding agent pipelines.
 
 import json
 from pathlib import Path

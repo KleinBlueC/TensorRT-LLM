@@ -98,7 +98,7 @@ compile_commands.json
 .dir-locals.el
 .devcontainer/devcontainer.env.user
 .devcontainer/docker-compose.override.yml
-examples/scaffolding/contrib/mcp/agent_tools/.env
+
 
 # Enroot sqsh files
 enroot/sw-tensorrt-docker+*.sqsh
@@ -106,3 +106,12 @@ enroot/tensorrt_llm.devel.sqsh
 
 # MacOSX Files
 .DS_Store
+
+# temporary by kleinc
+examples/scaffolding/contrib/mcp/agent_tools/.env
+.extra-llm-api-config.yml
+tensorrt_llm/scaffolding/contrib/ResearchSynthesis/AgentMCP/.env
+*/uv.lock
+examples/scaffolding/benchmarks/dataset_preparation
+tensorrt_llm/scaffolding/contrib/ResearchSynthesis/temp
+examples/scaffolding/benchmarks/datasets/browsecomp_zh_encrypted.xlsx

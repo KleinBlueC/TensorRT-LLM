@@ -1,0 +1,26 @@
+[project]
+name = "ResearchSynthesisMCP"
+version = "0.1.0"
+description = "An MCP server with four tools"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "e2b-code-interpreter>=0.3.0",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.9.0",
+    "openai>=1.79.0",
+    "scholarly>=1.7.0",
+    "starlette>=0.40.0",
+    "tavily-python>=0.5.0",
+    "uvicorn>=0.32.0",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Scripts (launch_mcp_server.py, run_chat_with_mcp.py) are run with uv run;
+# do not package them as top-level modules.
+py-modules = []

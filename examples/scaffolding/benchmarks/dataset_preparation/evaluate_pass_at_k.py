@@ -1,14 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# Evaluate agent outputs with pass@k metric (Chen et al., 2021).
-# pass@1 = (1/n) * sum I(problem i solved) in a single attempt.
-# pass@k (k>1) = (1/n) * sum I(at least one of k samples correct for problem i).
-# Correctness is determined by LLM-as-a-Judge (or exact/normalized match).
-#
-# Usage:
-#   python evaluate_pass_at_k.py --datasets-dir ../datasets --answers-file model_answers.jsonl [--judge llm --judge-model openai:gpt-4o-mini]
 
 import argparse
 import json

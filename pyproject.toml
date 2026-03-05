@@ -1500,3 +1500,8 @@ exclude = ["triton_kernels"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 ignore_errors = true
+
+[dependency-groups]
+dev = [
+    "tavily-python>=0.7.22",
+]

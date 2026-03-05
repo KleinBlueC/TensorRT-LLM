@@ -1,9 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# Test script: validate reading of all six benchmark datasets, check schema/fields,
-# and print per-dataset statistics. Run: python test_datasets.py [--datasets-dir ../datasets]
 
 import argparse
 import json

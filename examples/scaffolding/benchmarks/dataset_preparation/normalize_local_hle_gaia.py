@@ -1,11 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# Normalize HLE and GAIA from already-downloaded HuggingFace cache (hf_data) into
-# the unified JSONL format. Reads Parquet blobs directly so no Hub access is needed.
-#
-# Run from dataset_preparation: python normalize_local_hle_gaia.py --output-dir ../datasets
 
 import argparse
 import json

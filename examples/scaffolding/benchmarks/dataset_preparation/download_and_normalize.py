@@ -1,9 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# Download and normalize deep-search agent benchmark datasets into a unified JSONL format.
-# Run from dataset_preparation: python download_and_normalize.py [--datasets ...] [--output-dir ../datasets]
 
 import argparse
 import base64
