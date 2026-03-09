@@ -195,6 +195,27 @@ class AssistantMessage(RoleMessage):
             if self.tool_calls is not None else None,
         })
 
+    def to_dict(self) -> Dict[str, Any]:
+        def _tc(t: Any) -> Dict[str, Any]:
+            if isinstance(t, dict):
+                fn = (t.get("function") or {})
+                args = fn.get("arguments", "")
+                return {"id": t.get("id", ""), "type": t.get("type", "function"),
+                        "function": {"name": fn.get("name", ""),
+                                     "arguments": args if isinstance(args, str) else json.dumps(args or {})}}
+            fn = getattr(t, "function", None)
+            args = getattr(fn, "arguments", None) if fn else None
+            return {"id": getattr(t, "id", ""), "type": "function",
+                    "function": {"name": getattr(fn, "name", "") if fn else "",
+                                "arguments": args if isinstance(args, str) else json.dumps(args or {})}}
+        return {
+            "role": "assistant",
+            "content": self.content,
+            "reasoning": self.reasoning,
+            "reasoning_content": self.reasoning_content,
+            "tool_calls": [_tc(t) for t in self.tool_calls] if self.tool_calls else None,
+        }
+
 
 @dataclass
 class SystemMessage(RoleMessage):
