@@ -9,13 +9,12 @@ OpenAI Chat Completion supports four roles: system, user, assistant, tool.
 Workspace.to_messages() returns a List[RoleMessage] for the workspace state.
 Conversion to OpenAI API message format is done by the worker.
 
-All attribute access is thread-safe: use the get_*/set_* and append_* methods
-only; do not access internal attributes. Each getter/setter holds the lock.
+Use the get_*/set_* and append_* methods for attribute access; do not access
+internal attributes directly.
 """
 import copy
 import json
 import os
-import threading
 from datetime import datetime as dt, timedelta, timezone
 from typing import Any, Dict, List, Optional, Union
 
@@ -63,13 +62,10 @@ class Workspace:
     Consists of three components:
     (1) The original research Question q.
     (2) The evolving Report_{i-1} from the previous round (empty for i = 1).
-    (3) The most recent Action_{i-1} and its Tool Response_{i-1} (if i > 1).
+    (3) The most recent Actions_{i-1}, Tool Args_{i-1}, and Tool Responses_{i-1} (if i > 1).
 
     This ensures the Markov property while keeping all information needed
     for decision-making.
-
-    Thread-safe: all reads and writes must go through get_*, set_*, and
-    append_* methods. Do not access attributes directly.
 
     Create one instance per IterResearcher; that instance is shared by
     thinker, reporter, actor, and extractor within the same IterResearcher.
@@ -83,33 +79,28 @@ class Workspace:
         return Workspace(
             question=self.get_question(),
             report=self.get_report(),
+            answer=self.get_answer(),
             actions=self.get_actions(),
             tool_args=self.get_tool_args(),
             tool_responses=self.get_tool_responses(),
             iteration=self.get_iteration(),
             workspace_id=self._workspace_id,
+            workspace_log_root=self._workspace_log_root,
             save_reports=self._save_reports,
             _skip_init_report_file=True,
         )
-
-    def __getstate__(self) -> dict:
-        """Omit _lock so pickle/unpickle does not fail; restore in __setstate__."""
-        return {k: v for k, v in self.__dict__.items() if k != "_lock"}
-
-    def __setstate__(self, state: dict) -> None:
-        """Restore state and create a new RLock after unpickle."""
-        self.__dict__.update(state)
-        self._lock = threading.RLock()
 
     def __init__(
         self,
         question: Optional[str] = None,
         report: Optional[str] = None,
+        answer: Optional[str] = None,
         actions: Optional[List[str]] = None,
         tool_args: Optional[List[str]] = None,
         tool_responses: Optional[List[str]] = None,
         iteration: int = 0,
         workspace_id: Optional[str] = None,
+        workspace_log_root: Optional[str] = None,
         save_reports: bool = True,
         *,
         _skip_init_report_file: bool = False,
@@ -119,47 +110,53 @@ class Workspace:
             if workspace_id is not None
             else dt.now(BEIJING_TZ).strftime("%Y-%m-%d-%H-%M-%S")
         )
+        if workspace_log_root is not None:
+            self._workspace_log_root = os.path.abspath(workspace_log_root)
+        else:
+            self._workspace_log_root = os.path.abspath(
+                os.path.join(
+                    ".",
+                    "log",
+                    dt.now(BEIJING_TZ).strftime("%Y-%m-%d-%H-%M-%S"),
+                )
+            )
         self._save_reports = save_reports
         self._question = question
         self._report = report
+        self._answer = answer
         self._actions = list(actions) if actions is not None else None
         self._tool_args = list(tool_args) if tool_args is not None else None
         self._tool_responses = (
             list(tool_responses) if tool_responses is not None else None
         )
         self._iteration = iteration
-        self._lock = threading.RLock()
         if self._save_reports and not _skip_init_report_file:
             self._init_report_file()
 
-    @property
-    def lock(self) -> threading.RLock:
-        """Hold this lock when performing compound operations across multiple get/set."""
-        return self._lock
-
     def _get_report_dir(self) -> str:
-        """Directory for this workspace's logs (time-based folder)."""
-        return os.path.abspath(f"workspace_log_{self._workspace_id}")
+        """Inner directory for this workspace's logs: workspace_log_root / workspace_id."""
+        return os.path.join(self._workspace_log_root, str(self._workspace_id))
 
     def _get_question_reports_path(self) -> str:
         """Path to the .txt that records question and each round's report."""
         return os.path.join(
             self._get_report_dir(),
-            "question_and_reports.txt",
+            "reports.txt",
         )
 
     def _get_tool_calling_path(self) -> str:
         """Path to the .txt that records each round's tool calling result."""
         return os.path.join(
             self._get_report_dir(),
-            "tool_calling_results.txt",
+            "tool_calls.txt",
         )
 
     def _init_report_file(self) -> None:
-        """Create log folder and two .txt files when save_reports is True."""
+        """Create outer log root (if needed), inner folder by workspace_id, and two .txt files when save_reports is True."""
         if not self._save_reports:
             return
         try:
+            os.makedirs(self._workspace_log_root, exist_ok=True)
             log_dir = self._get_report_dir()
             os.makedirs(log_dir, exist_ok=True)
             qr_path = self._get_question_reports_path()
@@ -192,7 +189,7 @@ class Workspace:
         if not self._save_reports:
             return
         try:
-            if update_type in ("question", "report"):
+            if update_type in ("question", "report", "answer"):
                 path = self._get_question_reports_path()
                 with open(path, "a", encoding="utf-8") as f:
                     if update_type == "question":
@@ -243,82 +240,71 @@ class Workspace:
             lines.append("")
         return "\n".join(lines)
 
-    # --- Getters (thread-safe, return copies for list fields) ---
+    # --- Getters (return copies for list fields) ---
 
     def get_workspace_id(self) -> str:
-        with self._lock:
-            return self._workspace_id
+        return self._workspace_id
 
     def get_save_reports(self) -> bool:
-        with self._lock:
-            return self._save_reports
+        return self._save_reports
 
     def get_question(self) -> Optional[str]:
-        with self._lock:
-            return self._question
+        return self._question
 
     def get_report(self) -> Optional[str]:
-        with self._lock:
-            return self._report
+        return self._report
+
+    def get_answer(self) -> Optional[str]:
+        return self._answer
 
     def get_actions(self) -> Optional[List[str]]:
-        with self._lock:
-            return list(self._actions) if self._actions is not None else None
+        return list(self._actions) if self._actions is not None else None
 
     def get_tool_args(self) -> Optional[List[str]]:
-        with self._lock:
-            return list(self._tool_args) if self._tool_args is not None else None
+        return list(self._tool_args) if self._tool_args is not None else None
 
     def get_tool_responses(self) -> Optional[List[str]]:
-        with self._lock:
-            return (
-                list(self._tool_responses)
-                if self._tool_responses is not None
-                else None
-            )
+        return (
+            list(self._tool_responses)
+            if self._tool_responses is not None
+            else None
+        )
 
     def get_iteration(self) -> int:
-        with self._lock:
-            return self._iteration
+        return self._iteration
 
-    # --- Setters (thread-safe, store copies for list fields) ---
+    # --- Setters (store copies for list fields) ---
 
     def set_question(self, value: Optional[str]) -> None:
-        with self._lock:
-            self._question = value
-            it = self._iteration
-        self._append_to_report_file(it, "question", value)
+        self._question = value
+        self._append_to_report_file(self._iteration, "question", value)
 
     def set_report(self, value: Optional[str]) -> None:
-        with self._lock:
-            self._report = value
-            it = self._iteration
-        self._append_to_report_file(it, "report", value)
+        self._report = value
+        self._append_to_report_file(self._iteration, "report", value)
+
+    def set_answer(self, value: Optional[str]) -> None:
+        self._answer = value
+        self._append_to_report_file(self._iteration, "answer", value)
 
     def set_actions(self, value: Optional[List[str]]) -> None:
-        with self._lock:
-            self._actions = list(value) if value is not None else None
-            it = self._iteration
+        self._actions = list(value) if value is not None else None
         self._append_to_report_file(
-            it, "actions", str(value) if value is not None else None
+            self._iteration, "actions", str(value) if value is not None else None
         )
 
     def set_tool_args(self, value: Optional[List[str]]) -> None:
-        with self._lock:
-            self._tool_args = list(value) if value is not None else None
-            it = self._iteration
+        self._tool_args = list(value) if value is not None else None
         self._append_to_report_file(
-            it, "tool_args", str(value) if value is not None else None
+            self._iteration, "tool_args", str(value) if value is not None else None
         )
 
     def set_tool_responses(self, value: Optional[List[str]]) -> None:
-        with self._lock:
-            self._tool_responses = (
-                list(value) if value is not None else None
-            )
-            it = self._iteration
+        self._tool_responses = (
+            list(value) if value is not None else None
+        )
         self._append_to_report_file(
-            it, "tool_responses", str(value) if value is not None else None
+            self._iteration, "tool_responses", str(value) if value is not None else None
         )
 
     def set_tool_calling_result(
@@ -340,54 +326,42 @@ class Workspace:
                 args_stored.append(json.dumps(a, ensure_ascii=False))
             else:
                 args_stored.append(str(a) if a else "{}")
-        with self._lock:
-            self._actions = list(actions)
-            self._tool_args = args_stored if args_stored else None
-            self._tool_responses = resp_list if resp_list else None
-            it = self._iteration
+        self._actions = list(actions)
+        self._tool_args = args_stored if args_stored else None
+        self._tool_responses = resp_list if resp_list else None
         content = self._format_tool_calling_result(
             actions, tool_args, tool_responses
         )
-        self._append_to_report_file(it, "tool_calling_result", content)
+        self._append_to_report_file(self._iteration, "tool_calling_result", content)
 
     def set_iteration(self, value: int) -> None:
-        with self._lock:
-            self._iteration = value
+        self._iteration = value
         self._append_to_report_file(value, "iteration", str(value))
 
     def increment_iteration(self) -> int:
         """Increment iteration by 1 and return the new value."""
-        with self._lock:
-            self._iteration += 1
-            it = self._iteration
-        # self._append_to_report_file(it, "iteration", str(it))
-        return it
+        self._iteration += 1
+        return self._iteration
 
-    # --- Append helpers (thread-safe, for single-item appends) ---
+    # --- Append helpers (for single-item appends) ---
 
     def append_action(self, tool_name: str) -> None:
-        with self._lock:
-            if self._actions is None:
-                self._actions = []
-            self._actions.append(tool_name)
-            it = self._iteration
-        self._append_to_report_file(it, "action", tool_name)
+        if self._actions is None:
+            self._actions = []
+        self._actions.append(tool_name)
+        self._append_to_report_file(self._iteration, "action", tool_name)
 
     def append_tool_arg(self, args_json: str) -> None:
-        with self._lock:
-            if self._tool_args is None:
-                self._tool_args = []
-            self._tool_args.append(args_json)
-            it = self._iteration
-        self._append_to_report_file(it, "tool_arg", args_json)
+        if self._tool_args is None:
+            self._tool_args = []
+        self._tool_args.append(args_json)
+        self._append_to_report_file(self._iteration, "tool_arg", args_json)
 
     def append_tool_response(self, response: str) -> None:
-        with self._lock:
-            if self._tool_responses is None:
-                self._tool_responses = []
-            self._tool_responses.append(response)
-            it = self._iteration
-        self._append_to_report_file(it, "tool_response", response)
+        if self._tool_responses is None:
+            self._tool_responses = []
+        self._tool_responses.append(response)
+        self._append_to_report_file(self._iteration, "tool_response", response)
 
     def to_messages(
         self,

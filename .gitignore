@@ -113,5 +113,4 @@ examples/scaffolding/contrib/mcp/agent_tools/.env
 tensorrt_llm/scaffolding/contrib/ResearchSynthesis/AgentMCP/.env
 */uv.lock
 examples/scaffolding/benchmarks/dataset_preparation
-tensorrt_llm/scaffolding/contrib/ResearchSynthesis/temp
-examples/scaffolding/benchmarks/datasets/browsecomp_zh_encrypted.xlsx
+examples/scaffolding/contrib/HeavyThinking/log

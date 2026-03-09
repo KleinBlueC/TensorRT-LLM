@@ -26,7 +26,7 @@ from tensorrt_llm.scaffolding.contrib.HeavyThinking.sub_agents.thinker import (
 
 
 
-class IterResearcher(Controller):
+class IterativeResearcher(Controller):
     """Controller that runs Thinker -> Reporter -> Actor in a loop.
 
     Flow: set workspace question -> while True: Thinker -> Reporter -> Actor.
@@ -61,7 +61,7 @@ class IterResearcher(Controller):
         self.extractor_controller.workspace = workspace_instance
 
     def clone(self):
-        return IterResearcher(
+        return IterativeResearcher(
             thinker_controller=self.thinker_controller.clone(),
             reporter_controller=self.reporter_controller.clone(),
             actor_controller=self.actor_controller.clone(),
@@ -134,7 +134,7 @@ class IterResearcher(Controller):
             # only reset the current iteration's actions, tool_args, and tool_responses
             self.workspace.set_tool_calling_result(tool_names, tool_args_list, [mcp_task.result_str for mcp_task in mcp_tasks])
             self.workspace.increment_iteration()
-            print("Iteration incremented to", self.workspace.get_iteration())
+            print("[{}] Iteration incremented to {}".format(self.workspace.get_workspace_id(), self.workspace.get_iteration()))
 
         # After loop: run Extractor to get pure answer from question + report, write to task
         yield from self.extractor_controller.process([task], **kwargs)
@@ -147,3 +147,6 @@ class IterResearcher(Controller):
         task.output_str = (
             getattr(extractor_task.messages[-1], "content", None) or ""
         ).strip()
+
+        print("[{}] Extractor output: {}".format(self.workspace.get_workspace_id(), task.output_str))
+        self.workspace.set_answer(task.output_str)
