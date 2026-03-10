@@ -110,7 +110,7 @@ enroot/tensorrt_llm.devel.sqsh
 # temporary by kleinc
 examples/scaffolding/contrib/mcp/agent_tools/.env
 .extra-llm-api-config.yml
-tensorrt_llm/scaffolding/contrib/ResearchSynthesis/AgentMCP/.env
 examples/scaffolding/benchmarks/dataset_preparation
 examples/scaffolding/contrib/HeavyThinking/log
 tensorrt_llm/scaffolding/contrib/HeavyThinking/mcp/uv.lock
+tensorrt_llm/scaffolding/contrib/HeavyThinking/mcp/.env
