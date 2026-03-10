@@ -5,11 +5,11 @@ description = "An MCP server with four tools"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "python-dotenv>=1.0.0",
     "e2b-code-interpreter>=0.3.0",
     "httpx>=0.28.1",
     "mcp[cli]>=1.9.0",
     "openai>=1.79.0",
+    "python-dotenv>=1.0.0",
     "scholarly>=1.7.0",
     "starlette>=0.40.0",
     "tavily-python>=0.5.0",
