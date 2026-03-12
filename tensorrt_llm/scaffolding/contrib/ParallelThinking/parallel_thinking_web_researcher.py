@@ -34,7 +34,8 @@ def create_parallel_thinking_web_researcher_scaffolding_llm(
     mcp_worker: Worker,
     max_tokens: int = 16384,
     max_parallel_requests: int = 1024,
-    temperature: float = 0.2,
+    temperature: float = 0.6,
+    top_p: Optional[float] = 0.95,
     max_parallel_search: int = 3,
     workspace_log_root: Optional[str] = None,
 ) -> ScaffoldingLlm:
@@ -47,6 +48,8 @@ def create_parallel_thinking_web_researcher_scaffolding_llm(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if top_p is not None:
+        sampling_params["top_p"] = top_p
 
     thinker_controller = ThinkerController(sampling_params=sampling_params)
     reporter_controller = ReporterController(sampling_params=sampling_params)
@@ -97,7 +100,8 @@ class ParallelThinkingWebResearcher(ScaffoldingLlm):
         mcp_worker: Worker,
         max_tokens: int = 16384,
         max_parallel_requests: int = 1024,
-        temperature: float = 0.2,
+        temperature: float = 0.6,
+        top_p: Optional[float] = 0.95,
         max_parallel_search: int = 3,
         workspace_log_root: Optional[str] = None,
     ):
@@ -105,6 +109,8 @@ class ParallelThinkingWebResearcher(ScaffoldingLlm):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if top_p is not None:
+            sampling_params["top_p"] = top_p
         thinker_controller = ThinkerController(sampling_params=sampling_params)
         reporter_controller = ReporterController(sampling_params=sampling_params)
         actor_controller = ActorController(sampling_params=sampling_params)

@@ -150,3 +150,4 @@ class IterativeResearcher(Controller):
 
         print("[{}] Extractor output: {}".format(self.workspace.get_workspace_id(), task.output_str))
         self.workspace.set_answer(task.output_str)
+        self.workspace.clear()

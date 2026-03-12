@@ -76,8 +76,14 @@ def parse_args():
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.2,
-        help="Sampling temperature for generation.",
+        default=0.6,
+        help="Sampling temperature for nucleus sampling (default: 0.6).",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0.95,
+        help="Top-p (nucleus) sampling: sample from smallest set of tokens whose cumulative probability >= top_p (default: 0.95).",
     )
     return parser.parse_args()
 
@@ -110,6 +116,7 @@ async def main():
         mcp_worker,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
+        top_p=args.top_p,
         max_parallel_search=args.max_parallel_search,
         workspace_log_root=args.workspace_log_root,
     )

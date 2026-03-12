@@ -328,6 +328,30 @@ class Workspace:
         self._iteration += 1
         return self._iteration
 
+    def clear(self) -> None:
+        """Reset all state attributes to initial values. Logs the clear event to both
+        report .txt files and appends a '=====' separator.
+        """
+        self._question = None
+        self._report = None
+        self._answer = None
+        self._actions = None
+        self._tool_args = None
+        self._tool_responses = None
+        self._iteration = 0
+        if self._save_reports:
+            try:
+                sep = "=====\n\n\n"
+                for path in (
+                    self._get_question_reports_path(),
+                    self._get_tool_calling_path(),
+                ):
+                    with open(path, "a", encoding="utf-8") as f:
+                        f.write("Workspace cleared (all attributes reset to initial state)\n")
+                        f.write(sep)
+            except OSError:
+                pass
+
     # --- Append helpers (for single-item appends) ---
 
     def append_action(self, tool_name: str) -> None:

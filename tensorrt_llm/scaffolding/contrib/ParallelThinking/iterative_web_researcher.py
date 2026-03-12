@@ -1,3 +1,5 @@
+from typing import Optional
+
 from tensorrt_llm.scaffolding.controller import (
     ChatWithMCPController,
     NativeGenerationController,
@@ -28,7 +30,8 @@ def create_iterative_web_researcher_scaffolding_llm(
     mcp_worker: Worker,
     max_tokens: int = 16384,
     max_parallel_requests: int = 1024,
-    temperature: float = 0.2,
+    temperature: float = 0.6,
+    top_p: Optional[float] = 0.95,
 ) -> ScaffoldingLlm:
     """Build a ScaffoldingLlm whose controller is IterResearcher and workers are generation + MCP.
 
@@ -40,6 +43,8 @@ def create_iterative_web_researcher_scaffolding_llm(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if top_p is not None:
+        sampling_params["top_p"] = top_p
 
     thinker_controller = ThinkerController(sampling_params=sampling_params)
     reporter_controller = ReporterController(sampling_params=sampling_params)
@@ -82,12 +87,15 @@ class IterativeWebResearcher(ScaffoldingLlm):
         mcp_worker: Worker,
         max_tokens: int = 16384,
         max_parallel_requests: int = 1024,
-        temperature: float = 0.2,
+        temperature: float = 0.6,
+        top_p: Optional[float] = 0.95,
     ):
         sampling_params = {
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if top_p is not None:
+            sampling_params["top_p"] = top_p
         thinker_controller = ThinkerController(sampling_params=sampling_params)
         reporter_controller = ReporterController(sampling_params=sampling_params)
         actor_controller = ActorController(sampling_params=sampling_params)

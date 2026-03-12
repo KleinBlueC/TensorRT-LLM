@@ -114,3 +114,5 @@ examples/scaffolding/benchmarks/dataset_preparation
 examples/scaffolding/contrib/HeavyThinking/log
 tensorrt_llm/scaffolding/contrib/HeavyThinking/mcp/uv.lock
 tensorrt_llm/scaffolding/contrib/HeavyThinking/mcp/.env
+examples/scaffolding/benchmarks/ParallelThinking/log
+examples/scaffolding/benchmarks/ParallelThinking/answers_*.jsonl
