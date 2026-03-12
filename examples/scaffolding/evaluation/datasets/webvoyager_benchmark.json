@@ -1,0 +1,522 @@
+[
+  {
+    "benchmark": "search",
+    "id": 135,
+    "question": "A polyominoes of order 6 means you have 6 identical squares to combine different shapes (2-sided). How many combinations are there? Looking at all the shapes in the result, how many of them have only 2 rows in total?",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 136,
+    "question": "Search for women's golf polos in m size, priced between 50 to 75 dollars, and save the lowest priced among results.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 137,
+    "question": "Search 'CVPR 2023' and 'CVPR2023' through journal ref on ArXiv to see how many results there are respectively.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 138,
+    "question": "Check the Dataset Viewer for ai2lumos/lumos_complex_qa_plan_onetime on Hugging face. what is the content corresponding to user in the first message?",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 139,
+    "question": "Find a newly created open-source project on GitHub related to 'climate change' that has been initiated in January 2023; check the main programming language used and the project's description.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 140,
+    "question": "Calculate the determinant of a 6x6 Hilbert matrix.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 141,
+    "question": "Locate a repository on GitHub that was created in the last week and has 50 or more stars. Provide brief details about the project's purpose and its programming language.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 142,
+    "question": "Find the current top 3 super-earth planets and give a brief introduction to them.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 143,
+    "question": "Identify the hardware requirements for using the latest version of Adobe Photoshop on a Mac.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 144,
+    "question": "Search for the latest preprints about 'quantum computing'.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 145,
+    "question": "Find 5 places that serve burgers near 44012 zip code and sort these 5 places by highest rating.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 146,
+    "question": "Search for Lionel Messi's last 5 games, which teams has he played for, and what are the results?",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 147,
+    "question": "Find a dog bed on Amazon that is washable and has a length of at least 30 inches.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 148,
+    "question": "Find daytime only parking nearest to Madison Square Garden. Summarize what people are saying about it. ",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 149,
+    "question": "Locate the lowest-priced one-way flight from Tokyo to Sydney for an adult, departing on February 25, 2024, and include the flight duration and number of layovers.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 150,
+    "question": "Search for the one-way flight available from Calgary to New York on Jan. 1st with the lowest carbon dioxide emissions.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 151,
+    "question": "Identify a course on Coursera that provides an introduction to Psychology, list the instructor's name, the institution offering it, and how many hours it will approximately take to complete.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 152,
+    "question": "Give a constraint on the set of inequalities for the inner region of the pentagram.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 153,
+    "question": "Find a high-rated beef stew recipe on Allrecipes that requires a slow cooker and has at least 30 reviews. Detail the cooking time and the first five ingredients listed in the recipe.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 154,
+    "question": "Convert 15 kilograms of sulfuric acid to moles and display the percentage composition of H, S, and O by weight.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 155,
+    "question": "Locate the latest report on BBC News about the impact of recent natural disasters in Asia and summarize the key points and areas affected.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 156,
+    "question": "Find news related to the storm in Weather section and indicate where and when the severe weather occurred.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 157,
+    "question": "Search for the course 'Exploring Quantum Physics' on Coursera, offered by the University of Maryland, College Park. Identify the percentage (rounded) of 5-star ratings in the reviews.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 158,
+    "question": "Determine the shortest walking route from The Metropolitan Museum of Art to Times Square in New York.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 159,
+    "question": "Search for a parking facility near the Fox Theater in Detroit that closes at night.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 160,
+    "question": "Check the scores of the NBA games played on December 25, 2023.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 161,
+    "question": "On ArXiv, what categories does Economics include, and what are their abbreviations?",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 162,
+    "question": "Find two different meanings of the word \"harmony\" in the Cambridge Dictionary.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 163,
+    "question": "Find the no. 1 weekly charts ranked artist based on Billboard and tell me 10 most played song by this artist until now.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 164,
+    "question": "Find an article published between 1 January 2000 and 1 January 2005 that requires Support Vector Machines in the title and its Journey ref is ACL Workshop.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 165,
+    "question": "Plot Albert Einstein curve with Parametric equations.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 166,
+    "question": "Look up the pronunciation and definition of the word \"sustainability\" on the Cambridge Dictionary.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 167,
+    "question": "Find a recipe for a healthy avocado salad on Allrecipes that has a preparation time of less than 20 minutes and more than 30 user reviews. Include the nutritional information per serving.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 168,
+    "question": "Find information on the latest (as of today's date) pre-trained language model on Huggingface suitable for text classification and briefly describe its intended use case and architecture.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 169,
+    "question": "Locate the latest paper on ArXiv within the 'Nonlinear Sciences - Chaotic Dynamics' category, summarize the abstract and note the submission date.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 170,
+    "question": "List the benefits of hugging face classroom mentioned on Hugging face website.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 171,
+    "question": "Find a beginner level Coursera course related to \"Internet of Things (IoT)\" with a high rating. Provide the course name, instructor's name, and a brief summary of the skills that will be taught.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 172,
+    "question": "Find the latest Diffusion-related blog on Hugging Face, and read its intro or overview section to roughly summarize the content of the blog.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 173,
+    "question": "Find hotels for 2 adults in London with a price less than 250 dollars for four days starting from December 25. You must browse the page and offer at least 3 options.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 174,
+    "question": "Check the current air quality index in Paris.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 175,
+    "question": "On Apple's website, check the estimated battery life of the latest MacBook Air during web browsing in Tech Specs.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 176,
+    "question": "derivative of x^2 when x=5.6",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 177,
+    "question": "Find the Resolve merge conflicts course in GitHub Skills and what actions learners will perform in this course.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 178,
+    "question": "Compare the color options of iPhone 13 Pro, iPhone 14 Pro and iPhone 15 Pro.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 179,
+    "question": "Locate a chicken curry recipe on Allrecipes that has been reviewed more than 30 times and has a rating of at least 4 stars. Provide a summary of the recipe including ingredients, preparation time, and cooking instructions.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 180,
+    "question": "Locate a pre-trained natural language processing model on Hugging Face that specializes in named entity recognition (NER), confirm that the model was last updated in 2022 and has 1M+ downloads.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 181,
+    "question": "On Apple's website, what is the slogan for the Mac and what is the slogan for the Macbook pro.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 182,
+    "question": "Locate an online course on Coursera related to 'Sustainability' that belongs to Physical Science and Engineering subject. The course should include a module on Measuring Sustainability. Note the course duration and the offering institution.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 183,
+    "question": "Locate a C++ project on GitHub that has been recently updated in the last week and has at least 500 stars, then describe its main purpose.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 184,
+    "question": "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 185,
+    "question": "How many results are there for a search on Coursera for Machine Learning, then filtered by Credit Eligible and 1-4 Years duration?",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 186,
+    "question": "Find the cheapest one-way flight from New York to Tokyo departing on January 15, 2024, and provide the airline and total flight duration.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 187,
+    "question": "Visit BBC News Audio, What are the best PodCasts for 2023? List 2 of them.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 188,
+    "question": "Find the official GitHub repository for TensorFlow and list the files changed in the last commit. Tell me the name of changed files, total additions and total deletion.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 189,
+    "question": "Locate a recipe for an American apple pie on Allrecipes with a rating of at least 4 stars and more than 50 reviews. Note the maximum temperature mentioned in the Directions.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 190,
+    "question": "Retrieve the latest research paper in Quantum Physics from ArXiv and provide the title, author(s), and date of submission.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 191,
+    "question": "Find a one way economy flight from Pune to New York in Jan. 15th and show me how long it will take for flight transfer.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 192,
+    "question": "Search for a resort (not hotel) in Bali, detailing the available dates between March 20, 2024, and March 25, 2024, and checking any provided tour or cultural experiences.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 193,
+    "question": "Search a hotel with free WiFi and air conditioning in Bali from Jan 1 to Jan 4, 2024.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 194,
+    "question": "Search for properties in Los Angeles, browse the results page to see what filters are available, list some of them.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 195,
+    "question": "Pack 24 circles in a circle radius r. Compare Densest known packing and Square packing. Then tell me the radius of the inner circles.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 196,
+    "question": "Identify today's top headline in the Basketball section of ESPN, and summarize the main points of that article.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 197,
+    "question": "Find a compact digital camera on Amazon with a zoom capability of at least 10x, rated 4 stars or higher, and priced between $100 to $300.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 198,
+    "question": "Find a course on Coursera that teaches Reinforcement Learning for Intermediate with a rating of at least 4.5. Provide the name of the course, the institution offering it, and the number of reviews it has received.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  },
+  {
+    "benchmark": "search",
+    "id": 199,
+    "question": "Determine the area of a regular hexagon with a side length of 7 cm.",
+    "dataset": "webvoyager",
+    "domain": "webvoyager",
+    "type": "webvoyager"
+  }
+]

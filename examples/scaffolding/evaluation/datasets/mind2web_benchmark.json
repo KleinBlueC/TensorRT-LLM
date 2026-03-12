@@ -1,0 +1,2237 @@
+[
+  {
+    "benchmark": "search",
+    "id": 125,
+    "question": "{'task_id': 'gas_stations', 'task_description': \"I'm planning a road trip from Atlanta, GA to Los Angeles, CA, and my car can travel approximately 500-ish miles per full tank of gas. At the start of my trip, the fuel tank will be completely full. Your task is to help me identify a series of gas stations along the primary highway route from Atlanta to Los Angeles.\\n\\nThe selected gas stations should meet these criteria:\\n\\n- The driving distance between each consecutive gas station should be between 300 and 500 miles.\\n- The first gas station should be within 300-500 miles from Atlanta, and the last one should be within 500 miles of Los Angeles.\\n- All gas stations should be located close to the main highways to minimize additional driving time.\\n\\nPlease provide a sequential list of gas stations, including:\\n\\n- The name and address of each gas station\\n\\nEnsure the entire route remains realistic and efficient without significant detours.\", 'domain': 'Travel and Transportation', 'subdomain': 'Travel and Accommodation'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Station 1 includes an address",
+              "criteria": "Station 1 includes an address"
+            },
+            {
+              "type": "correctness",
+              "description": "Previous segment unavailable (Missing address for previous or current waypoint)",
+              "criteria": "Previous segment unavailable (Missing address for previous or current waypoint)"
+            },
+            {
+              "type": "correctness",
+              "description": "Unable to compute total route distance",
+              "criteria": "Unable to compute total route distance"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Station 2 includes an address",
+              "criteria": "Station 2 includes an address"
+            },
+            {
+              "type": "correctness",
+              "description": "Previous segment unavailable (Missing address for previous or current waypoint)",
+              "criteria": "Previous segment unavailable (Missing address for previous or current waypoint)"
+            },
+            {
+              "type": "correctness",
+              "description": "Unable to compute total route distance",
+              "criteria": "Unable to compute total route distance"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Station 3 includes an address",
+              "criteria": "Station 3 includes an address"
+            },
+            {
+              "type": "correctness",
+              "description": "Previous segment unavailable (Missing address for previous or current waypoint)",
+              "criteria": "Previous segment unavailable (Missing address for previous or current waypoint)"
+            },
+            {
+              "type": "correctness",
+              "description": "Unable to compute total route distance",
+              "criteria": "Unable to compute total route distance"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Station 4 includes an address",
+              "criteria": "Station 4 includes an address"
+            },
+            {
+              "type": "correctness",
+              "description": "Previous segment unavailable (Missing address for previous or current waypoint); Station to Los Angeles unavailable (Missing address for current station)",
+              "criteria": "Previous segment unavailable (Missing address for previous or current waypoint); Station to Los Angeles unavailable (Missing address for current station)"
+            },
+            {
+              "type": "correctness",
+              "description": "Unable to compute total route distance",
+              "criteria": "Unable to compute total route distance"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 126,
+    "question": "{'task_id': 'just_dance', 'task_description': 'Please identify the number of K-pop songs featured in each base version of the Just Dance video game series, from the earliest release up to and including the 2025 edition. Provide a complete list of the K-pop songs included in each version. Do not count songs available through Just Dance Unlimited, Just Dance+, or as regional exlusives.', 'domain': 'Entertainment and Gaming', 'subdomain': 'Gaming and Virtual Worlds'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance (2009, the original version).",
+              "criteria": "The answer explicitly mentions Just Dance (2009, the original version)."
+            },
+            {
+              "type": "correctness",
+              "description": "No K-pop songs should be listed for Just Dance (2009, the original version).",
+              "criteria": "No K-pop songs should be listed for Just Dance (2009, the original version)."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2 (2010).",
+              "criteria": "The answer explicitly mentions Just Dance 2 (2010)."
+            },
+            {
+              "type": "correctness",
+              "description": "No K-pop songs should be listed for Just Dance 2 (2010).",
+              "criteria": "No K-pop songs should be listed for Just Dance 2 (2010)."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 3 (2011).",
+              "criteria": "The answer explicitly mentions Just Dance 3 (2011)."
+            },
+            {
+              "type": "correctness",
+              "description": "No K-pop songs should be listed for Just Dance 3 (2011).",
+              "criteria": "No K-pop songs should be listed for Just Dance 3 (2011)."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 4 (2012).",
+              "criteria": "The answer explicitly mentions Just Dance 4 (2012)."
+            },
+            {
+              "type": "correctness",
+              "description": "No K-pop songs should be listed for Just Dance 4 (2012).",
+              "criteria": "No K-pop songs should be listed for Just Dance 4 (2012)."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2014.",
+              "criteria": "The answer explicitly mentions Just Dance 2014."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2015.",
+              "criteria": "The answer explicitly mentions Just Dance 2015."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2016.",
+              "criteria": "The answer explicitly mentions Just Dance 2016."
+            },
+            {
+              "type": "correctness",
+              "description": "No K-pop songs should be listed for Just Dance 2016.",
+              "criteria": "No K-pop songs should be listed for Just Dance 2016."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2017.",
+              "criteria": "The answer explicitly mentions Just Dance 2017."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2018.",
+              "criteria": "The answer explicitly mentions Just Dance 2018."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2019.",
+              "criteria": "The answer explicitly mentions Just Dance 2019."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2020.",
+              "criteria": "The answer explicitly mentions Just Dance 2020."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #3 is missing from the answer",
+                  "criteria": "Song #3 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2021.",
+              "criteria": "The answer explicitly mentions Just Dance 2021."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #3 is missing from the answer",
+                  "criteria": "Song #3 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2022.",
+              "criteria": "The answer explicitly mentions Just Dance 2022."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #3 is missing from the answer",
+                  "criteria": "Song #3 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #4 is missing from the answer",
+                  "criteria": "Song #4 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2023.",
+              "criteria": "The answer explicitly mentions Just Dance 2023."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #3 is missing from the answer",
+                  "criteria": "Song #3 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #4 is missing from the answer",
+                  "criteria": "Song #4 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #5 is missing from the answer",
+                  "criteria": "Song #5 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2024.",
+              "criteria": "The answer explicitly mentions Just Dance 2024."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #2 is missing from the answer",
+                  "criteria": "Song #2 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #3 is missing from the answer",
+                  "criteria": "Song #3 is missing from the answer"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #4 is missing from the answer",
+                  "criteria": "Song #4 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "The answer explicitly mentions Just Dance 2025.",
+              "criteria": "The answer explicitly mentions Just Dance 2025."
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Song #1 is missing from the answer",
+                  "criteria": "Song #1 is missing from the answer"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 127,
+    "question": "{'task_id': 'esport_player', 'task_description': 'Find three professional esports players who have competed in both the Call of Duty League (CDL) and the Halo Championship Series (HCS). For each player, find their team history (including teams represented and years) and tournament results in both games.', 'domain': 'Entertainment and Gaming', 'subdomain': 'Gaming and Virtual Worlds'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if player 1 has sufficient information",
+              "criteria": "Verify that player 1 has a name, CDL information, HCS information, and at least one source URL, and that both CDL and HCS team lists are non-empty."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that player 1 has competed in the Call of Duty League (CDL)",
+              "criteria": "Check if the webpages confirm that player 1 has competed in the Call of Duty League (CDL). Minor variations in name spelling or capitalization are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that player 1 has competed in the Halo Championship Series (HCS)",
+              "criteria": "Check if the webpages confirm that player 1 has competed in the Halo Championship Series (HCS). Minor variations in name spelling or capitalization are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 1 CDL team history",
+              "criteria": "Check if the webpages confirm that player 1 played for the listed CDL teams (and years, if provided). Minor variations in team names, player names, and year formats are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 1 HCS team history",
+              "criteria": "Check if the webpages confirm that player 1 played for the listed HCS teams (and years, if provided). Minor variations in team names, player names, and year formats are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 1 CDL tournament results or lack of notable results",
+              "criteria": "If CDL tournament results are listed for player 1, check if the webpages confirm these results. If no CDL results are listed, check if the webpages support the claim that player 1 has no notable CDL tournament results or has not achieved significant tournament success in CDL."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 1 HCS tournament results or lack of notable results",
+              "criteria": "If HCS tournament results are listed for player 1, check if the webpages confirm these results. If no HCS results are listed, check if the webpages support the claim that player 1 has no notable HCS tournament results or has not achieved significant tournament success in HCS."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if player 2 has sufficient information",
+              "criteria": "Verify that player 2 has a name, CDL information, HCS information, and at least one source URL, and that both CDL and HCS team lists are non-empty."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that player 2 has competed in the Call of Duty League (CDL)",
+              "criteria": "Check if the webpages confirm that player 2 has competed in the Call of Duty League (CDL). Minor variations in name spelling or capitalization are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that player 2 has competed in the Halo Championship Series (HCS)",
+              "criteria": "Check if the webpages confirm that player 2 has competed in the Halo Championship Series (HCS). Minor variations in name spelling or capitalization are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 2 CDL team history",
+              "criteria": "Check if the webpages confirm that player 2 played for the listed CDL teams (and years, if provided). Minor variations in team names, player names, and year formats are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 2 HCS team history",
+              "criteria": "Check if the webpages confirm that player 2 played for the listed HCS teams (and years, if provided). Minor variations in team names, player names, and year formats are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 2 CDL tournament results or lack of notable results",
+              "criteria": "If CDL tournament results are listed for player 2, check if the webpages confirm these results. If no CDL results are listed, check if the webpages support the claim that player 2 has no notable CDL tournament results or has not achieved significant tournament success in CDL."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 2 HCS tournament results or lack of notable results",
+              "criteria": "If HCS tournament results are listed for player 2, check if the webpages confirm these results. If no HCS results are listed, check if the webpages support the claim that player 2 has no notable HCS tournament results or has not achieved significant tournament success in HCS."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if player 3 has sufficient information",
+              "criteria": "Verify that player 3 has a name, CDL information, HCS information, and at least one source URL, and that both CDL and HCS team lists are non-empty."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that player 3 has competed in the Call of Duty League (CDL)",
+              "criteria": "Check if the webpages confirm that player 3 has competed in the Call of Duty League (CDL). Minor variations in name spelling or capitalization are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that player 3 has competed in the Halo Championship Series (HCS)",
+              "criteria": "Check if the webpages confirm that player 3 has competed in the Halo Championship Series (HCS). Minor variations in name spelling or capitalization are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 3 CDL team history",
+              "criteria": "Check if the webpages confirm that player 3 played for the listed CDL teams (and years, if provided). Minor variations in team names, player names, and year formats are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 3 HCS team history",
+              "criteria": "Check if the webpages confirm that player 3 played for the listed HCS teams (and years, if provided). Minor variations in team names, player names, and year formats are acceptable."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 3 CDL tournament results or lack of notable results",
+              "criteria": "If CDL tournament results are listed for player 3, check if the webpages confirm these results. If no CDL results are listed, check if the webpages support the claim that player 3 has no notable CDL tournament results or has not achieved significant tournament success in CDL."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify player 3 HCS tournament results or lack of notable results",
+              "criteria": "If HCS tournament results are listed for player 3, check if the webpages confirm these results. If no HCS results are listed, check if the webpages support the claim that player 3 has no notable HCS tournament results or has not achieved significant tournament success in HCS."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 128,
+    "question": "{'task_id': 'nba_career_high', 'task_description': \"Can you identify five NBA players in history whose regular season career highs in points, rebounds, assists, steals, and blocks are at least 60, 15, 15, 5, and 5, respectively?\\nPlease include each player's specific career-high stats in these categories.\", 'domain': 'Lifestyle and Leisure', 'subdomain': 'Sports and Fitness'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if player 1 name and URLs are provided",
+                  "criteria": "Check if player 1 name and URLs are provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify that Unknown is an NBA player",
+                  "criteria": "Check if None is confirmed to be an NBA player (current or former) from the provided sources. The player must have played in the NBA (not just drafted or signed)."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if points value exists and meets minimum requirement of 60",
+                  "criteria": "Check if points value exists and meets minimum requirement of 60"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high points is None",
+                  "criteria": "Specifically verify that None has a career-high of None points during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if rebounds value exists and meets minimum requirement of 15",
+                  "criteria": "Check if rebounds value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high rebounds is None",
+                  "criteria": "Specifically verify that None has a career-high of None rebounds during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if assists value exists and meets minimum requirement of 15",
+                  "criteria": "Check if assists value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high assists is None",
+                  "criteria": "Specifically verify that None has a career-high of None assists during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if steals value exists and meets minimum requirement of 5",
+                  "criteria": "Check if steals value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high steals is None",
+                  "criteria": "Specifically verify that None has a career-high of None steals during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if blocks value exists and meets minimum requirement of 5",
+                  "criteria": "Check if blocks value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high blocks is None",
+                  "criteria": "Specifically verify that None has a career-high of None blocks during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if player 2 name and URLs are provided",
+                  "criteria": "Check if player 2 name and URLs are provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify that Unknown is an NBA player",
+                  "criteria": "Check if None is confirmed to be an NBA player (current or former) from the provided sources. The player must have played in the NBA (not just drafted or signed)."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if points value exists and meets minimum requirement of 60",
+                  "criteria": "Check if points value exists and meets minimum requirement of 60"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high points is None",
+                  "criteria": "Specifically verify that None has a career-high of None points during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if rebounds value exists and meets minimum requirement of 15",
+                  "criteria": "Check if rebounds value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high rebounds is None",
+                  "criteria": "Specifically verify that None has a career-high of None rebounds during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if assists value exists and meets minimum requirement of 15",
+                  "criteria": "Check if assists value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high assists is None",
+                  "criteria": "Specifically verify that None has a career-high of None assists during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if steals value exists and meets minimum requirement of 5",
+                  "criteria": "Check if steals value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high steals is None",
+                  "criteria": "Specifically verify that None has a career-high of None steals during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if blocks value exists and meets minimum requirement of 5",
+                  "criteria": "Check if blocks value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high blocks is None",
+                  "criteria": "Specifically verify that None has a career-high of None blocks during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if player 3 name and URLs are provided",
+                  "criteria": "Check if player 3 name and URLs are provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify that Unknown is an NBA player",
+                  "criteria": "Check if None is confirmed to be an NBA player (current or former) from the provided sources. The player must have played in the NBA (not just drafted or signed)."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if points value exists and meets minimum requirement of 60",
+                  "criteria": "Check if points value exists and meets minimum requirement of 60"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high points is None",
+                  "criteria": "Specifically verify that None has a career-high of None points during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if rebounds value exists and meets minimum requirement of 15",
+                  "criteria": "Check if rebounds value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high rebounds is None",
+                  "criteria": "Specifically verify that None has a career-high of None rebounds during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if assists value exists and meets minimum requirement of 15",
+                  "criteria": "Check if assists value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high assists is None",
+                  "criteria": "Specifically verify that None has a career-high of None assists during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if steals value exists and meets minimum requirement of 5",
+                  "criteria": "Check if steals value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high steals is None",
+                  "criteria": "Specifically verify that None has a career-high of None steals during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if blocks value exists and meets minimum requirement of 5",
+                  "criteria": "Check if blocks value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high blocks is None",
+                  "criteria": "Specifically verify that None has a career-high of None blocks during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if player 4 name and URLs are provided",
+                  "criteria": "Check if player 4 name and URLs are provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify that Unknown is an NBA player",
+                  "criteria": "Check if None is confirmed to be an NBA player (current or former) from the provided sources. The player must have played in the NBA (not just drafted or signed)."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if points value exists and meets minimum requirement of 60",
+                  "criteria": "Check if points value exists and meets minimum requirement of 60"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high points is None",
+                  "criteria": "Specifically verify that None has a career-high of None points during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if rebounds value exists and meets minimum requirement of 15",
+                  "criteria": "Check if rebounds value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high rebounds is None",
+                  "criteria": "Specifically verify that None has a career-high of None rebounds during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if assists value exists and meets minimum requirement of 15",
+                  "criteria": "Check if assists value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high assists is None",
+                  "criteria": "Specifically verify that None has a career-high of None assists during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if steals value exists and meets minimum requirement of 5",
+                  "criteria": "Check if steals value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high steals is None",
+                  "criteria": "Specifically verify that None has a career-high of None steals during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if blocks value exists and meets minimum requirement of 5",
+                  "criteria": "Check if blocks value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high blocks is None",
+                  "criteria": "Specifically verify that None has a career-high of None blocks during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if player 5 name and URLs are provided",
+                  "criteria": "Check if player 5 name and URLs are provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify that Unknown is an NBA player",
+                  "criteria": "Check if None is confirmed to be an NBA player (current or former) from the provided sources. The player must have played in the NBA (not just drafted or signed)."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if points value exists and meets minimum requirement of 60",
+                  "criteria": "Check if points value exists and meets minimum requirement of 60"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high points is None",
+                  "criteria": "Specifically verify that None has a career-high of None points during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if rebounds value exists and meets minimum requirement of 15",
+                  "criteria": "Check if rebounds value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high rebounds is None",
+                  "criteria": "Specifically verify that None has a career-high of None rebounds during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if assists value exists and meets minimum requirement of 15",
+                  "criteria": "Check if assists value exists and meets minimum requirement of 15"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high assists is None",
+                  "criteria": "Specifically verify that None has a career-high of None assists during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if steals value exists and meets minimum requirement of 5",
+                  "criteria": "Check if steals value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high steals is None",
+                  "criteria": "Specifically verify that None has a career-high of None steals during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if blocks value exists and meets minimum requirement of 5",
+                  "criteria": "Check if blocks value exists and meets minimum requirement of 5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify Unknown's career-high blocks is None",
+                  "criteria": "Specifically verify that None has a career-high of None blocks during regular season NBA games (not playoffs, not college, not international). The value must be explicitly supported by at least one of the provided sources."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 129,
+    "question": "{'task_id': 'find_apartment', 'task_description': \"I’m looking for a one-bedroom apartment near the Michigan League in Ann Arbor, MI, where I'll be living alone. Please find three apartment buildings within 10 miles driving distance of this location, each explicitly offering on-site parking (any form clearly stated on the listing page).\\n\\nEach apartment must list at least one one-bedroom unit with a total monthly rent of no more than $1,500. If multiple prices are listed (such as a range or different lease terms) for a unit, use the highest monthly rent shown. If pricing is per-person, assume single occupancy. Exclude listings without clearly stated monthly rent.\\n\\nFor each apartment, provide a direct link to its Zillow or Apartments.com listing, its full address, and the monthly rent of one qualifying one-bedroom unit exactly as listed.\", 'domain': 'Misc.', 'subdomain': 'Real Estate'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if basic information is provided for apartment #1",
+              "criteria": "Verify that apartment #1 has a non-empty address, a stated monthly rent, and at least one URL."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify Zillow or Apartments.com listing for apartment #1",
+              "criteria": "Check that at least one of the URLs for apartment #1 is a direct listing page for this apartment on zillow.com or apartments.com."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify apartment #1 address",
+              "criteria": "Check that the address given for apartment #1 is confirmed by and matches the address shown on the linked listing pages."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify on-site parking for apartment #1",
+              "criteria": "Check the listing pages for apartment #1 for any explicit indication of on-site parking (parking lot, garage, assigned parking, parking amenities, or a dedicated Parking section/tab)."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify 1BR rent for apartment #1",
+              "criteria": "Check that the listing pages show a one-bedroom unit whose monthly rent matches the stated amount for apartment #1 (using the highest price if a range is shown) and that this rent is no more than $1,500."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify distance requirement for apartment #1",
+              "criteria": "Check, using the driving distance between the apartment #1 address and 911 N University Ave, Ann Arbor, MI 48109, that the distance is 10.5 miles or less."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if basic information is provided for apartment #2",
+              "criteria": "Verify that apartment #2 has a non-empty address, a stated monthly rent, and at least one URL."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify Zillow or Apartments.com listing for apartment #2",
+              "criteria": "Check that at least one of the URLs for apartment #2 is a direct listing page for this apartment on zillow.com or apartments.com."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify apartment #2 address",
+              "criteria": "Check that the address given for apartment #2 is confirmed by and matches the address shown on the linked listing pages."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify on-site parking for apartment #2",
+              "criteria": "Check the listing pages for apartment #2 for any explicit indication of on-site parking (parking lot, garage, assigned parking, parking amenities, or a dedicated Parking section/tab)."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify 1BR rent for apartment #2",
+              "criteria": "Check that the listing pages show a one-bedroom unit whose monthly rent matches the stated amount for apartment #2 (using the highest price if a range is shown) and that this rent is no more than $1,500."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify distance requirement for apartment #2",
+              "criteria": "Check, using the driving distance between the apartment #2 address and 911 N University Ave, Ann Arbor, MI 48109, that the distance is 10.5 miles or less."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if basic information is provided for apartment #3",
+              "criteria": "Verify that apartment #3 has a non-empty address, a stated monthly rent, and at least one URL."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify Zillow or Apartments.com listing for apartment #3",
+              "criteria": "Check that at least one of the URLs for apartment #3 is a direct listing page for this apartment on zillow.com or apartments.com."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify apartment #3 address",
+              "criteria": "Check that the address given for apartment #3 is confirmed by and matches the address shown on the linked listing pages."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify on-site parking for apartment #3",
+              "criteria": "Check the listing pages for apartment #3 for any explicit indication of on-site parking (parking lot, garage, assigned parking, parking amenities, or a dedicated Parking section/tab)."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify 1BR rent for apartment #3",
+              "criteria": "Check that the listing pages show a one-bedroom unit whose monthly rent matches the stated amount for apartment #3 (using the highest price if a range is shown) and that this rent is no more than $1,500."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify distance requirement for apartment #3",
+              "criteria": "Check, using the driving distance between the apartment #3 address and 911 N University Ave, Ann Arbor, MI 48109, that the distance is 10.5 miles or less."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 130,
+    "question": "{'task_id': 'oscar_streaming', 'task_description': 'Find the list of all the nominees for Best Picture at last year’s Academy Awards (which honored films released the year before). For each nominated film, determine at least one streaming platform where it is currently available (in the US). Then, for each of the mentioned streaming platforms, find the current lowest monthly price for a basic subscription from their official websites (excluding free trial offers, student plan and promotional offers).', 'domain': 'Entertainment and Gaming', 'subdomain': 'Films and TV Shows'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #1",
+                  "criteria": "Check if film title and nomination URLs were provided for film #1"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #2",
+                  "criteria": "Check if film title and nomination URLs were provided for film #2"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #3",
+                  "criteria": "Check if film title and nomination URLs were provided for film #3"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #4",
+                  "criteria": "Check if film title and nomination URLs were provided for film #4"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #5",
+                  "criteria": "Check if film title and nomination URLs were provided for film #5"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #6",
+                  "criteria": "Check if film title and nomination URLs were provided for film #6"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #7",
+                  "criteria": "Check if film title and nomination URLs were provided for film #7"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #8",
+                  "criteria": "Check if film title and nomination URLs were provided for film #8"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #9",
+                  "criteria": "Check if film title and nomination URLs were provided for film #9"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "or",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if film title and nomination URLs were provided for film #10",
+                  "criteria": "Check if film title and nomination URLs were provided for film #10"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' was actually nominated for Best Picture",
+                  "criteria": "Verify if this film was nominated for Best Picture at the Academy Awards ceremony that took place last year. Note that 'last year's Academy Awards' refers to the ceremony held in the previous calendar year, which honored films from the year before that."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if streaming platform with URLs was provided for 'None'",
+                  "criteria": "Check if streaming platform with URLs was provided for 'None'"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that 'None' is actually available on the platform",
+                  "criteria": "Verify if this film is currently available to stream on the mentioned platform in the United States. If there's no specific information about the region, just assume it's showing information for the US market by default. But, if you don't find the information from the webpage text, please look carefully from the screenshot. There could be icons of platforms on the page showing its availability. For example, the icons in the 'STREAMING' section on IMDb"
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if pricing information with URLs was provided for the platform",
+                  "criteria": "Check if pricing information with URLs was provided for the platform"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verification that the price for the platform is accurate: N/A",
+                  "criteria": "Verify if the provided monthly price for the streaming service is accurate according to its official website. The source must be the platform's official website, and the price must be for the basic subscription, excluding any free trials, discounts, or promotional offers. Third-party websites like news articles or price comparison sites are not considered valid sources for pricing information. Minor variations in the price (e.g., $9.99 or $9.9 vs $10) are acceptable as long as they are within a reasonable range."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 131,
+    "question": "{'task_id': 'perplexity_failure', 'task_description': \"I'm looking for real-world examples of failures involving Perplexity AI in the context of AI-powered search. Specifically, I am interested in cases where Perplexity AI's search products (for example, their Pro Search, or Deep Research) produced hallucinated answers—such as fabricated URLs or made-up information. Please find three links, each of which should include at least one concrete example of such a failure (for example, the user input and the AI’s response, or at least a concrete description of what happened). The sources should not merely mention general problems with Perplexity AI, but must describe specific instances where it provided hallucinated responses.\", 'domain': 'Misc.', 'subdomain': 'General Information'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if link 1 was provided",
+                  "criteria": "Check if link 1 was provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify link 1 contains concrete Perplexity AI hallucination example",
+                  "criteria": "To verify this claim, look for:\n1. HALLUCINATION EXAMPLES: The page must contain specific instances where Perplexity AI generated false information, such as:\n   - Fabricated URLs that don't exist\n   - Made-up facts, statistics, or quotes\n   - Invented sources or citations\n   - False information presented as factual\n2. CONCRETE DETAILS: The example must include:\n   - What the user asked (the query/input)\n   - What Perplexity AI responded (the hallucinated output)\n   - OR at minimum, a concrete description of both the query and the hallucinated response\n3. REAL USER EXPERIENCES: Look for actual user reports, screenshots, documented cases, or journalistic investigations with specific examples.\n4. EXCLUSIONS: General criticism, theoretical discussions about AI hallucination, or mentions of problems without specific hallucination examples do NOT count."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if link 2 was provided",
+                  "criteria": "Check if link 2 was provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify link 2 contains concrete Perplexity AI hallucination example",
+                  "criteria": "To verify this claim, look for:\n1. HALLUCINATION EXAMPLES: The page must contain specific instances where Perplexity AI generated false information, such as:\n   - Fabricated URLs that don't exist\n   - Made-up facts, statistics, or quotes\n   - Invented sources or citations\n   - False information presented as factual\n2. CONCRETE DETAILS: The example must include:\n   - What the user asked (the query/input)\n   - What Perplexity AI responded (the hallucinated output)\n   - OR at minimum, a concrete description of both the query and the hallucinated response\n3. REAL USER EXPERIENCES: Look for actual user reports, screenshots, documented cases, or journalistic investigations with specific examples.\n4. EXCLUSIONS: General criticism, theoretical discussions about AI hallucination, or mentions of problems without specific hallucination examples do NOT count."
+                }
+              ]
+            },
+            {
+              "type": "and",
+              "children": [
+                {
+                  "type": "correctness",
+                  "description": "Check if link 3 was provided",
+                  "criteria": "Check if link 3 was provided"
+                },
+                {
+                  "type": "attribution",
+                  "description": "Verify link 3 contains concrete Perplexity AI hallucination example",
+                  "criteria": "To verify this claim, look for:\n1. HALLUCINATION EXAMPLES: The page must contain specific instances where Perplexity AI generated false information, such as:\n   - Fabricated URLs that don't exist\n   - Made-up facts, statistics, or quotes\n   - Invented sources or citations\n   - False information presented as factual\n2. CONCRETE DETAILS: The example must include:\n   - What the user asked (the query/input)\n   - What Perplexity AI responded (the hallucinated output)\n   - OR at minimum, a concrete description of both the query and the hallucinated response\n3. REAL USER EXPERIENCES: Look for actual user reports, screenshots, documented cases, or journalistic investigations with specific examples.\n4. EXCLUSIONS: General criticism, theoretical discussions about AI hallucination, or mentions of problems without specific hallucination examples do NOT count."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 132,
+    "question": "{'task_id': 'dc_comics_injustice', 'task_description': \"I am a DC Comics fan. Could you find three comic books from different series written by the same author as Injustice: Gods Among Us Year One that feature Batman (excluding Injustice itself)? Please provide the links to the homepage of Injustice and these comic books on DC comic's official website.\", 'domain': 'Entertainment and Gaming', 'subdomain': 'Books and Reading'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if Injustice URL was provided",
+              "criteria": "Check if Injustice URL was provided"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that Injustice: Gods Among Us Year One is written by Tom Taylor",
+              "criteria": "Check if the webpage confirms that Injustice: Gods Among Us Year One is written by Tom Taylor."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the URL is from DC Comics' official website",
+              "criteria": "This URL is from DC Comics' official website and is for the comic 'Injustice: Gods Among Us Year One'."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if Batman comic #1 URL was provided",
+              "criteria": "Check if Batman comic #1 URL was provided"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic is written by Tom Taylor",
+              "criteria": "Check if the webpage confirms that this comic is written by Tom Taylor."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic features Batman as a character",
+              "criteria": "Check if the webpage confirms that Batman appears in this comic."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic is not part of the Injustice series",
+              "criteria": "Check if the comic is NOT part of the Injustice series. It should be from a different series."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this URL is from DC Comics' official website",
+              "criteria": "This URL is from DC Comics' official website."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if Batman comic #2 URL was provided",
+              "criteria": "Check if Batman comic #2 URL was provided"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic is written by Tom Taylor",
+              "criteria": "Check if the webpage confirms that this comic is written by Tom Taylor."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic features Batman as a character",
+              "criteria": "Check if the webpage confirms that Batman appears in this comic."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic is not part of the Injustice series",
+              "criteria": "Check if the comic is NOT part of the Injustice series. It should be from a different series."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this URL is from DC Comics' official website",
+              "criteria": "This URL is from DC Comics' official website."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Check if Batman comic #3 URL was provided",
+              "criteria": "Check if Batman comic #3 URL was provided"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic is written by Tom Taylor",
+              "criteria": "Check if the webpage confirms that this comic is written by Tom Taylor."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic features Batman as a character",
+              "criteria": "Check if the webpage confirms that Batman appears in this comic."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this comic is not part of the Injustice series",
+              "criteria": "Check if the comic is NOT part of the Injustice series. It should be from a different series."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that this URL is from DC Comics' official website",
+              "criteria": "This URL is from DC Comics' official website."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 133,
+    "question": "{'task_id': 'nlp_faculty', 'task_description': 'I am interested in applying to PhD programs in Computer Science and want to connect with faculty members whose primary research area is natural language processing. Please help me gather information on five professors, each from a different university ranked between 20 and 30 in the Computer Science Open Rankings (with all fields selected). For each professor, include their affiliated institution and a link to either their personal webpage or their official faculty profile hosted by the university.', 'domain': 'Science and Research', 'subdomain': 'Research and Academia'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Professor 1 data exists (name, university, and website provided)",
+              "criteria": "Professor 1 data exists (name, university, and website provided)"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the provided URL is a valid personal webpage or faculty profile for the professor",
+              "criteria": "Check if this is a personal webpage or faculty profile of a computer science professor. Look for academic titles, research descriptions, publications, or other indicators that this belongs to a CS faculty member with the specified name."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor is affiliated with the claimed university",
+              "criteria": "Check if the professor's affiliation matches the claimed university. Look for the university name, logo, or institutional affiliation in the professor's profile, contact information, or about sections."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor's primary research area includes natural language processing",
+              "criteria": "Look for mentions of natural language processing, NLP, computational linguistics, language models, text processing, machine translation, or related topics in the broad NLP in the professor's research interests."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the university is ranked between 20-30 in CS Open Rankings",
+              "criteria": "Minor variations in how university names or abbreviations are written are acceptable (e.g., 'UC Berkeley' vs 'University of California, Berkeley' vs 'UCB')"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Professor 2 data exists (name, university, and website provided)",
+              "criteria": "Professor 2 data exists (name, university, and website provided)"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the provided URL is a valid personal webpage or faculty profile for the professor",
+              "criteria": "Check if this is a personal webpage or faculty profile of a computer science professor. Look for academic titles, research descriptions, publications, or other indicators that this belongs to a CS faculty member with the specified name."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor is affiliated with the claimed university",
+              "criteria": "Check if the professor's affiliation matches the claimed university. Look for the university name, logo, or institutional affiliation in the professor's profile, contact information, or about sections."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor's primary research area includes natural language processing",
+              "criteria": "Look for mentions of natural language processing, NLP, computational linguistics, language models, text processing, machine translation, or related topics in the broad NLP in the professor's research interests."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the university is ranked between 20-30 in CS Open Rankings",
+              "criteria": "Minor variations in how university names or abbreviations are written are acceptable (e.g., 'UC Berkeley' vs 'University of California, Berkeley' vs 'UCB')"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Professor 3 data exists (name, university, and website provided)",
+              "criteria": "Professor 3 data exists (name, university, and website provided)"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the provided URL is a valid personal webpage or faculty profile for the professor",
+              "criteria": "Check if this is a personal webpage or faculty profile of a computer science professor. Look for academic titles, research descriptions, publications, or other indicators that this belongs to a CS faculty member with the specified name."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor is affiliated with the claimed university",
+              "criteria": "Check if the professor's affiliation matches the claimed university. Look for the university name, logo, or institutional affiliation in the professor's profile, contact information, or about sections."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor's primary research area includes natural language processing",
+              "criteria": "Look for mentions of natural language processing, NLP, computational linguistics, language models, text processing, machine translation, or related topics in the broad NLP in the professor's research interests."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the university is ranked between 20-30 in CS Open Rankings",
+              "criteria": "Minor variations in how university names or abbreviations are written are acceptable (e.g., 'UC Berkeley' vs 'University of California, Berkeley' vs 'UCB')"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Professor 4 data exists (name, university, and website provided)",
+              "criteria": "Professor 4 data exists (name, university, and website provided)"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the provided URL is a valid personal webpage or faculty profile for the professor",
+              "criteria": "Check if this is a personal webpage or faculty profile of a computer science professor. Look for academic titles, research descriptions, publications, or other indicators that this belongs to a CS faculty member with the specified name."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor is affiliated with the claimed university",
+              "criteria": "Check if the professor's affiliation matches the claimed university. Look for the university name, logo, or institutional affiliation in the professor's profile, contact information, or about sections."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor's primary research area includes natural language processing",
+              "criteria": "Look for mentions of natural language processing, NLP, computational linguistics, language models, text processing, machine translation, or related topics in the broad NLP in the professor's research interests."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the university is ranked between 20-30 in CS Open Rankings",
+              "criteria": "Minor variations in how university names or abbreviations are written are acceptable (e.g., 'UC Berkeley' vs 'University of California, Berkeley' vs 'UCB')"
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "Professor 5 data exists (name, university, and website provided)",
+              "criteria": "Professor 5 data exists (name, university, and website provided)"
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the provided URL is a valid personal webpage or faculty profile for the professor",
+              "criteria": "Check if this is a personal webpage or faculty profile of a computer science professor. Look for academic titles, research descriptions, publications, or other indicators that this belongs to a CS faculty member with the specified name."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor is affiliated with the claimed university",
+              "criteria": "Check if the professor's affiliation matches the claimed university. Look for the university name, logo, or institutional affiliation in the professor's profile, contact information, or about sections."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the professor's primary research area includes natural language processing",
+              "criteria": "Look for mentions of natural language processing, NLP, computational linguistics, language models, text processing, machine translation, or related topics in the broad NLP in the professor's research interests."
+            },
+            {
+              "type": "attribution",
+              "description": "Verify that the university is ranked between 20-30 in CS Open Rankings",
+              "criteria": "Minor variations in how university names or abbreviations are written are acceptable (e.g., 'UC Berkeley' vs 'University of California, Berkeley' vs 'UCB')"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "benchmark": "search",
+    "id": 134,
+    "question": "{'task_id': 'meditation_app', 'task_description': \"Identify two meditation apps from the U.S. Google Play Store that have more than 300,000 user ratings and job listings for software engineering-related positions online. For each app, provide its overall Play Store rating, a direct link to its Play Store page, the app's official website, and a direct link to a software engineering-related job listing.\", 'domain': 'Career and Education', 'subdomain': 'Jobs and Career'}",
+    "dataset": "mind2web",
+    "domain": "mind2web",
+    "type": "mind2web",
+    "rubric": {
+      "type": "and",
+      "children": [
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "All required information exists for app (name, rating, Play Store URL, website, job URL)",
+              "criteria": "All required information exists for app (name, rating, Play Store URL, website, job URL)"
+            },
+            {
+              "type": "attribution",
+              "description": "Google Play Store page verification for app",
+              "criteria": "Verify ALL 5 points. For point 5, if the answer says '4.5' and the page shows '4.4' or '4.6', that's acceptable. Only compare the numerical rating value, ignore the number of ratings because that is irrelevant and we don't care."
+            },
+            {
+              "type": "attribution",
+              "description": "Official website verification for app",
+              "criteria": "Verify this webpage (None) is the official website of the app 'None'"
+            },
+            {
+              "type": "attribution",
+              "description": "Job listing verification for app",
+              "criteria": "Be flexible about software engineering roles - accept any technical/programming related position. The company association can be direct or through parent company."
+            }
+          ]
+        },
+        {
+          "type": "and",
+          "children": [
+            {
+              "type": "correctness",
+              "description": "All required information exists for app (name, rating, Play Store URL, website, job URL)",
+              "criteria": "All required information exists for app (name, rating, Play Store URL, website, job URL)"
+            },
+            {
+              "type": "attribution",
+              "description": "Google Play Store page verification for app",
+              "criteria": "Verify ALL 5 points. For point 5, if the answer says '4.5' and the page shows '4.4' or '4.6', that's acceptable. Only compare the numerical rating value, ignore the number of ratings because that is irrelevant and we don't care."
+            },
+            {
+              "type": "attribution",
+              "description": "Official website verification for app",
+              "criteria": "Verify this webpage (None) is the official website of the app 'None'"
+            },
+            {
+              "type": "attribution",
+              "description": "Job listing verification for app",
+              "criteria": "Be flexible about software engineering roles - accept any technical/programming related position. The company association can be direct or through parent company."
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -116,3 +116,5 @@ tensorrt_llm/scaffolding/contrib/HeavyThinking/mcp/uv.lock
 tensorrt_llm/scaffolding/contrib/HeavyThinking/mcp/.env
 examples/scaffolding/benchmarks/ParallelThinking/log
 examples/scaffolding/benchmarks/ParallelThinking/answers_*.jsonl
+_tmp/
+examples/scaffolding/contrib/open_deep_research/TavilyMCP/uv.lock
