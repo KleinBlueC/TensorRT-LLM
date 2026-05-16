@@ -1,5 +1,6 @@
 import copy
 import json
+import logging
 from datetime import datetime
 from enum import Enum
 from typing import Any, List, Optional, Tuple, TYPE_CHECKING
@@ -66,21 +67,31 @@ def parse_actor_response(
     tool_calls = getattr(message, "tool_calls", None)
 
     # TODO: support more robust tool call parsing logic here
-    assert tool_calls is not None and len(tool_calls) >= 1, (
-        f"Actor response must contain at least one tool call; "
-        f"got tool_calls={tool_calls!r}"
-    )
+    if tool_calls is None or len(tool_calls) < 1:
+        logging.warning(
+            "Actor response must contain at least one tool call; "
+            "got tool_calls=%r",
+            tool_calls,
+        )
+        return (Action.ANSWER, None, None)
     names = [(_tool_call_name(tc) or "").strip() for tc in tool_calls]
-    assert all(n in REGISTERED_MCP_TOOLS for n in names), [
-        f"Tool name {n} is not in REGISTERED_MCP_TOOLS" for n in names if n not in REGISTERED_MCP_TOOLS
-    ]
+    invalid = [n for n in names if n not in REGISTERED_MCP_TOOLS]
+    if invalid:
+        logging.warning(
+            "Tool name(s) not in REGISTERED_MCP_TOOLS: %s",
+            invalid,
+        )
+        return (Action.ANSWER, None, None)
     args_list = [_tool_call_arguments(tc) for tc in tool_calls]
 
     if ANSWER_TOOL_NAME in names:
-        assert len(tool_calls) == 1, (
-            f"When choosing the answer tool, there must be exactly one tool "
-            f"call; got {len(tool_calls)} tool_calls"
-        )
+        if len(tool_calls) != 1:
+            logging.warning(
+                "When choosing the answer tool, there must be exactly one tool "
+                "call; got %d tool_calls",
+                len(tool_calls),
+            )
+            return (Action.ANSWER, None, None)
         return (Action.ANSWER, None, None)
 
     return (Action.TOOL_CALL, names, args_list)

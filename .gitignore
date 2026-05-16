@@ -118,3 +118,4 @@ examples/scaffolding/benchmarks/ParallelThinking/log
 examples/scaffolding/benchmarks/ParallelThinking/answers_*.jsonl
 _tmp/
 examples/scaffolding/contrib/open_deep_research/TavilyMCP/uv.lock
+examples/scaffolding/evaluation/servers_tmp

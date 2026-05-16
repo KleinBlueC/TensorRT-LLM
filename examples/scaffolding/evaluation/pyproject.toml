@@ -1,0 +1,21 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+
+# Dependencies for running evaluation: run_browsecomp.py, gateway, dataset_servers, mcp_tools.
+# Requires tensorrt_llm to be installed from the repo root (e.g. pip install -e .).
+# torch and transformers are required because tensorrt_llm imports them at package load.
+
+[project]
+name = "trtllm-scaffolding-evaluation"
+version = "0.1.0"
+description = "Dependencies for TensorRT-LLM scaffolding evaluation (BrowseComp, gateway, ReAct, MCP tools)"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.0.0",
+    "mcp[cli]>=1.9.0",
+    "starlette>=0.38.0",
+    "uvicorn>=0.30.0",
+    "tavily-python",
+]
+
+[project.optional-dependencies]
+# No optional groups; all deps are required for run_browsecomp + dataset_servers + mcp_tools.

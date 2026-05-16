@@ -92,6 +92,10 @@ class GeneralEvalGateway:
         domain = entry.get("domain", "")
         dataset = entry.get("dataset", "")
         prompt = self._get_prompt(entry)
+        task = entry.get("task", entry)
+        task_dict = task if isinstance(task, dict) else {}
+        question = entry.get("question", "") or task_dict.get("question", "")
+        golden_answer = entry.get("golden_answer", "") or task_dict.get("golden_answer", "")
 
         output_text, error = await self._run_agent(prompt)
         return TaskRunResult(
@@ -102,6 +106,8 @@ class GeneralEvalGateway:
             prompt=prompt,
             output_text=output_text,
             error=error,
+            question=question,
+            golden_answer=golden_answer,
         )
 
     async def run(

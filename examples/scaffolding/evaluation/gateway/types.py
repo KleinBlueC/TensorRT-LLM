@@ -20,3 +20,6 @@ class TaskRunResult:
     prompt: str = ""
     output_text: str = ""
     error: Optional[str] = None
+    # Optional fields from dataset entry (for logging and result files)
+    question: str = ""
+    golden_answer: str = ""
