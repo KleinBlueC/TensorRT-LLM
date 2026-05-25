@@ -1122,7 +1122,14 @@ class MaxUtilizationPolicy(SchedulerPolicyBase):
                     scheduler.kv_cache_manager.scheduling_remove_sequence(paused_req.py_request_id)
                     paused_requests.append(paused_req)
                     logger.debug(
-                        f"MaxUtilizationScheduler: request ID {paused_req.request_id} -> pause"
+                        "MaxUtilizationScheduler: pausing request %s "
+                        "(state=%s, prompt_len=%d, generated_tokens=%d) "
+                        "to free KV cache for request %s",
+                        paused_req.request_id,
+                        paused_req.state,
+                        paused_req.prompt_len,
+                        paused_req.max_num_generated_tokens,
+                        req.request_id,
                     )
                     req_it_end = last_started_idx
                 else:
