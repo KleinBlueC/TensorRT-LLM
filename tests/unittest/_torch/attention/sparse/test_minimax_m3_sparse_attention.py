@@ -41,9 +41,10 @@ import torch
 triton = pytest.importorskip("triton")
 
 from tensorrt_llm._torch.attention_backend.sparse.minimax_m3_kernels import (  # noqa: E402
-    minimax_m3_index_topk_decode,
+    minimax_m3_index_topk,
     minimax_m3_sparse_attention_decode,
-    minimax_m3_sparse_gqa_decode,
+    minimax_m3_sparse_attention_prefill,
+    minimax_m3_sparse_gqa,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -259,7 +260,7 @@ INDEX_CASES = [
 def test_index_topk_decode(bs, nqh, nkh, nih, hd, idxd, blk, tk, ib, lb, seq_pat):
     """Top-k selected block ids match the reference set."""
     inp = build_decode_inputs(bs, nqh, nkh, nih, hd, idxd, _seq_lens(seq_pat, bs, blk))
-    topk_kernel = minimax_m3_index_topk_decode(
+    topk_kernel = minimax_m3_index_topk(
         inp["index_q"],
         inp["index_k_cache"],
         inp["req_to_token"],
@@ -309,7 +310,7 @@ def test_sparse_gqa_decode(bs, nqh, nkh, nih, hd, idxd, blk, tk, ib, lb, seq_pat
             perm = torch.randperm(num_blocks[b], device=DEVICE)[:ak]
             topk_idx[kh, b, :ak] = perm.to(torch.int32)
 
-    o_kernel = minimax_m3_sparse_gqa_decode(
+    o_kernel = minimax_m3_sparse_gqa(
         inp["q"],
         inp["k_cache"],
         inp["v_cache"],
@@ -562,6 +563,216 @@ def test_cuda_graph_capture_replay():
         assert torch.allclose(o_replay.float(), o_eager.float(), rtol=RTOL, atol=ATOL), (
             f"cuda-graph replay mismatch (seed={seed}) max abs diff {max_diff:.4e}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Prefill (per-token causal MSA). MiniMax-M3 uses block_size_q == 1, so prefill
+# is per-query decode with a per-query causal seq_len = abs_pos + 1.
+# ---------------------------------------------------------------------------
+def _prefill_query_metadata(cu_seqlens, prefix_lens, slot_ids, total_q):
+    """Mirror the wrapper's varlen -> per-query causal metadata lowering."""
+    batch = cu_seqlens.shape[0] - 1
+    extend_lens = (cu_seqlens[1:] - cu_seqlens[:-1]).to(torch.int64)
+    req_id = torch.repeat_interleave(
+        torch.arange(batch, device=DEVICE, dtype=torch.int64), extend_lens
+    )
+    starts = cu_seqlens[:-1].to(torch.int64)
+    local_idx = torch.arange(total_q, device=DEVICE, dtype=torch.int64) - starts[req_id]
+    q_abs_pos = prefix_lens.to(torch.int64)[req_id] + local_idx
+    q_seq_lens = (q_abs_pos + 1).to(torch.int32)
+    q_slot_ids = slot_ids.to(torch.int64)[req_id]
+    return q_seq_lens, q_slot_ids
+
+
+def build_prefill_inputs(
+    extend_list,
+    prefix_list,
+    num_q_heads,
+    num_kv_heads,
+    num_index_heads,
+    head_dim,
+    index_dim,
+    seed=42,
+    dtype=torch.bfloat16,
+):
+    torch.manual_seed(seed)
+    batch = len(extend_list)
+    total_q = sum(extend_list)
+    max_kv_len = max(p + e for p, e in zip(prefix_list, extend_list))
+    max_slots = batch * max_kv_len
+    q = torch.randn(total_q, num_q_heads, head_dim, dtype=dtype, device=DEVICE)
+    index_q = torch.randn(total_q, num_index_heads, index_dim, dtype=dtype, device=DEVICE)
+    k_cache = torch.randn(max_slots, num_kv_heads, head_dim, dtype=dtype, device=DEVICE)
+    v_cache = torch.randn(max_slots, num_kv_heads, head_dim, dtype=dtype, device=DEVICE)
+    index_k_cache = torch.randn(max_slots, 1, index_dim, dtype=dtype, device=DEVICE)
+    req_to_token = torch.zeros(batch, max_kv_len, dtype=torch.int32, device=DEVICE)
+    for i in range(batch):
+        base = i * max_kv_len
+        req_to_token[i, :max_kv_len] = (torch.randperm(max_kv_len, device=DEVICE) + base).to(
+            torch.int32
+        )
+    cu_seqlens = torch.zeros(batch + 1, dtype=torch.int32, device=DEVICE)
+    cu_seqlens[1:] = torch.tensor(extend_list, dtype=torch.int32, device=DEVICE).cumsum(0)
+    prefix_lens = torch.tensor(prefix_list, dtype=torch.int32, device=DEVICE)
+    slot_ids = torch.arange(batch, dtype=torch.int64, device=DEVICE)
+    return dict(
+        q=q,
+        index_q=index_q,
+        k_cache=k_cache,
+        v_cache=v_cache,
+        index_k_cache=index_k_cache,
+        req_to_token=req_to_token,
+        cu_seqlens=cu_seqlens,
+        prefix_lens=prefix_lens,
+        slot_ids=slot_ids,
+        total_q=total_q,
+    )
+
+
+def ref_dense_causal_attention(
+    q, k_cache, v_cache, req_to_token, q_seq_lens, q_slot_ids, sm_scale=None
+):
+    """Standard causal attention (independent of the MSA path).
+
+    For the short/dense-equivalent regime (all blocks selected) the MSA output
+    must equal this, which cross-checks the causal masking without reusing the
+    sparse reference.
+    """
+    total_q, num_q_heads, head_dim = q.shape
+    num_kv_heads = k_cache.shape[1]
+    gqa = num_q_heads // num_kv_heads
+    if sm_scale is None:
+        sm_scale = head_dim**-0.5
+    o = torch.zeros_like(q)
+    for i in range(total_q):
+        sl = int(q_seq_lens[i].item())
+        slots = req_to_token[int(q_slot_ids[i].item())][:sl].long()
+        for kh in range(num_kv_heads):
+            k_sel = k_cache[slots, kh, :].float()
+            v_sel = v_cache[slots, kh, :].float()
+            for g in range(gqa):
+                qh = kh * gqa + g
+                scores = (q[i, qh, :].float() @ k_sel.T) * sm_scale
+                attn = scores.softmax(dim=-1)
+                o[i, qh, :] = attn.to(q.dtype) @ v_sel.to(q.dtype)
+    return o
+
+
+def _run_and_check_prefill(inp, blk, tk, ib, lb):
+    o_kernel, topk_kernel = minimax_m3_sparse_attention_prefill(
+        inp["q"],
+        inp["k_cache"],
+        inp["v_cache"],
+        inp["index_q"],
+        inp["index_k_cache"],
+        inp["req_to_token"],
+        inp["cu_seqlens"],
+        inp["prefix_lens"],
+        inp["slot_ids"],
+        blk,
+        tk,
+        init_blocks=ib,
+        local_blocks=lb,
+    )
+    q_seq_lens, q_slot_ids = _prefill_query_metadata(
+        inp["cu_seqlens"], inp["prefix_lens"], inp["slot_ids"], inp["total_q"]
+    )
+    topk_ref = ref_index_topk_decode(
+        inp["index_q"],
+        inp["index_k_cache"],
+        inp["req_to_token"],
+        q_seq_lens,
+        q_slot_ids,
+        blk,
+        tk,
+        ib,
+        lb,
+    )
+    _assert_topk_sets_match(topk_kernel, topk_ref, q_seq_lens, blk, tk)
+    o_ref = ref_sparse_gqa_decode(
+        inp["q"],
+        inp["k_cache"],
+        inp["v_cache"],
+        inp["req_to_token"],
+        q_seq_lens,
+        q_slot_ids,
+        blk,
+        topk_kernel,
+    ).to(o_kernel.dtype)
+    # Short-context prefill queries (small causal p) attend to only a few tokens,
+    # so the bf16 output carries ~1-2 ULP (~1.5e-2 at magnitude ~1) of rounding
+    # between the kernel's online softmax and the reference's batch softmax. Use a
+    # bf16-appropriate tolerance; block selection is validated exactly by the
+    # topk-set match above and correctness is cross-checked against dense causal
+    # attention in test_prefill_dense_causal_equiv.
+    max_diff = (o_kernel.float() - o_ref.float()).abs().max().item()
+    assert torch.allclose(o_kernel.float(), o_ref.float(), rtol=1e-2, atol=2e-2), (
+        f"prefill max abs diff {max_diff:.4e}"
+    )
+    return o_kernel, topk_kernel, q_seq_lens, q_slot_ids
+
+
+@pytest.mark.parametrize(
+    "extend_list,prefix_list",
+    [
+        ([200], [0]),  # single-request pure prefill
+        ([120, 200, 80], [0, 0, 0]),  # varlen pure prefill
+        ([64, 96], [500, 1000]),  # chunked prefill / cache reuse (prefix > 0)
+    ],
+)
+def test_sparse_attention_prefill(extend_list, prefix_list):
+    """Per-token causal MSA prefill matches the per-query reference."""
+    inp = build_prefill_inputs(extend_list, prefix_list, 8, 4, 4, 128, 128)
+    _run_and_check_prefill(inp, 128, 16, 0, 1)
+
+
+def test_prefill_dense_causal_equiv():
+    """Short prefill (all blocks selected) must equal standard causal attention."""
+    inp = build_prefill_inputs([200], [0], 8, 4, 4, 128, 128)
+    o_kernel, _, q_seq_lens, q_slot_ids = _run_and_check_prefill(inp, 128, 16, 0, 1)
+    o_dense = ref_dense_causal_attention(
+        inp["q"],
+        inp["k_cache"],
+        inp["v_cache"],
+        inp["req_to_token"],
+        q_seq_lens,
+        q_slot_ids,
+    ).to(o_kernel.dtype)
+    # bf16 short-context tolerance (see _run_and_check_prefill).
+    max_diff = (o_kernel.float() - o_dense.float()).abs().max().item()
+    assert torch.allclose(o_kernel.float(), o_dense.float(), rtol=1e-2, atol=2e-2), (
+        f"prefill vs dense-causal max abs diff {max_diff:.4e}"
+    )
+
+
+def test_prefill_long_pruned_block_drop():
+    """Prefill queries with a long causal prefix must drop eligible blocks."""
+    blk, tk, ib, lb = 128, 16, 0, 1
+    prefix = 4000
+    extend = 8
+    inp = build_prefill_inputs([extend], [prefix], 8, 4, 4, 128, 128)
+    o_kernel, topk_kernel, q_seq_lens, _ = _run_and_check_prefill(inp, blk, tk, ib, lb)
+    # Each query at abs pos p>=4000 has >16 causal blocks, so blocks must drop.
+    nkh = inp["k_cache"].shape[1]
+    for i in range(inp["total_q"]):
+        num_blocks = (int(q_seq_lens[i].item()) + blk - 1) // blk
+        assert num_blocks > tk, "test must exercise the block-drop regime"
+        for h in range(nkh):
+            selected = set(topk_kernel[h, i].tolist()) - {-1}
+            assert len(selected) == tk
+            dropped = set(range(num_blocks)) - selected
+            eligible = dropped - {num_blocks - 1} - set(range(ib))
+            assert eligible, f"no eligible block dropped q={i} h={h}"
+            assert (num_blocks - 1) in selected, "local block dropped"
+
+
+@pytest.mark.parametrize("prefix", [1024, 3000])
+def test_m3_config_prefill(prefix):
+    """Checkpoint-scale prefill dims (64 q / 4 kv / 4 index), small token count."""
+    inp = build_prefill_inputs([4], [prefix], 64, 4, 4, 128, 128)
+    o_kernel, _, _, _ = _run_and_check_prefill(inp, 128, 16, 0, 1)
+    assert o_kernel.shape == (inp["total_q"], 64, 128)
+    assert not torch.isnan(o_kernel).any()
 
 
 if __name__ == "__main__":
