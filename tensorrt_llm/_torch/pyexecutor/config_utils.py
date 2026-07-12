@@ -432,6 +432,84 @@ class _Qwen35ConfigCompat:
         return text_config
 
 
+class _MiniMaxM3ConfigCompat:
+    """Normalize a MiniMax-M3 multimodal HF config into a flat text config.
+
+    The released MiniMax-M3 checkpoint is multimodal: its top-level config has
+    ``model_type == "minimax_m3_vl"`` and
+    ``architectures == ["MiniMaxM3SparseForConditionalGeneration"]``, ships a
+    ``trust_remote_code`` config class (``MiniMaxM3VLConfig``) via ``auto_map``,
+    and nests the language-model fields under ``text_config``.
+
+    For text-only bring-up the PyTorch backend consumes only the text tower
+    (``MiniMaxM3SparseForCausalLM``). This shim extracts ``text_config``,
+    inherits the top-level dtype/quantization fields the text model needs, and
+    forces the text architecture so the *unmodified* checkpoint routes to the
+    registered text model without editing ``config.json`` or trusting remote
+    code. Vision-only fields (``vision_config``, image/video token ids, image
+    grid pinpoints, ...) are intentionally left behind.
+
+    The nested sparse-attention (``sparse_attention_config``) and MoE
+    (``moe_layer_freq``) schedules are carried through verbatim so the text
+    model sees the same dense-vs-sparse and dense-vs-MoE layer layout as the
+    reference implementation.
+    """
+
+    _VLM_ARCHITECTURES = {
+        "MiniMaxM3SparseForConditionalGeneration",
+    }
+    _TEXT_ARCHITECTURE = "MiniMaxM3SparseForCausalLM"
+
+    @staticmethod
+    def normalize(config_dict: dict) -> dict:
+        """Entry point: raw config.json dict -> flat text-config dict."""
+        text_config = _MiniMaxM3ConfigCompat._extract_text_config(config_dict)
+        text_config = _MiniMaxM3ConfigCompat._inherit_top_level_fields(
+            config_dict, text_config)
+        # Route to the text causal LM regardless of the checkpoint's top-level
+        # (multimodal) architecture.
+        text_config["architectures"] = [
+            _MiniMaxM3ConfigCompat._TEXT_ARCHITECTURE
+        ]
+        return text_config
+
+    @staticmethod
+    def _extract_text_config(config_dict: dict) -> dict:
+        """Pull nested text_config from the VLM checkpoint, or use dict as-is."""
+        architectures = config_dict.get("architectures") or []
+        model_type = config_dict.get("model_type")
+        is_vlm = (model_type == "minimax_m3_vl"
+                  or (architectures and architectures[0]
+                      in _MiniMaxM3ConfigCompat._VLM_ARCHITECTURES))
+        if is_vlm:
+            text_config = dict(config_dict.get("text_config") or {})
+        else:
+            # Already a text-only config (e.g. a pre-extracted text checkpoint).
+            text_config = dict(config_dict)
+        if not text_config:
+            raise ValueError(
+                "MiniMax-M3 config is missing a usable text_config")
+        return text_config
+
+    @staticmethod
+    def _inherit_top_level_fields(config_dict: dict, text_config: dict) -> dict:
+        """Copy top-level fields the text model needs into text_config.
+
+        ``torch_dtype`` (and ``transformers_version``) live only at the top
+        level of the multimodal checkpoint; the text model needs the dtype to
+        size its weights and KV cache. A top-level ``quantization_config`` is
+        inherited only when the text config does not already carry its own.
+        """
+        for key in ("torch_dtype", "transformers_version"):
+            if key not in text_config and key in config_dict:
+                text_config[key] = config_dict[key]
+        if ("quantization_config" not in text_config
+                and "quantization_config" in config_dict):
+            text_config["quantization_config"] = dict(
+                config_dict["quantization_config"])
+        return text_config
+
+
 # TODO: remove this once the transformers can support all of those models in _CONFIG_REGISTRY
 class LazyConfigDict(dict):
 
@@ -479,6 +557,18 @@ def load_pretrained_config(model_name_or_path: str,
             model_config = _Qwen35MoeVLMConfig.from_dict(normalized)
         else:
             model_config = transformers.Qwen3NextConfig.from_dict(normalized)
+    elif model_type == "minimax_m3_vl" or (
+            architectures and architectures[0] in (
+                "MiniMaxM3SparseForConditionalGeneration",
+                "MiniMaxM3SparseForCausalLM",
+            )):
+        # MiniMax-M3 ships a multimodal checkpoint with a trust_remote_code
+        # config class. For text-only bring-up, extract the text tower into a
+        # plain PretrainedConfig (there is no MiniMaxM3 config class in the
+        # pinned transformers) so the unmodified checkpoint routes to the
+        # registered MiniMaxM3SparseForCausalLM without trust_remote_code.
+        normalized = _MiniMaxM3ConfigCompat.normalize(config_dict)
+        model_config = transformers.PretrainedConfig.from_dict(normalized)
     elif (model_type == "exaone4" and config_dict.get("sliding_window") is None
           and config_dict.get("layer_types") is None):
         # transformers 5.5.x Exaone4Config.__post_init__ first forces
