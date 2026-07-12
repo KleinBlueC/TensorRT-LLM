@@ -35,11 +35,17 @@ pytestmark = pytest.mark.skipif(
 
 import tensorrt_llm.bindings  # noqa: E402
 from tensorrt_llm._torch.attention_backend.sparse.minimax_m3 import (  # noqa: E402
-    MiniMaxM3CacheManager, MiniMaxM3Params, flatten_slot_ids,
-    minimax_m3_build_req_to_token, minimax_m3_paged_decode,
-    minimax_m3_paged_prefill)
+    MiniMaxM3CacheManager,
+    MiniMaxM3Params,
+    flatten_slot_ids,
+    minimax_m3_build_req_to_token,
+    minimax_m3_paged_decode,
+    minimax_m3_paged_prefill,
+)
 from tensorrt_llm._torch.attention_backend.sparse.minimax_m3_kernels import (  # noqa: E402
-    minimax_m3_sparse_attention_decode, minimax_m3_sparse_attention_prefill)
+    minimax_m3_sparse_attention_decode,
+    minimax_m3_sparse_attention_prefill,
+)
 from tensorrt_llm.llmapi.llm_args import KvCacheConfig  # noqa: E402
 from tensorrt_llm.mapping import Mapping  # noqa: E402
 
