@@ -179,12 +179,12 @@ def _select_topk_blocks(
     return sel_idx.contiguous()
 
 
-def minimax_m3_index_topk_decode(
-    index_q: torch.Tensor,  # [batch, num_index_heads, index_dim]
+def minimax_m3_index_topk(
+    index_q: torch.Tensor,  # [num_queries, num_index_heads, index_dim]
     index_k_cache: torch.Tensor,  # [max_slots, 1, index_dim]
     req_to_token: torch.Tensor,  # [max_reqs, max_kv_len]
-    seq_lens: torch.Tensor,  # [batch]
-    slot_ids: torch.Tensor,  # [batch]
+    seq_lens: torch.Tensor,  # [num_queries] per-query causal K length
+    slot_ids: torch.Tensor,  # [num_queries] req_to_token row per query
     block_size: int,
     topk: int,
     init_blocks: int = 0,
@@ -192,13 +192,19 @@ def minimax_m3_index_topk_decode(
     idx_sm_scale: Optional[float] = None,
     max_num_blocks: Optional[int] = None,
 ) -> torch.Tensor:
-    """MiniMax-M3 index branch (decode): select top-k KV blocks per query.
+    """MiniMax-M3 index branch: select top-k KV blocks per query.
+
+    Per-query: ``seq_lens[i]`` is the causal K length seen by query ``i`` and
+    ``slot_ids[i]`` its ``req_to_token`` row. Decode passes one query per request
+    (``seq_lens`` = full sequence length); prefill passes one query per token with
+    ``seq_lens[i] = abs_pos(i) + 1`` (its causal prefix), so the same per-query
+    kernel serves both regimes (MiniMax-M3 uses ``block_size_q == 1``).
 
     ``max_num_blocks`` may be supplied (``ceil(max_seqlen / block_size)``) to keep
     the launch grid independent of a device->host sync, which CUDA-graph capture
     requires; otherwise it is derived from ``seq_lens.max()``.
     """
-    batch, num_index_heads, index_dim = index_q.shape
+    num_queries, num_index_heads, index_dim = index_q.shape
     max_slots = index_k_cache.shape[0]
     max_kv_len = req_to_token.shape[1]
     if idx_sm_scale is None:
@@ -210,9 +216,9 @@ def minimax_m3_index_topk_decode(
 
     index_k = index_k_cache.reshape(max_slots, index_dim)  # squeeze head 0
     block_scores = torch.empty(
-        num_index_heads, batch, max_num_blocks, dtype=torch.float32, device=index_q.device
+        num_index_heads, num_queries, max_num_blocks, dtype=torch.float32, device=index_q.device
     )
-    grid = (batch, num_index_heads, max_num_blocks)
+    grid = (num_queries, num_index_heads, max_num_blocks)
     _index_block_score_decode_kernel[grid](
         index_q,
         index_k,
@@ -366,7 +372,7 @@ def _sparse_gqa_decode_kernel(
     )
 
 
-def minimax_m3_sparse_gqa_decode(
+def minimax_m3_sparse_gqa(
     q: torch.Tensor,  # [batch, num_q_heads, head_dim]
     k_cache: torch.Tensor,  # [max_slots, num_kv_heads, head_dim]
     v_cache: torch.Tensor,  # [max_slots, num_kv_heads, head_dim]
@@ -460,7 +466,7 @@ def minimax_m3_sparse_attention_decode(
         f"MiniMax-M3 decode expects num_index_heads == num_kv_heads, got "
         f"{num_index_heads} != {num_kv_heads}"
     )
-    topk_idx = minimax_m3_index_topk_decode(
+    topk_idx = minimax_m3_index_topk(
         index_q,
         index_k_cache,
         req_to_token,
@@ -473,13 +479,95 @@ def minimax_m3_sparse_attention_decode(
         idx_sm_scale=idx_sm_scale,
         max_num_blocks=max_num_blocks,
     )
-    o = minimax_m3_sparse_gqa_decode(
+    o = minimax_m3_sparse_gqa(
         q,
         k_cache,
         v_cache,
         req_to_token,
         seq_lens,
         slot_ids,
+        block_size,
+        topk_idx,
+        sm_scale=sm_scale,
+    )
+    return o, topk_idx
+
+
+def minimax_m3_sparse_attention_prefill(
+    q: torch.Tensor,  # [total_q, num_q_heads, head_dim]
+    k_cache: torch.Tensor,  # [max_slots, num_kv_heads, head_dim]
+    v_cache: torch.Tensor,  # [max_slots, num_kv_heads, head_dim]
+    index_q: torch.Tensor,  # [total_q, num_index_heads, index_dim]
+    index_k_cache: torch.Tensor,  # [max_slots, 1, index_dim]
+    req_to_token: torch.Tensor,  # [max_reqs, max_kv_len]
+    cu_seqlens: torch.Tensor,  # [batch + 1] extend-token cumulative counts
+    prefix_lens: torch.Tensor,  # [batch] cached prefix length per request
+    slot_ids: torch.Tensor,  # [batch] req_to_token row per request
+    block_size: int,
+    topk: int,
+    init_blocks: int = 0,
+    local_blocks: int = 1,
+    sm_scale: Optional[float] = None,
+    idx_sm_scale: Optional[float] = None,
+    max_num_blocks: Optional[int] = None,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Full MiniMax-M3 sparse-attention prefill (per-token causal MSA).
+
+    MiniMax-M3 uses ``block_size_q == 1``, so each of the ``total_q`` extend
+    tokens runs its own causal MSA: the query at absolute position ``p`` attends
+    to K positions ``[0, p + 1)``. That is exactly the per-query kernel with a
+    per-query causal ``seq_lens = p + 1`` -- the position mask ``pos < seq_len``
+    handles both block-level causality (blocks past ``p // block_size`` fall
+    outside the query's block count) and intra-block causality (positions ``> p``
+    are masked). This wrapper only lowers the varlen
+    (``cu_seqlens``/``prefix_lens``/``slot_ids``) layout into that per-query
+    metadata; no separate prefill kernel is needed.
+
+    Returns ``(o, topk_idx)`` with ``o`` = ``[total_q, num_q_heads, head_dim]`` and
+    ``topk_idx`` = ``[num_kv_heads, total_q, topk]``.
+    """
+    num_kv_heads = k_cache.shape[1]
+    num_index_heads = index_q.shape[1]
+    assert num_index_heads == num_kv_heads, (
+        f"MiniMax-M3 prefill expects num_index_heads == num_kv_heads, got "
+        f"{num_index_heads} != {num_kv_heads}"
+    )
+    device = q.device
+    total_q = q.shape[0]
+    batch = cu_seqlens.shape[0] - 1
+    # Lower varlen -> per-query causal metadata: for query token i in request b at
+    # local offset l, the absolute position is prefix_lens[b] + l and the causal K
+    # length is that + 1.
+    extend_lens = (cu_seqlens[1:] - cu_seqlens[:-1]).to(torch.int64)  # [batch]
+    req_id = torch.repeat_interleave(
+        torch.arange(batch, device=device, dtype=torch.int64), extend_lens
+    )  # [total_q]
+    starts = cu_seqlens[:-1].to(torch.int64)  # [batch]
+    local_idx = torch.arange(total_q, device=device, dtype=torch.int64) - starts[req_id]
+    q_abs_pos = prefix_lens.to(torch.int64)[req_id] + local_idx
+    q_seq_lens = (q_abs_pos + 1).to(torch.int32)  # per-query causal K range
+    q_slot_ids = slot_ids.to(torch.int64)[req_id]  # [total_q]
+
+    topk_idx = minimax_m3_index_topk(
+        index_q,
+        index_k_cache,
+        req_to_token,
+        q_seq_lens,
+        q_slot_ids,
+        block_size,
+        topk,
+        init_blocks=init_blocks,
+        local_blocks=local_blocks,
+        idx_sm_scale=idx_sm_scale,
+        max_num_blocks=max_num_blocks,
+    )
+    o = minimax_m3_sparse_gqa(
+        q,
+        k_cache,
+        v_cache,
+        req_to_token,
+        q_seq_lens,
+        q_slot_ids,
         block_size,
         topk_idx,
         sm_scale=sm_scale,
