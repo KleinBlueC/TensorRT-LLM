@@ -28,6 +28,7 @@ from .modeling_laguna import LagunaForCausalLM
 from .modeling_llama import LlamaForCausalLM
 from .modeling_llava_next import LlavaNextModel
 from .modeling_minimaxm2 import MiniMaxM2ForCausalLM
+from .modeling_minimaxm3 import MiniMaxM3SparseForCausalLM
 from .modeling_mistral import Mistral3VLM, MistralForCausalLM
 from .modeling_mixtral import MixtralForCausalLM
 from .modeling_nemotron import NemotronForCausalLM
@@ -107,6 +108,7 @@ __all__ = [
     "Glm4MoeForCausalLM",
     "Qwen3VLModel",
     "MiniMaxM2ForCausalLM",
+    "MiniMaxM3SparseForCausalLM",
     "Cohere2ForCausalLM",
     "Step3p7ForCausalLM",
     "Step3p7VLForConditionalGeneration",

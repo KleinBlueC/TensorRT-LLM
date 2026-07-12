@@ -19,6 +19,7 @@ import os
 import tempfile
 import unittest
 
+import torch
 from utils.llm_data import llm_models_root
 
 from tensorrt_llm._torch.pyexecutor.config_utils import (
@@ -219,6 +220,254 @@ class TestMiniMaxM3Config(unittest.TestCase):
         self._assert_schedules(
             cfg.sparse_attention_config, cfg.moe_layer_freq, num_layers=60, num_dense=3
         )
+
+
+def _reduced_model_config(num_layers: int = 5, num_dense: int = 3, num_experts: int = 8):
+    """A small MiniMax-M3 ModelConfig that constructs cheaply but keeps the
+    real hybrid structure (leading dense layers, trailing sparse+MoE layers)."""
+    from transformers import PretrainedConfig
+
+    from tensorrt_llm._torch.model_config import ModelConfig
+
+    text = _make_text_config(num_layers=num_layers, num_dense=num_dense)
+    # Shrink the expensive axes; keep head/index geometry real so the attention
+    # and index-branch wiring is exercised as shipped.
+    text["num_local_experts"] = num_experts
+    text["vocab_size"] = 1024
+    text["torch_dtype"] = "bfloat16"
+    cfg = PretrainedConfig.from_dict(text)
+    return ModelConfig(pretrained_config=cfg)
+
+
+class TestMiniMaxM3Registry(unittest.TestCase):
+    """Registry + AutoModel construction for the MiniMax-M3 text tower."""
+
+    def test_minimax_m3_registry_maps_architecture(self):
+        """The text architecture string resolves to the registered class and is
+        not shadowed by the legacy TRT model map."""
+        from tensorrt_llm._torch.models.modeling_minimaxm3 import MiniMaxM3SparseForCausalLM
+        from tensorrt_llm._torch.models.modeling_utils import MODEL_CLASS_MAPPING
+
+        self.assertIn("MiniMaxM3SparseForCausalLM", MODEL_CLASS_MAPPING)
+        self.assertIs(MODEL_CLASS_MAPPING["MiniMaxM3SparseForCausalLM"], MiniMaxM3SparseForCausalLM)
+
+        from tensorrt_llm.models import MODEL_MAP
+
+        self.assertNotIn("MiniMaxM3SparseForCausalLM", MODEL_MAP)
+
+    @unittest.skipUnless(
+        torch.cuda.is_available(), "constructing the MiniMax-M3 model requires CUDA"
+    )
+    def test_minimax_m3_registry_constructs_text_model(self):
+        """AutoModelForCausalLM resolves and constructs the registered text
+        model, with the expected per-layer dense/sparse/MoE wiring."""
+        from tensorrt_llm._torch.models.modeling_auto import AutoModelForCausalLM
+        from tensorrt_llm._torch.models.modeling_minimaxm3 import (
+            MiniMaxM3MoE,
+            MiniMaxM3SparseForCausalLM,
+        )
+        from tensorrt_llm._torch.modules.gated_mlp import GatedMLP
+
+        num_dense = 3
+        model_config = _reduced_model_config(num_layers=5, num_dense=num_dense)
+        model = AutoModelForCausalLM.from_config(model_config)
+        self.assertIsInstance(model, MiniMaxM3SparseForCausalLM)
+
+        layers = model.model.layers
+        # Leading dense layers: dense attention + dense gated MLP, no index branch.
+        for i in range(num_dense):
+            attn = layers[i].self_attn
+            self.assertFalse(attn.is_sparse_attention_layer, f"layer {i} attention should be dense")
+            self.assertFalse(
+                hasattr(attn, "index_q_proj"), f"layer {i} should have no index branch"
+            )
+            self.assertIsInstance(layers[i].mlp, GatedMLP, f"layer {i} MLP should be dense")
+        # Trailing layers: sparse attention (index branch) + MoE.
+        for i in range(num_dense, len(layers)):
+            attn = layers[i].self_attn
+            self.assertTrue(attn.is_sparse_attention_layer, f"layer {i} attention should be sparse")
+            self.assertTrue(hasattr(attn, "index_q_proj"), f"layer {i} should have an index branch")
+            self.assertTrue(hasattr(attn, "index_k_proj"))
+            self.assertTrue(hasattr(attn, "index_q_norm"))
+            self.assertTrue(hasattr(attn, "index_k_norm"))
+            # Released checkpoint disables the index value/output branch.
+            self.assertTrue(attn.disable_index_value)
+            self.assertFalse(hasattr(attn, "index_v_proj"))
+            self.assertFalse(hasattr(attn, "index_o_proj"))
+            self.assertIsInstance(layers[i].mlp, MiniMaxM3MoE, f"layer {i} MLP should be MoE")
+            self.assertEqual(layers[i].mlp.top_k, 4)
+            self.assertAlmostEqual(layers[i].mlp.routed_scaling_factor, 2.0)
+
+        # Per-head Gemma QK norm on head_dim.
+        attn = layers[num_dense].self_attn
+        self.assertTrue(attn.q_norm.use_gemma)
+        self.assertTrue(attn.k_norm.use_gemma)
+        self.assertEqual(attn.q_norm.weight.shape[0], attn.head_dim)
+        self.assertTrue(attn.index_q_norm.use_gemma)
+
+
+class TestMiniMaxM3Norm(unittest.TestCase):
+    """Norm + partial-RoPE semantics used by MiniMax-M3 attention (CPU)."""
+
+    def test_gemma_per_head_rms_norm_matches_reference(self):
+        """The per-head Gemma RMSNorm the model uses matches (1 + w) * rms(x)."""
+        from tensorrt_llm._torch.modules.rms_norm import RMSNorm
+
+        head_dim = 128
+        norm = RMSNorm(hidden_size=head_dim, eps=1e-6, dtype=torch.float32, use_gemma=True)
+        with torch.no_grad():
+            norm.weight.copy_(torch.randn(head_dim) * 0.1)
+            x = torch.randn(7, head_dim, dtype=torch.float32)
+            out = norm(x)
+            ref_rms = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + norm.variance_epsilon)
+            ref = (norm.weight + 1.0) * ref_rms
+        torch.testing.assert_close(out, ref, rtol=1e-4, atol=1e-4)
+
+    def test_partial_rope_dim_from_config(self):
+        """RoPE is partial: only rotary_dim (64) of each 128-dim head rotates."""
+        from transformers import PretrainedConfig
+
+        from tensorrt_llm._torch.attention_backend.interface import RopeParams
+
+        cfg = PretrainedConfig.from_dict(_make_text_config())
+        rope = RopeParams.from_config(cfg)
+        self.assertEqual(rope.dim, 64)
+        self.assertNotEqual(rope.dim, cfg.head_dim)
+
+
+class TestMiniMaxM3WeightAccounting(unittest.TestCase):
+    """Static text weight accounting over the unmodified checkpoint index.
+
+    Classifies every safetensors key into the exact set of text modules this
+    bring-up builds, the explicitly-excluded non-text (vision/projector) keys,
+    and anything unaccounted (a failure). This proves dense-vs-sparse and
+    dense-vs-MoE layer ids, the K-only index branch (disable-index-value), and
+    that no text weight is silently dropped -- without loading 800 GB of tensors.
+    """
+
+    _NON_TEXT_PREFIXES = ("vision_tower.", "multi_modal_projector.", "patch_merge_mlp.")
+
+    def _expected_text_keys(self, num_layers, moe_freq, sparse_freq, num_experts):
+        keys = set()
+        keys.add("model.embed_tokens.weight")
+        keys.add("model.norm.weight")
+        keys.add("lm_head.weight")
+        for layer in range(num_layers):
+            p = f"model.layers.{layer}"
+            for proj in ("q_proj", "k_proj", "v_proj", "o_proj"):
+                keys.add(f"{p}.self_attn.{proj}.weight")
+            keys.add(f"{p}.self_attn.q_norm.weight")
+            keys.add(f"{p}.self_attn.k_norm.weight")
+            keys.add(f"{p}.input_layernorm.weight")
+            keys.add(f"{p}.post_attention_layernorm.weight")
+            if sparse_freq[layer]:
+                for proj in ("index_q_proj", "index_k_proj"):
+                    keys.add(f"{p}.self_attn.{proj}.weight")
+                keys.add(f"{p}.self_attn.index_q_norm.weight")
+                keys.add(f"{p}.self_attn.index_k_norm.weight")
+            if moe_freq[layer]:
+                m = f"{p}.block_sparse_moe"
+                keys.add(f"{m}.gate.weight")
+                keys.add(f"{m}.e_score_correction_bias")
+                for e in range(num_experts):
+                    for w in ("w1", "w2", "w3"):
+                        keys.add(f"{m}.experts.{e}.{w}.weight")
+                for proj in ("gate_proj", "up_proj", "down_proj"):
+                    keys.add(f"{m}.shared_experts.{proj}.weight")
+            else:
+                for proj in ("gate_proj", "up_proj", "down_proj"):
+                    keys.add(f"{p}.mlp.{proj}.weight")
+        return keys
+
+    def test_checkpoint_text_weights_fully_accounted(self):
+        root = llm_models_root()
+        if root is None:
+            self.skipTest("llm_models_root() is unavailable in this environment")
+        ckpt = os.path.join(str(root), "MiniMax-M3")
+        self.assertTrue(os.path.isdir(ckpt), f"MiniMax-M3 checkpoint not found at {ckpt}")
+
+        with open(os.path.join(ckpt, "config.json")) as f:
+            raw = json.load(f)
+        text = raw["text_config"]
+        num_layers = text["num_hidden_layers"]
+        moe_freq = text["moe_layer_freq"]
+        sparse_freq = text["sparse_attention_config"]["sparse_attention_freq"]
+        num_experts = text["num_local_experts"]
+
+        index_path = os.path.join(ckpt, "model.safetensors.index.json")
+        with open(index_path) as f:
+            all_keys = list(json.load(f)["weight_map"].keys())
+        # Sanity: the index enumerates the checkpoint (fail loudly if empty).
+        self.assertGreater(len(all_keys), 0)
+
+        prefix = "language_model."
+        expected_text = self._expected_text_keys(num_layers, moe_freq, sparse_freq, num_experts)
+
+        seen_text = set()
+        ignored_non_text = set()
+        unaccounted = []
+        for key in all_keys:
+            if key.startswith(prefix):
+                stripped = key[len(prefix) :]
+                if stripped in expected_text:
+                    seen_text.add(stripped)
+                else:
+                    unaccounted.append(key)
+            elif key.startswith(self._NON_TEXT_PREFIXES):
+                ignored_non_text.add(key)
+            else:
+                unaccounted.append(key)
+
+        self.assertEqual(unaccounted, [], f"Unaccounted-for checkpoint keys: {unaccounted[:10]}")
+        # Every expected text weight is present -- nothing silently missing.
+        missing = expected_text - seen_text
+        self.assertEqual(
+            missing, set(), f"Expected text weights missing from checkpoint: {sorted(missing)[:10]}"
+        )
+        # Non-text weights exist and were excluded on purpose.
+        self.assertGreater(len(ignored_non_text), 0)
+
+        # Disable-index-value: the K-only index branch has no value/output proj.
+        for key in all_keys:
+            self.assertNotIn("index_v_proj", key)
+            self.assertNotIn("index_o_proj", key)
+
+    def test_checkpoint_dense_and_sparse_layer_ids(self):
+        """Layers 0-2 are dense (no index/MoE keys); 3-59 are sparse+MoE."""
+        root = llm_models_root()
+        if root is None:
+            self.skipTest("llm_models_root() is unavailable in this environment")
+        ckpt = os.path.join(str(root), "MiniMax-M3")
+        self.assertTrue(os.path.isdir(ckpt), f"MiniMax-M3 checkpoint not found at {ckpt}")
+        with open(os.path.join(ckpt, "model.safetensors.index.json")) as f:
+            all_keys = list(json.load(f)["weight_map"].keys())
+
+        def layer_has(layer, needle):
+            token = f"model.layers.{layer}."
+            return any(token in k and needle in k for k in all_keys)
+
+        # Dense leading layers.
+        for layer in range(3):
+            self.assertTrue(
+                layer_has(layer, ".mlp.gate_proj"), f"layer {layer} should have a dense MLP"
+            )
+            self.assertFalse(
+                layer_has(layer, ".block_sparse_moe."), f"layer {layer} should have no MoE"
+            )
+            self.assertFalse(
+                layer_has(layer, ".index_q_proj"), f"layer {layer} should have no index branch"
+            )
+        # Sparse + MoE trailing layers.
+        for layer in (3, 4, 59):
+            self.assertTrue(
+                layer_has(layer, ".block_sparse_moe.gate"), f"layer {layer} should have MoE"
+            )
+            self.assertTrue(
+                layer_has(layer, ".index_q_proj"), f"layer {layer} should have an index branch"
+            )
+            self.assertFalse(
+                layer_has(layer, ".mlp.gate_proj"), f"layer {layer} should have no dense MLP"
+            )
 
 
 if __name__ == "__main__":
