@@ -1,0 +1,1562 @@
+sh: 1: ls: not found
+Collecting virtualenv<22.0,>=20.29.1
+  Using cached virtualenv-21.6.1-py3-none-any.whl.metadata (3.4 kB)
+Collecting distlib<1,>=0.3.7 (from virtualenv<22.0,>=20.29.1)
+  Using cached distlib-0.4.3-py2.py3-none-any.whl.metadata (5.3 kB)
+Requirement already satisfied: filelock<4,>=3.24.2 in /usr/local/lib/python3.12/dist-packages (from virtualenv<22.0,>=20.29.1) (3.24.2)
+Requirement already satisfied: platformdirs<5,>=3.9.1 in /usr/local/lib/python3.12/dist-packages (from virtualenv<22.0,>=20.29.1) (4.9.2)
+Collecting python-discovery>=1.4.2 (from virtualenv<22.0,>=20.29.1)
+  Using cached python_discovery-1.4.4-py3-none-any.whl.metadata (5.6 kB)
+Using cached virtualenv-21.6.1-py3-none-any.whl (5.5 MB)
+Using cached distlib-0.4.3-py2.py3-none-any.whl (470 kB)
+Using cached python_discovery-1.4.4-py3-none-any.whl (34 kB)
+Installing collected packages: distlib, python-discovery, virtualenv
+
+Successfully installed distlib-0.4.3 python-discovery-1.4.4 virtualenv-21.6.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cu130
+Requirement already satisfied: accelerate>=1.7.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 3)) (1.14.0)
+Requirement already satisfied: build in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 4)) (1.4.0)
+Requirement already satisfied: colored in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 5)) (2.3.2)
+Requirement already satisfied: cuda-python>=13 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 6)) (13.1.1)
+Requirement already satisfied: diffusers>=0.37.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 7)) (0.39.0)
+Requirement already satisfied: ftfy in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 8)) (6.3.1)
+Requirement already satisfied: lark in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 9)) (1.3.1)
+Requirement already satisfied: mpi4py in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 10)) (3.1.5)
+Requirement already satisfied: numpy<2.4,>=2.0.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 11)) (2.3.5)
+Requirement already satisfied: onnx>=1.21.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 12)) (1.22.0)
+Requirement already satisfied: onnx_graphsurgeon>=0.5.2 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 13)) (0.6.1)
+Requirement already satisfied: graphviz in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 14)) (0.21)
+Requirement already satisfied: openai in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 15)) (2.45.0)
+Requirement already satisfied: polygraphy in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 16)) (0.49.26)
+Requirement already satisfied: psutil in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 17)) (7.0.0)
+Requirement already satisfied: nvidia-ml-py>=13 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 18)) (13.590.48)
+Requirement already satisfied: pulp in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 19)) (3.3.0)
+Requirement already satisfied: pandas in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 20)) (2.3.3)
+Requirement already satisfied: h5py==3.12.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 21)) (3.12.1)
+Requirement already satisfied: StrEnum in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 22)) (0.4.15)
+Requirement already satisfied: sentencepiece>=0.1.99 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 23)) (0.2.1)
+Requirement already satisfied: tensorrt~=10.15.1 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 24)) (10.15.1.29)
+Requirement already satisfied: torch<=2.11.0a0,>=2.10.0 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 26)) (2.11.0a0+eb65b36914.nv26.2)
+Requirement already satisfied: torchvision in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 27)) (0.25.0a0+1e53952f.nv26.2.44259020)
+Requirement already satisfied: nvidia-modelopt~=0.37.0 in ./.venv-3.12/lib/python3.12/site-packages (from nvidia-modelopt[torch]~=0.37.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 28)) (0.37.0)
+Requirement already satisfied: nvidia-nccl-cu13<=2.29.2,>=2.28.9 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 31)) (2.29.2)
+Requirement already satisfied: nvidia-cuda-nvrtc in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 32)) (13.3.33)
+Requirement already satisfied: transformers==5.5.4 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (5.5.4)
+Requirement already satisfied: prometheus_client in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 34)) (0.23.1)
+Requirement already satisfied: prometheus_fastapi_instrumentator in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 35)) (7.1.0)
+Requirement already satisfied: pydantic>=2.9.1 in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 36)) (2.13.4)
+Requirement already satisfied: omegaconf in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 38)) (2.3.1)
+Requirement already satisfied: pillow in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 39)) (12.1.1)
+Requirement already satisfied: optimum in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 40)) (2.2.0)
+Requirement already satisfied: datasets==3.1.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (3.1.0)
+Requirement already satisfied: evaluate in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 43)) (0.4.6)
+Requirement already satisfied: mpmath>=1.3.0 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 44)) (1.3.0)
+Requirement already satisfied: click<8.4,>=8.3.1 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 45)) (8.3.1)
+Requirement already satisfied: click_option_group in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 46)) (0.5.9)
+Requirement already satisfied: aenum in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 47)) (3.1.17)
+Requirement already satisfied: pyzmq in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 48)) (26.4.0)
+Requirement already satisfied: fastapi<=0.121.3,>=0.120.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 49)) (0.121.3)
+Requirement already satisfied: starlette>=0.49.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 50)) (0.50.0)
+Requirement already satisfied: uvicorn in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 51)) (0.51.0)
+Requirement already satisfied: setuptools<80 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 52)) (79.0.1)
+Requirement already satisfied: ordered-set in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 53)) (4.1.0)
+Requirement already satisfied: peft<0.19.0,>=0.18.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 54)) (0.18.1)
+Requirement already satisfied: patchelf in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 55)) (0.17.2.4)
+Requirement already satisfied: einops in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 56)) (0.8.2)
+Requirement already satisfied: flashinfer-python==0.6.12 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 57)) (0.6.12)
+Requirement already satisfied: opencv-python-headless in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 58)) (4.13.0.92)
+Requirement already satisfied: xgrammar==0.1.32 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 59)) (0.1.32)
+Requirement already satisfied: llguidance==0.7.29 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 60)) (0.7.29)
+Requirement already satisfied: jsonschema in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 61)) (4.26.0)
+Requirement already satisfied: backoff in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 62)) (2.2.1)
+Requirement already satisfied: nvtx in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 63)) (0.2.14)
+Requirement already satisfied: matplotlib in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 64)) (3.11.0)
+Requirement already satisfied: meson in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 65)) (1.11.1)
+Requirement already satisfied: ninja in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 66)) (1.13.0)
+Requirement already satisfied: blake3 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 67)) (1.0.9)
+Requirement already satisfied: soundfile in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 68)) (0.13.1)
+Requirement already satisfied: triton==3.6.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 69)) (3.6.0)
+Requirement already satisfied: xdsl>=0.59.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 70)) (0.68.0)
+Requirement already satisfied: tiktoken in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 71)) (0.13.0)
+Requirement already satisfied: blobfile in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 72)) (3.2.0)
+Requirement already satisfied: openai-harmony==0.0.4 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 73)) (0.0.4)
+Requirement already satisfied: nvidia-cutlass-dsl==4.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from nvidia-cutlass-dsl[cu13]==4.5.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 74)) (4.5.0)
+Requirement already satisfied: plotly in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 75)) (6.4.0)
+Requirement already satisfied: numexpr in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 76)) (2.14.1)
+Requirement already satisfied: partial_json_parser in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 77)) (0.2.1.1.post7)
+Requirement already satisfied: mcp in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 78)) (1.28.1)
+Requirement already satisfied: apache-tvm-ffi==0.1.6 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 79)) (0.1.6)
+Requirement already satisfied: torch-c-dlpack-ext==0.1.3 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 80)) (0.1.3)
+Requirement already satisfied: flash-attn-4==4.0.0b11 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 81)) (4.0.0b11)
+Requirement already satisfied: mistral-common>=1.10.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 82)) (1.11.5)
+Requirement already satisfied: torchao<0.16.0,>=0.14.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 83)) (0.15.0)
+Requirement already satisfied: cuda-core in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 84)) (1.1.0)
+Requirement already satisfied: llist in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 85)) (0.7.1)
+Requirement already satisfied: cuda-tile>=1.0.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 86)) (1.1.0)
+Requirement already satisfied: nvidia-cuda-tileiras<13.2,>=13.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 87)) (13.1.80)
+Requirement already satisfied: etcd-sdk-python==0.0.7 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 88)) (0.0.7)
+Requirement already satisfied: python-multipart in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 89)) (0.0.32)
+Requirement already satisfied: smg-grpc-proto>=0.4.2 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 90)) (0.4.13)
+Requirement already satisfied: cache-dit>=1.3.5 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 91)) (1.5.0)
+Requirement already satisfied: lpips in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 3)) (0.1.4)
+Requirement already satisfied: mypy==1.19.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 5)) (1.19.1)
+Requirement already satisfied: mako in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 6)) (1.3.12)
+Requirement already satisfied: oyaml in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 7)) (1.0)
+Requirement already satisfied: parameterized in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 8)) (0.9.0)
+Requirement already satisfied: pre-commit in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (4.6.0)
+Requirement already satisfied: pybind11 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 10)) (3.0.2)
+Requirement already satisfied: pybind11-stubgen in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 11)) (2.5.5)
+Requirement already satisfied: pytest<9.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 12)) (9.0.3)
+Requirement already satisfied: pytest-asyncio in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 13)) (1.4.0)
+Requirement already satisfied: pytest-cov in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 14)) (7.1.0)
+Requirement already satisfied: pytest-csv in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 15)) (3.0.0)
+Requirement already satisfied: pytest-env in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 16)) (1.6.0)
+Requirement already satisfied: pytest-forked in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 17)) (1.6.0)
+Requirement already satisfied: pytest-xdist in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 18)) (3.8.0)
+Requirement already satisfied: pytest-timeout in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 19)) (2.4.0)
+Requirement already satisfied: pytest-split in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 20)) (0.11.0)
+Requirement already satisfied: pytest-mock in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 21)) (3.15.1)
+Requirement already satisfied: pytest-threadleak in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 22)) (0.5.0)
+Requirement already satisfied: pytest-unused-fixtures in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 23)) (0.3.1)
+Requirement already satisfied: rouge_score in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 24)) (0.1.2)
+Requirement already satisfied: cloudpickle in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 25)) (3.1.2)
+Requirement already satisfied: typeguard==4.4.4 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 26)) (4.4.4)
+Requirement already satisfied: typing-extensions==4.15.0 in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 27)) (4.15.0)
+Requirement already satisfied: bandit==1.7.7 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 28)) (1.7.7)
+Requirement already satisfied: jsonlines==4.0.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 29)) (4.0.0)
+Requirement already satisfied: jieba==0.42.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 30)) (0.42.1)
+Requirement already satisfied: rouge==1.0.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 31)) (1.0.1)
+Requirement already satisfied: pytest-rerunfailures in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 32)) (16.4)
+Requirement already satisfied: ruff==0.9.4 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 33)) (0.9.4)
+Requirement already satisfied: lm_eval==0.4.10 in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (0.4.10)
+Requirement already satisfied: docstring_parser in /usr/local/lib/python3.12/dist-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 35)) (0.17.0)
+Requirement already satisfied: genai-perf==0.0.13 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (0.0.13)
+Requirement already satisfied: opentelemetry-sdk>=1.26.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 37)) (1.43.0)
+Requirement already satisfied: opentelemetry-api>=1.26.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 38)) (1.43.0)
+Requirement already satisfied: opentelemetry-exporter-otlp>=1.26.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 39)) (1.43.0)
+Requirement already satisfied: opentelemetry-semantic-conventions-ai>=0.4.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 40)) (0.5.1)
+Requirement already satisfied: fuzzywuzzy==0.18.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 41)) (0.18.0)
+Requirement already satisfied: aiperf==0.6.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.6.0)
+Requirement already satisfied: nanobind>=2.9.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 43)) (2.13.0)
+Requirement already satisfied: nixl-cu13==1.0.1 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 44)) (1.0.1)
+Requirement already satisfied: cupti-python<13.2,>=13.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 45)) (13.0.1)
+Requirement already satisfied: nvidia-cuda-cupti<13.2,>=13.0 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 46)) (13.1.115)
+Requirement already satisfied: cxxfilt in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 47)) (0.3.0)
+Requirement already satisfied: hf-transfer==0.1.9 in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 48)) (0.1.9)
+Requirement already satisfied: line_profiler in ./.venv-3.12/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 49)) (5.0.2)
+Requirement already satisfied: pydantic-settings[yaml] in /root/.local/lib/python3.12/site-packages (from -r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 37)) (2.14.2)
+Requirement already satisfied: huggingface-hub<2.0,>=1.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (1.16.1)
+Requirement already satisfied: packaging>=20.0 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (25.0)
+Requirement already satisfied: pyyaml>=5.1 in /usr/lib/python3/dist-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (6.0.1)
+Requirement already satisfied: regex>=2025.10.22 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (2026.1.15)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (0.22.2)
+Requirement already satisfied: typer in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (0.24.0)
+Requirement already satisfied: safetensors>=0.4.3 in ./.venv-3.12/lib/python3.12/site-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (0.8.0)
+Requirement already satisfied: tqdm>=4.27 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (4.67.3)
+Requirement already satisfied: filelock in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (3.24.2)
+Requirement already satisfied: pyarrow>=15.0.0 in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (23.0.1)
+Requirement already satisfied: dill<0.3.9,>=0.3.0 in ./.venv-3.12/lib/python3.12/site-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (0.3.8)
+Requirement already satisfied: requests>=2.32.2 in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (2.32.5)
+Requirement already satisfied: xxhash in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (3.6.0)
+Requirement already satisfied: multiprocess<0.70.17 in ./.venv-3.12/lib/python3.12/site-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (0.70.16)
+Requirement already satisfied: fsspec<=2024.9.0,>=2023.1.0 in ./.venv-3.12/lib/python3.12/site-packages (from fsspec[http]<=2024.9.0,>=2023.1.0->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (2024.9.0)
+Requirement already satisfied: aiohttp in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (3.13.3)
+Requirement already satisfied: nvidia-cudnn-frontend>=1.13.0 in /usr/local/lib/python3.12/dist-packages (from flashinfer-python==0.6.12->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 57)) (1.18.0)
+Requirement already satisfied: tabulate in /usr/local/lib/python3.12/dist-packages (from flashinfer-python==0.6.12->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 57)) (0.9.0)
+Requirement already satisfied: nvidia-cutlass-dsl-libs-base==4.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from nvidia-cutlass-dsl==4.5.0->nvidia-cutlass-dsl[cu13]==4.5.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 74)) (4.5.0)
+Requirement already satisfied: quack-kernels>=0.4.0 in ./.venv-3.12/lib/python3.12/site-packages (from flash-attn-4==4.0.0b11->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 81)) (0.4.1)
+Requirement already satisfied: grpcio<=2,>=1.66.2 in ./.venv-3.12/lib/python3.12/site-packages (from etcd-sdk-python==0.0.7->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 88)) (1.82.1)
+Requirement already satisfied: mypy_extensions>=1.0.0 in /root/.local/lib/python3.12/site-packages (from mypy==1.19.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 5)) (1.1.0)
+Requirement already satisfied: pathspec>=0.9.0 in /root/.local/lib/python3.12/site-packages (from mypy==1.19.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 5)) (1.1.1)
+Requirement already satisfied: librt>=0.6.2 in /root/.local/lib/python3.12/site-packages (from mypy==1.19.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 5)) (0.11.0)
+Requirement already satisfied: stevedore>=1.20.0 in ./.venv-3.12/lib/python3.12/site-packages (from bandit==1.7.7->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 28)) (5.9.0)
+Requirement already satisfied: rich in ./.venv-3.12/lib/python3.12/site-packages (from bandit==1.7.7->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 28)) (14.1.0)
+Requirement already satisfied: attrs>=19.2.0 in /usr/local/lib/python3.12/dist-packages (from jsonlines==4.0.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 29)) (25.4.0)
+Requirement already satisfied: six in /usr/local/lib/python3.12/dist-packages (from rouge==1.0.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 31)) (1.16.0)
+Requirement already satisfied: jinja2 in /usr/local/lib/python3.12/dist-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (3.1.6)
+Requirement already satisfied: pytablewriter in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.2.1)
+Requirement already satisfied: sacrebleu>=1.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (2.6.0)
+Requirement already satisfied: scikit-learn>=0.24.1 in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.9.0)
+Requirement already satisfied: sqlitedict in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (2.1.0)
+Requirement already satisfied: zstandard in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (0.25.0)
+Requirement already satisfied: word2number in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.1)
+Requirement already satisfied: more_itertools in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (11.1.0)
+Requirement already satisfied: fastparquet in ./.venv-3.12/lib/python3.12/site-packages (from genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (2026.5.0)
+Requirement already satisfied: kaleido in ./.venv-3.12/lib/python3.12/site-packages (from genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (1.2.0)
+Requirement already satisfied: optuna==3.6.1 in ./.venv-3.12/lib/python3.12/site-packages (from genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (3.6.1)
+Requirement already satisfied: responses in ./.venv-3.12/lib/python3.12/site-packages (from genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (0.26.2)
+Requirement already satisfied: statsmodels in ./.venv-3.12/lib/python3.12/site-packages (from genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (0.14.6)
+Requirement already satisfied: tritonclient in ./.venv-3.12/lib/python3.12/site-packages (from genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (2.70.0)
+Requirement already satisfied: aiofiles~=24.1.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (24.1.0)
+Requirement already satisfied: cyclopts<5,>=4 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (4.21.0)
+Requirement already satisfied: dash-bootstrap-components~=2.0.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (2.0.4)
+Requirement already satisfied: dash~=3.1.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (3.1.1)
+Requirement already satisfied: ffmpeg-python~=0.2.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.2.0)
+Requirement already satisfied: jmespath~=1.0.1 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (1.0.1)
+Requirement already satisfied: msgspec<1.0.0,>=0.19.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.21.1)
+Requirement already satisfied: orjson~=3.10.18 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (3.10.18)
+Requirement already satisfied: ruamel-yaml~=0.18.12 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.18.17)
+Requirement already satisfied: seaborn~=0.13.2 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.13.2)
+Requirement already satisfied: setproctitle~=1.3.6 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (1.3.7)
+Requirement already satisfied: textual~=5.3.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (5.3.0)
+Requirement already satisfied: uvloop~=0.21.0 in ./.venv-3.12/lib/python3.12/site-packages (from aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.21.0)
+Requirement already satisfied: tenacity in ./.venv-3.12/lib/python3.12/site-packages (from lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (9.1.4)
+Requirement already satisfied: nvidia-cutlass-dsl-libs-cu13==4.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from nvidia-cutlass-dsl[cu13]==4.5.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 74)) (4.5.0)
+Requirement already satisfied: alembic>=1.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from optuna==3.6.1->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (1.18.5)
+Requirement already satisfied: colorlog in ./.venv-3.12/lib/python3.12/site-packages (from optuna==3.6.1->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (6.10.1)
+Requirement already satisfied: sqlalchemy>=1.3.0 in ./.venv-3.12/lib/python3.12/site-packages (from optuna==3.6.1->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (2.0.51)
+Requirement already satisfied: python-dateutil>=2.8.2 in /usr/local/lib/python3.12/dist-packages (from pandas->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 20)) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in ./.venv-3.12/lib/python3.12/site-packages (from pandas->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 20)) (2026.2)
+Requirement already satisfied: tzdata>=2022.7 in /usr/local/lib/python3.12/dist-packages (from pandas->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 20)) (2025.3)
+Requirement already satisfied: sympy>=1.13.3 in /usr/local/lib/python3.12/dist-packages (from torch<=2.11.0a0,>=2.10.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 26)) (1.14.0)
+Requirement already satisfied: networkx>=2.5.1 in /usr/local/lib/python3.12/dist-packages (from torch<=2.11.0a0,>=2.10.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 26)) (3.6.1)
+Requirement already satisfied: scipy in /usr/local/lib/python3.12/dist-packages (from nvidia-modelopt~=0.37.0->nvidia-modelopt[torch]~=0.37.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 28)) (1.17.0)
+Requirement already satisfied: torchprofile>=0.0.4 in ./.venv-3.12/lib/python3.12/site-packages (from nvidia-modelopt~=0.37.0->nvidia-modelopt[torch]~=0.37.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 28)) (0.1.0)
+Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.12/dist-packages (from pydantic>=2.9.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 36)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.46.4 in /root/.local/lib/python3.12/site-packages (from pydantic>=2.9.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 36)) (2.46.4)
+Requirement already satisfied: typing-inspection>=0.4.2 in /root/.local/lib/python3.12/site-packages (from pydantic>=2.9.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 36)) (0.4.2)
+Requirement already satisfied: annotated-doc>=0.0.2 in /usr/local/lib/python3.12/dist-packages (from fastapi<=0.121.3,>=0.120.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 49)) (0.0.4)
+Requirement already satisfied: anyio<5,>=3.6.2 in /usr/local/lib/python3.12/dist-packages (from starlette>=0.49.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 50)) (4.12.1)
+Requirement already satisfied: cffi>=1.0 in /usr/local/lib/python3.12/dist-packages (from soundfile->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 68)) (2.0.0)
+Requirement already satisfied: narwhals>=1.15.1 in ./.venv-3.12/lib/python3.12/site-packages (from plotly->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 75)) (2.23.0)
+Requirement already satisfied: iniconfig>=1.0.1 in /root/.local/lib/python3.12/site-packages (from pytest<9.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 12)) (2.3.0)
+Requirement already satisfied: pluggy<2,>=1.5 in ./.venv-3.12/lib/python3.12/site-packages (from pytest<9.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 12)) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in /usr/local/lib/python3.12/dist-packages (from pytest<9.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 12)) (2.20.0)
+Requirement already satisfied: cuda-bindings~=13.0 in /usr/local/lib/python3.12/dist-packages (from cupti-python<13.2,>=13.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 45)) (13.1.1)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (2.6.1)
+Requirement already satisfied: aiosignal>=1.4.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (1.4.0)
+Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.12/dist-packages (from aiohttp->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.12/dist-packages (from aiohttp->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (0.4.1)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (1.22.0)
+Requirement already satisfied: idna>=2.8 in /usr/local/lib/python3.12/dist-packages (from anyio<5,>=3.6.2->starlette>=0.49.1->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 50)) (3.11)
+Requirement already satisfied: cuda-pathfinder~=1.1 in ./.venv-3.12/lib/python3.12/site-packages (from cuda-bindings~=13.0->cupti-python<13.2,>=13.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 45)) (1.5.6)
+Requirement already satisfied: rich-rst<3.0.0,>=1.3.1 in ./.venv-3.12/lib/python3.12/site-packages (from cyclopts<5,>=4->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (2.1.0)
+Requirement already satisfied: Flask<3.2,>=1.0.4 in ./.venv-3.12/lib/python3.12/site-packages (from dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (3.1.3)
+Requirement already satisfied: Werkzeug<3.2 in /usr/local/lib/python3.12/dist-packages (from dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (3.1.5)
+Requirement already satisfied: importlib-metadata in /usr/local/lib/python3.12/dist-packages (from dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (8.7.1)
+Requirement already satisfied: retrying in ./.venv-3.12/lib/python3.12/site-packages (from dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (1.4.2)
+Requirement already satisfied: nest-asyncio in /usr/local/lib/python3.12/dist-packages (from dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (1.6.0)
+Requirement already satisfied: future in ./.venv-3.12/lib/python3.12/site-packages (from ffmpeg-python~=0.2.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (1.0.0)
+Requirement already satisfied: blinker>=1.9.0 in ./.venv-3.12/lib/python3.12/site-packages (from Flask<3.2,>=1.0.4->dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (1.9.0)
+Requirement already satisfied: itsdangerous>=2.2.0 in ./.venv-3.12/lib/python3.12/site-packages (from Flask<3.2,>=1.0.4->dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (2.2.0)
+Requirement already satisfied: markupsafe>=2.1.1 in /usr/local/lib/python3.12/dist-packages (from Flask<3.2,>=1.0.4->dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (3.0.3)
+Requirement already satisfied: hf-xet<2.0.0,>=1.4.3 in ./.venv-3.12/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (1.5.1)
+Requirement already satisfied: httpx<1,>=0.23.0 in /root/.local/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (0.28.1)
+Requirement already satisfied: certifi in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (2026.1.4)
+Requirement already satisfied: httpcore==1.* in /root/.local/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (1.0.9)
+Requirement already satisfied: h11>=0.16 in /usr/local/lib/python3.12/dist-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (0.16.0)
+Requirement already satisfied: choreographer>=1.1.1 in ./.venv-3.12/lib/python3.12/site-packages (from kaleido->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (1.3.0)
+Requirement already satisfied: logistro>=1.0.8 in ./.venv-3.12/lib/python3.12/site-packages (from kaleido->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (2.0.1)
+WARNING: nvidia-modelopt 0.37.0 does not provide the extra 'torch'
+Requirement already satisfied: python-dotenv>=0.21.0 in /root/.local/lib/python3.12/site-packages (from pydantic-settings[yaml]->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 37)) (1.2.2)
+Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/local/lib/python3.12/dist-packages (from rich->bandit==1.7.7->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 28)) (4.0.0)
+Requirement already satisfied: ruamel.yaml.clib>=0.2.15 in ./.venv-3.12/lib/python3.12/site-packages (from ruamel-yaml~=0.18.12->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.2.15)
+Requirement already satisfied: platformdirs<5,>=3.6.0 in /usr/local/lib/python3.12/dist-packages (from textual~=5.3.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (4.9.2)
+Requirement already satisfied: pyproject_hooks in /usr/local/lib/python3.12/dist-packages (from build->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 4)) (1.2.0)
+Requirement already satisfied: wcwidth in /usr/local/lib/python3.12/dist-packages (from ftfy->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 8)) (0.6.0)
+Requirement already satisfied: protobuf>=4.25.1 in /usr/local/lib/python3.12/dist-packages (from onnx>=1.21.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 12)) (6.33.5)
+Requirement already satisfied: ml_dtypes>=0.5.4 in /root/.local/lib/python3.12/site-packages (from onnx>=1.21.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 12)) (0.5.4)
+Requirement already satisfied: distro<2,>=1.7.0 in ./.venv-3.12/lib/python3.12/site-packages (from openai->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 15)) (1.8.0)
+Requirement already satisfied: jiter<1,>=0.10.0 in ./.venv-3.12/lib/python3.12/site-packages (from openai->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 15)) (0.16.0)
+Requirement already satisfied: sniffio in ./.venv-3.12/lib/python3.12/site-packages (from openai->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 15)) (1.3.1)
+Requirement already satisfied: antlr4-python3-runtime==4.9.* in ./.venv-3.12/lib/python3.12/site-packages (from omegaconf->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 38)) (4.9.3)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in /usr/local/lib/python3.12/dist-packages (from jsonschema->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 61)) (2025.9.1)
+Requirement already satisfied: referencing>=0.28.4 in /usr/local/lib/python3.12/dist-packages (from jsonschema->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 61)) (0.37.0)
+Requirement already satisfied: rpds-py>=0.25.0 in /usr/local/lib/python3.12/dist-packages (from jsonschema->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 61)) (0.30.0)
+Requirement already satisfied: contourpy>=1.0.1 in /root/.local/lib/python3.12/site-packages (from matplotlib->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 64)) (1.3.3)
+Requirement already satisfied: cycler>=0.10 in /root/.local/lib/python3.12/site-packages (from matplotlib->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 64)) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /root/.local/lib/python3.12/site-packages (from matplotlib->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 64)) (4.63.0)
+Requirement already satisfied: kiwisolver>=1.3.1 in /root/.local/lib/python3.12/site-packages (from matplotlib->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 64)) (1.5.0)
+Requirement already satisfied: pyparsing>=3 in /usr/local/lib/python3.12/dist-packages (from matplotlib->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 64)) (3.3.2)
+Requirement already satisfied: immutabledict<4.3.2 in ./.venv-3.12/lib/python3.12/site-packages (from xdsl>=0.59.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 70)) (4.3.1)
+Requirement already satisfied: pycryptodomex>=3.8 in ./.venv-3.12/lib/python3.12/site-packages (from blobfile->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 72)) (3.23.0)
+Requirement already satisfied: urllib3>=2 in ./.venv-3.12/lib/python3.12/site-packages (from blobfile->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 72)) (2.0.7)
+Requirement already satisfied: lxml>=4.9 in ./.venv-3.12/lib/python3.12/site-packages (from blobfile->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 72)) (6.1.1)
+Requirement already satisfied: httpx-sse>=0.4 in /root/.local/lib/python3.12/site-packages (from mcp->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 78)) (0.4.3)
+Requirement already satisfied: pyjwt>=2.10.1 in ./.venv-3.12/lib/python3.12/site-packages (from pyjwt[crypto]>=2.10.1->mcp->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 78)) (2.13.0)
+Requirement already satisfied: sse-starlette>=1.6.1 in /root/.local/lib/python3.12/site-packages (from mcp->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 78)) (3.4.5)
+Requirement already satisfied: pydantic-extra-types>=2.10.5 in ./.venv-3.12/lib/python3.12/site-packages (from pydantic-extra-types[pycountry]>=2.10.5->mistral-common>=1.10.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 82)) (2.11.1)
+Requirement already satisfied: cfgv>=2.0.0 in /root/.local/lib/python3.12/site-packages (from pre-commit->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (3.5.0)
+Requirement already satisfied: identify>=1.0.0 in /root/.local/lib/python3.12/site-packages (from pre-commit->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (2.6.19)
+Requirement already satisfied: nodeenv>=0.11.1 in /root/.local/lib/python3.12/site-packages (from pre-commit->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (1.10.0)
+Requirement already satisfied: virtualenv>=20.10.0 in /usr/local/lib/python3.12/dist-packages (from pre-commit->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (21.6.1)
+Requirement already satisfied: coverage>=7.10.6 in ./.venv-3.12/lib/python3.12/site-packages (from coverage[toml]>=7.10.6->pytest-cov->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 14)) (7.15.0)
+Requirement already satisfied: py in ./.venv-3.12/lib/python3.12/site-packages (from pytest-forked->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 17)) (1.11.0)
+Requirement already satisfied: execnet>=2.1 in ./.venv-3.12/lib/python3.12/site-packages (from pytest-xdist->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 18)) (2.1.2)
+Requirement already satisfied: absl-py in /usr/local/lib/python3.12/dist-packages (from rouge_score->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 24)) (2.4.0)
+Requirement already satisfied: nltk in ./.venv-3.12/lib/python3.12/site-packages (from rouge_score->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 24)) (3.10.0)
+Requirement already satisfied: opentelemetry-semantic-conventions==0.64b0 in ./.venv-3.12/lib/python3.12/site-packages (from opentelemetry-sdk>=1.26.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 37)) (0.64b0)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-grpc==1.43.0 in ./.venv-3.12/lib/python3.12/site-packages (from opentelemetry-exporter-otlp>=1.26.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 39)) (1.43.0)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-http==1.43.0 in ./.venv-3.12/lib/python3.12/site-packages (from opentelemetry-exporter-otlp>=1.26.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 39)) (1.43.0)
+Requirement already satisfied: googleapis-common-protos~=1.57 in ./.venv-3.12/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.26.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 39)) (1.75.0)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-common==1.43.0 in ./.venv-3.12/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.26.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 39)) (1.43.0)
+Requirement already satisfied: opentelemetry-proto==1.43.0 in ./.venv-3.12/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.26.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 39)) (1.43.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.2->datasets==3.1.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 42)) (3.4.4)
+Requirement already satisfied: pycparser in /usr/local/lib/python3.12/dist-packages (from cffi>=1.0->soundfile->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 68)) (3.0)
+Requirement already satisfied: simplejson>=3.19.3 in ./.venv-3.12/lib/python3.12/site-packages (from choreographer>=1.1.1->kaleido->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (4.1.1)
+Requirement already satisfied: mdurl~=0.1 in /usr/local/lib/python3.12/dist-packages (from markdown-it-py>=2.2.0->rich->bandit==1.7.7->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 28)) (0.1.2)
+Requirement already satisfied: linkify-it-py<3,>=1 in ./.venv-3.12/lib/python3.12/site-packages (from markdown-it-py[linkify,plugins]>=2.1.0->textual~=5.3.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (2.1.0)
+Requirement already satisfied: mdit-py-plugins>=0.5.0 in /usr/local/lib/python3.12/dist-packages (from markdown-it-py[linkify,plugins]>=2.1.0->textual~=5.3.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (0.5.0)
+Requirement already satisfied: uc-micro-py in ./.venv-3.12/lib/python3.12/site-packages (from linkify-it-py<3,>=1->markdown-it-py[linkify,plugins]>=2.1.0->textual~=5.3.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (2.0.0)
+Requirement already satisfied: pycountry>=23 in ./.venv-3.12/lib/python3.12/site-packages (from pydantic-extra-types[pycountry]>=2.10.5->mistral-common>=1.10.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 82)) (26.2.16)
+Requirement already satisfied: cryptography>=3.4.0 in ./.venv-3.12/lib/python3.12/site-packages (from pyjwt[crypto]>=2.10.1->mcp->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 78)) (49.0.0)
+Requirement already satisfied: portalocker in ./.venv-3.12/lib/python3.12/site-packages (from sacrebleu>=1.5.0->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (3.2.0)
+Requirement already satisfied: colorama in ./.venv-3.12/lib/python3.12/site-packages (from sacrebleu>=1.5.0->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (0.4.6)
+Requirement already satisfied: joblib>=1.4.0 in ./.venv-3.12/lib/python3.12/site-packages (from scikit-learn>=0.24.1->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.5.3)
+Requirement already satisfied: threadpoolctl>=3.5.0 in ./.venv-3.12/lib/python3.12/site-packages (from scikit-learn>=0.24.1->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (3.6.0)
+Requirement already satisfied: greenlet>=1 in ./.venv-3.12/lib/python3.12/site-packages (from sqlalchemy>=1.3.0->optuna==3.6.1->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (3.5.3)
+Requirement already satisfied: shellingham>=1.3.0 in /usr/local/lib/python3.12/dist-packages (from typer->transformers==5.5.4->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements.txt (line 33)) (1.5.4)
+Requirement already satisfied: distlib<1,>=0.3.7 in /usr/local/lib/python3.12/dist-packages (from virtualenv>=20.10.0->pre-commit->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (0.4.3)
+Requirement already satisfied: python-discovery>=1.4.2 in /usr/local/lib/python3.12/dist-packages (from virtualenv>=20.10.0->pre-commit->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 9)) (1.4.4)
+WARNING: cuda-tile 1.1.0 does not provide the extra 'tileiras'
+Requirement already satisfied: cramjam>=2.3 in ./.venv-3.12/lib/python3.12/site-packages (from fastparquet->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (2.11.0)
+Requirement already satisfied: zipp>=3.20 in /usr/local/lib/python3.12/dist-packages (from importlib-metadata->dash~=3.1.0->aiperf==0.6.0->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 42)) (3.23.0)
+Requirement already satisfied: defusedxml in /usr/local/lib/python3.12/dist-packages (from nltk->rouge_score->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 24)) (0.7.1)
+Requirement already satisfied: DataProperty<2,>=1.1.0 in ./.venv-3.12/lib/python3.12/site-packages (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.1.1)
+Requirement already satisfied: mbstrdecoder<2,>=1.0.0 in ./.venv-3.12/lib/python3.12/site-packages (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.1.5)
+Requirement already satisfied: pathvalidate<4,>=2.3.0 in ./.venv-3.12/lib/python3.12/site-packages (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (3.3.1)
+Requirement already satisfied: tabledata<2,>=1.3.1 in ./.venv-3.12/lib/python3.12/site-packages (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.3.5)
+Requirement already satisfied: tcolorpy<1,>=0.0.5 in ./.venv-3.12/lib/python3.12/site-packages (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (0.1.7)
+Requirement already satisfied: typepy<2,>=1.3.2 in ./.venv-3.12/lib/python3.12/site-packages (from typepy[datetime]<2,>=1.3.2->pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (1.3.5)
+Requirement already satisfied: chardet<7,>=3.0.4 in ./.venv-3.12/lib/python3.12/site-packages (from mbstrdecoder<2,>=1.0.0->pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 34)) (6.0.0.post1)
+Requirement already satisfied: patsy>=0.5.6 in ./.venv-3.12/lib/python3.12/site-packages (from statsmodels->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (1.0.2)
+Requirement already satisfied: python-rapidjson>=0.9.1 in ./.venv-3.12/lib/python3.12/site-packages (from tritonclient->genai-perf==0.0.13->-r /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt (line 36)) (1.23)
+Requirement already satisfied: conan==2.14.0 in ./.venv-3.12/lib/python3.12/site-packages (2.14.0)
+Requirement already satisfied: requests<3.0.0,>=2.25 in /usr/local/lib/python3.12/dist-packages (from conan==2.14.0) (2.32.5)
+Requirement already satisfied: urllib3<2.1,>=1.26.6 in ./.venv-3.12/lib/python3.12/site-packages (from conan==2.14.0) (2.0.7)
+Requirement already satisfied: colorama<0.5.0,>=0.4.3 in ./.venv-3.12/lib/python3.12/site-packages (from conan==2.14.0) (0.4.6)
+Requirement already satisfied: PyYAML<7.0,>=6.0 in /usr/lib/python3/dist-packages (from conan==2.14.0) (6.0.1)
+Requirement already satisfied: patch-ng<1.19,>=1.18.0 in ./.venv-3.12/lib/python3.12/site-packages (from conan==2.14.0) (1.18.1)
+Requirement already satisfied: fasteners>=0.15 in ./.venv-3.12/lib/python3.12/site-packages (from conan==2.14.0) (0.20)
+Requirement already satisfied: distro<=1.8.0,>=1.4.0 in ./.venv-3.12/lib/python3.12/site-packages (from conan==2.14.0) (1.8.0)
+Requirement already satisfied: Jinja2<4.0.0,>=3.0 in /usr/local/lib/python3.12/dist-packages (from conan==2.14.0) (3.1.6)
+Requirement already satisfied: python-dateutil<3,>=2.8.0 in /usr/local/lib/python3.12/dist-packages (from conan==2.14.0) (2.9.0.post0)
+Requirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.12/dist-packages (from Jinja2<4.0.0,>=3.0->conan==2.14.0) (3.0.3)
+Requirement already satisfied: six>=1.5 in /usr/local/lib/python3.12/dist-packages (from python-dateutil<3,>=2.8.0->conan==2.14.0) (1.16.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.12/dist-packages (from requests<3.0.0,>=2.25->conan==2.14.0) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in /usr/local/lib/python3.12/dist-packages (from requests<3.0.0,>=2.25->conan==2.14.0) (3.11)
+Requirement already satisfied: certifi>=2017.4.17 in /usr/local/lib/python3.12/dist-packages (from requests<3.0.0,>=2.25->conan==2.14.0) (2026.1.4)
+/usr/local/lib/python3.12/dist-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.0.7) or chardet (6.0.0.post1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+detect_api: Found cc=gcc- 13.3.0
+detect_api: gcc>=5, using the major as version
+detect_api: gcc C++ standard library: libstdc++11
+
+Detected profile:
+WARN: This profile is a guess of your environment, please check it.
+WARN: The output of this command is not guaranteed to be stable and can change in future Conan versions.
+WARN: Use your own profile files for stability.
+Saving detected profile to /root/.conan2/profiles/default
+[settings]
+arch=armv8
+build_type=Release
+compiler=gcc
+compiler.cppstd=gnu17
+compiler.libcxx=libstdc++11
+compiler.version=13
+os=Linux
+
+[  1%] Built target nvshmem_project
+[  1%] Built target tensorrt_llm_nixl_wrapper
+[  1%] Generating libtensorrt_llm_internal_cutlass_kernels_static.a
+[  2%] Built target xqa_sources_h
+[  2%] Built target nanobind-static
+[  2%] Built target mamba2_mtp_ssm_cache_src
+[  2%] Built target cute_dsl_src
+[  2%] Built target th_utils
+[  2%] Built target fp8_blockscale_gemm_src
+[  2%] Built target testing_src
+[  2%] Built target userbuffers_src
+[  2%] Built target trtllm_gen_gemm_gated_act
+[  2%] Built target pg_utils
+[  2%] Built target _moe_gemm_launcher
+[  2%] Built target fusedGatedRMSNormQuant_src
+[  2%] Built target ws_layernorm_src
+[  2%] Built target decoder_attention_1
+[  2%] Built target flash_mla_src
+[  5%] Built target decoder_attention_0
+[  5%] Built target trtllm_gen_gemm
+[  5%] Built target layers_src
+[  5%] Built target _context_attention_kernels_100
+[  6%] Built target runtime_src
+[  7%] Built target tensorrt_llm_executor_static
+[  7%] Built target common_src
+[  7%] Built target fb_gemm_src
+[  7%] Built target fp4_gemm_src
+[  7%] Built target _fpA_intB_gemm_src_instantiations_100
+[  7%] Built target selective_scan_src
+[  7%] Built target ar_gemm_src
+[  7%] Built target cutlass_src
+[  7%] Built target _moe_gemm_src_instantiations_80
+[  7%] Built target _moe_gemm_fp4
+[  7%] Built target _moe_gemm_src_instantiations_120
+[  7%] Built target _moe_gemm_fp8
+[  7%] Built target _moe_gemm_src_instantiations_103
+[  7%] Built target _moe_gemm_hopper_fp4
+[  7%] Built target low_latency_gemm_src
+[  7%] Built target deep_gemm_cpp_tllm
+[  7%] Built target trtllm_gen_fp8_block_scale_moe
+[  8%] Built target _fpA_intB_gemm_src_instantiations_90
+[  9%] Built target gemm_swiglu_sm90_src
+[ 11%] Built target kernels_src
+[ 20%] Built target _context_attention_kernels_89
+[ 20%] Built target _context_attention_kernels_80
+[ 24%] Built target _context_attention_kernels_120
+[ 24%] Built target _moe_gemm_src_instantiations_100
+[ 29%] Built target _moe_gemm_src_instantiations_90
+[ 29%] Built target _context_attention_kernels_86
+[ 39%] Built target nvrtc_wrapper_src
+[ 39%] Built target trtllm_gen_batched_gemm
+[ 39%] Built target deep_gemm
+[ 39%] Built target tensorrt_llm_ucx_wrapper
+[ 40%] Built target moe_gemm_src
+[ 40%] Built target fpA_intB_gemm_src
+[ 40%] Built target decoder_attention_src
+[ 40%] Built target deep_ep_cpp_tllm
+[ 40%] Built target deep_ep
+[ 49%] Built target _context_attention_kernels_90
+[ 51%] Built target context_attention_src
+[ 52%] Built target tensorrt_llm_batch_manager_static
+[ 97%] Built target trtllm_gen_fmha
+[ 97%] Built target tensorrt_llm_internal_cutlass_kernels_static_helper
+[ 97%] Built target tensorrt_llm
+[ 97%] Built target tensorrt_llm_transfer_agent_binding
+[ 97%] Built target nvinfer_plugin_tensorrt_llm
+[ 97%] Built target disaggServerBenchmark
+[ 97%] Built target bertBenchmark
+[ 97%] Built target gptManagerBenchmark
+[ 97%] Built target executorWorker
+[100%] Built target th_common
+[100%] Built target benchmarks
+[100%] Built target bindings
+[100%] Built target flash_mla_cpp_tllm
+[100%] Built target flash_mla
+[100%] Built target build_wheel_targets
+Requirement already satisfied: nanobind in /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/.venv-3.12/lib/python3.12/site-packages (2.13.0)
+Requirement already satisfied: pybind11-stubgen in /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/.venv-3.12/lib/python3.12/site-packages (2.5.5)
+Module "bindings" ..
+  - importing ..
+  - analyzing ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/executor/kv_cache.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/executor/__init__.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/process_group.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/runtime.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/testing.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/batch_manager/kv_cache_manager_v2_utils.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/batch_manager/__init__.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/thop.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/algorithms.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/userbuffers.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/suffix_automaton.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/internal/__init__.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/exceptions.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/BuildInfo.pyi" ..
+  - writing stub "/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/bindings/__init__.pyi" ..
+running build_ext
+building '_rawref' extension
+aarch64-linux-gnu-gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O2 -Wall -fPIC -I/lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/.venv-3.12/include -I/usr/include/python3.12 -c rawrefmodule.c -o build/temp.linux-aarch64-cpython-312/rawrefmodule.o
+aarch64-linux-gnu-gcc -shared -Wl,-O1 -Wl,-Bsymbolic-functions -Wl,-Bsymbolic-functions -Wl,-z,relro -g -fwrapv -O2 build/temp.linux-aarch64-cpython-312/rawrefmodule.o -L/usr/lib/aarch64-linux-gnu -o build/lib.linux-aarch64-cpython-312/_rawref.cpython-312-aarch64-linux-gnu.so
+copying build/lib.linux-aarch64-cpython-312/_rawref.cpython-312-aarch64-linux-gnu.so -> 
+-- Using virtual environment at: /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/.venv-3.12 (Python 3.12)
+-- Ensuring virtualenv version >=20.29.1,<22.0 is installed...
+-- Virtual environment already exists.
+-- Installing requirements from /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/requirements-dev.txt into /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/.venv-3.12...
+-- Found conan executable at: /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/.venv-3.12/bin/conan
+CMake Build command: 
+cmake --build . --config Release --parallel 144 --target build_wheel_targets 
+-- Building kv_cache_manager_v2...
+Removing stale artifact: /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/runtime/kv_cache_manager_v2/rawref/_rawref.cpython-312-aarch64-linux-gnu.so
+Removing stale artifact: /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tensorrt_llm/runtime/kv_cache_manager_v2/rawref/build/lib.linux-aarch64-cpython-312/_rawref.cpython-312-aarch64-linux-gnu.so
+-- Building kv_cache_manager_v2 rawref extension... Done
+-- Done building kv_cache_manager_v2.
+Obtaining file:///lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second
+  DEPRECATION: Setting PIP_CONSTRAINT will not affect build constraints in the future, pip 26.2 will enforce this behaviour change. A possible replacement is to specify build constraints using --build-constraint or PIP_BUILD_CONSTRAINT. To disable this warning without any build constraints set --use-feature=build-constraint or PIP_USE_FEATURE="build-constraint".
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting accelerate>=1.7.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached accelerate-1.14.0-py3-none-any.whl.metadata (19 kB)
+Requirement already satisfied: build in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (1.4.0)
+Collecting colored (from tensorrt_llm==1.3.0rc19)
+  Using cached colored-2.3.2-py3-none-any.whl.metadata (4.5 kB)
+Requirement already satisfied: cuda-python>=13 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (13.1.1)
+Collecting diffusers>=0.37.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached diffusers-0.39.0-py3-none-any.whl.metadata (20 kB)
+Collecting ftfy (from tensorrt_llm==1.3.0rc19)
+  Using cached ftfy-6.3.1-py3-none-any.whl.metadata (7.3 kB)
+Requirement already satisfied: lark in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (1.3.1)
+Requirement already satisfied: mpi4py in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (3.1.5)
+Requirement already satisfied: numpy<2.4,>=2.0.0 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (2.1.0)
+Collecting onnx>=1.21.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached onnx-1.22.0-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (8.5 kB)
+Collecting onnx_graphsurgeon>=0.5.2 (from tensorrt_llm==1.3.0rc19)
+  Using cached onnx_graphsurgeon-0.6.1-py2.py3-none-any.whl.metadata (8.2 kB)
+Collecting graphviz (from tensorrt_llm==1.3.0rc19)
+  Using cached graphviz-0.21-py3-none-any.whl.metadata (12 kB)
+Collecting openai (from tensorrt_llm==1.3.0rc19)
+  Using cached openai-2.45.0-py3-none-any.whl.metadata (34 kB)
+Requirement already satisfied: polygraphy in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.49.26)
+Requirement already satisfied: psutil in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (7.2.2)
+Requirement already satisfied: nvidia-ml-py>=13 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (13.590.48)
+Requirement already satisfied: pulp in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (3.3.0)
+Requirement already satisfied: pandas in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (3.0.1)
+Collecting h5py==3.12.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached h5py-3.12.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (2.5 kB)
+Requirement already satisfied: StrEnum in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.4.15)
+Collecting sentencepiece>=0.1.99 (from tensorrt_llm==1.3.0rc19)
+  Using cached sentencepiece-0.2.2-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (33 kB)
+Requirement already satisfied: tensorrt~=10.15.1 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (10.15.1.29)
+Requirement already satisfied: torch<=2.11.0a0,>=2.10.0 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (2.11.0a0+eb65b36914.nv26.2)
+Requirement already satisfied: torchvision in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.25.0a0+1e53952f.nv26.2.44259020)
+Collecting nvidia-modelopt~=0.37.0 (from nvidia-modelopt[torch]~=0.37.0->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_modelopt-0.37.0-py3-none-any.whl.metadata (9.0 kB)
+Collecting nvidia-nccl-cu13<=2.29.2,>=2.28.9 (from tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_nccl_cu13-2.29.2-py3-none-manylinux_2_18_aarch64.whl.metadata (2.1 kB)
+Collecting nvidia-cuda-nvrtc (from tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_nvrtc-13.3.33-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.8 kB)
+Collecting transformers==5.5.4 (from tensorrt_llm==1.3.0rc19)
+  Using cached transformers-5.5.4-py3-none-any.whl.metadata (32 kB)
+Requirement already satisfied: prometheus_client in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.24.1)
+Collecting prometheus_fastapi_instrumentator (from tensorrt_llm==1.3.0rc19)
+  Using cached prometheus_fastapi_instrumentator-8.0.2-py3-none-any.whl.metadata (13 kB)
+Requirement already satisfied: pydantic>=2.9.1 in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (2.13.4)
+Requirement already satisfied: pydantic-settings[yaml] in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (2.14.2)
+Collecting omegaconf (from tensorrt_llm==1.3.0rc19)
+  Using cached omegaconf-2.3.1-py3-none-any.whl.metadata (4.5 kB)
+Requirement already satisfied: pillow in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (12.1.1)
+Collecting optimum (from tensorrt_llm==1.3.0rc19)
+  Using cached optimum-2.2.0-py3-none-any.whl.metadata (14 kB)
+Collecting datasets==3.1.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached datasets-3.1.0-py3-none-any.whl.metadata (20 kB)
+Collecting evaluate (from tensorrt_llm==1.3.0rc19)
+  Using cached evaluate-0.4.6-py3-none-any.whl.metadata (9.5 kB)
+Requirement already satisfied: mpmath>=1.3.0 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (1.3.0)
+Requirement already satisfied: click<8.4,>=8.3.1 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (8.3.1)
+Collecting click_option_group (from tensorrt_llm==1.3.0rc19)
+  Using cached click_option_group-0.5.9-py3-none-any.whl.metadata (5.8 kB)
+Collecting aenum (from tensorrt_llm==1.3.0rc19)
+  Using cached aenum-3.1.17-py3-none-any.whl.metadata (3.8 kB)
+Requirement already satisfied: pyzmq in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (27.1.0)
+Collecting fastapi<=0.121.3,>=0.120.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached fastapi-0.121.3-py3-none-any.whl.metadata (30 kB)
+Collecting starlette>=0.49.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached starlette-1.3.1-py3-none-any.whl.metadata (6.4 kB)
+Collecting uvicorn (from tensorrt_llm==1.3.0rc19)
+  Using cached uvicorn-0.51.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting setuptools<80 (from tensorrt_llm==1.3.0rc19)
+  Using cached setuptools-79.0.1-py3-none-any.whl.metadata (6.5 kB)
+Collecting ordered-set (from tensorrt_llm==1.3.0rc19)
+  Using cached ordered_set-4.1.0-py3-none-any.whl.metadata (5.3 kB)
+Collecting peft<0.19.0,>=0.18.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached peft-0.18.1-py3-none-any.whl.metadata (14 kB)
+Collecting patchelf (from tensorrt_llm==1.3.0rc19)
+  Using cached patchelf-0.17.2.4-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.musllinux_1_1_aarch64.whl.metadata (3.7 kB)
+Requirement already satisfied: einops in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.8.2)
+Collecting flashinfer-python==0.6.12 (from tensorrt_llm==1.3.0rc19)
+  Using cached flashinfer_python-0.6.12-py3-none-any.whl.metadata (11 kB)
+Requirement already satisfied: opencv-python-headless in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (4.13.0.92)
+Collecting xgrammar==0.1.32 (from tensorrt_llm==1.3.0rc19)
+  Using cached xgrammar-0.1.32-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (7.3 kB)
+Collecting llguidance==0.7.29 (from tensorrt_llm==1.3.0rc19)
+  Using cached llguidance-0.7.29-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (9.9 kB)
+Requirement already satisfied: jsonschema in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (4.26.0)
+Collecting backoff (from tensorrt_llm==1.3.0rc19)
+  Using cached backoff-2.2.1-py3-none-any.whl.metadata (14 kB)
+Requirement already satisfied: nvtx in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.2.14)
+Requirement already satisfied: matplotlib in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (3.11.0)
+Requirement already satisfied: meson in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (1.11.1)
+Requirement already satisfied: ninja in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (1.13.0)
+Collecting blake3 (from tensorrt_llm==1.3.0rc19)
+  Using cached blake3-1.0.9-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+Requirement already satisfied: soundfile in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.13.1)
+Collecting triton==3.6.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached triton-3.6.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (1.7 kB)
+Collecting xdsl>=0.59.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached xdsl-0.68.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting tiktoken (from tensorrt_llm==1.3.0rc19)
+  Using cached tiktoken-0.13.0-cp312-cp312-manylinux_2_28_aarch64.whl.metadata (6.7 kB)
+Collecting blobfile (from tensorrt_llm==1.3.0rc19)
+  Using cached blobfile-3.2.0-py3-none-any.whl.metadata (15 kB)
+Collecting openai-harmony==0.0.4 (from tensorrt_llm==1.3.0rc19)
+  Using cached openai_harmony-0.0.4-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (8.0 kB)
+Collecting nvidia-cutlass-dsl==4.5.0 (from nvidia-cutlass-dsl[cu13]==4.5.0; python_version >= "3.10"->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cutlass_dsl-4.5.0-py3-none-any.whl.metadata (2.8 kB)
+Collecting plotly (from tensorrt_llm==1.3.0rc19)
+  Using cached plotly-6.9.0-py3-none-any.whl.metadata (9.0 kB)
+Collecting numexpr (from tensorrt_llm==1.3.0rc19)
+  Using cached numexpr-2.14.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (9.0 kB)
+Collecting partial_json_parser (from tensorrt_llm==1.3.0rc19)
+  Using cached partial_json_parser-0.2.1.1.post7-py3-none-any.whl.metadata (6.1 kB)
+Requirement already satisfied: mcp in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (1.28.1)
+Collecting apache-tvm-ffi==0.1.6 (from tensorrt_llm==1.3.0rc19)
+  Using cached apache_tvm_ffi-0.1.6-cp312-abi3-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (4.2 kB)
+Collecting torch-c-dlpack-ext==0.1.3 (from tensorrt_llm==1.3.0rc19)
+  Using cached torch_c_dlpack_ext-0.1.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (134 bytes)
+Collecting flash-attn-4==4.0.0b11 (from tensorrt_llm==1.3.0rc19)
+  Using cached flash_attn_4-4.0.0b11-py3-none-any.whl.metadata (1.9 kB)
+Collecting mistral-common>=1.10.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached mistral_common-1.11.5-py3-none-any.whl.metadata (5.9 kB)
+Collecting torchao<0.16.0,>=0.14.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached torchao-0.15.0-py3-none-any.whl.metadata (22 kB)
+Collecting cuda-core (from tensorrt_llm==1.3.0rc19)
+  Using cached cuda_core-1.1.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (3.3 kB)
+Collecting llist (from tensorrt_llm==1.3.0rc19)
+  Using cached llist-0.7.1-cp312-cp312-linux_aarch64.whl
+Collecting cuda-tile>=1.0.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached cuda_tile-1.5.0-cp312-cp312-manylinux2014_aarch64.whl.metadata (7.4 kB)
+Collecting nvidia-cuda-tileiras<13.2,>=13.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_tileiras-13.1.80-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting etcd-sdk-python==0.0.7 (from tensorrt_llm==1.3.0rc19)
+  Using cached etcd_sdk_python-0.0.7-py3-none-any.whl.metadata (4.3 kB)
+Requirement already satisfied: python-multipart in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (0.0.32)
+Collecting smg-grpc-proto>=0.4.2 (from tensorrt_llm==1.3.0rc19)
+  Using cached smg_grpc_proto-0.4.14-py3-none-any.whl.metadata (3.3 kB)
+Collecting cache-dit>=1.3.5 (from tensorrt_llm==1.3.0rc19)
+  Using cached cache_dit-1.5.0-py3-none-any.whl.metadata (10 kB)
+Requirement already satisfied: wheel>=0.46.2 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.47.0)
+Requirement already satisfied: tornado>=6.5.5 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (6.5.6)
+Requirement already satisfied: black>=26.3.1 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (26.5.1)
+Requirement already satisfied: mistune>=3.2.1 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (3.2.1)
+Requirement already satisfied: notebook>=7.5.6 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (7.5.7)
+Requirement already satisfied: jupyter_server>=2.18.0 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (2.19.0)
+Collecting lpips (from tensorrt_llm==1.3.0rc19)
+  Using cached lpips-0.1.4-py3-none-any.whl.metadata (10 kB)
+Collecting mypy==1.19.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached mypy-1.19.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.2 kB)
+Collecting mako (from tensorrt_llm==1.3.0rc19)
+  Using cached mako-1.3.12-py3-none-any.whl.metadata (2.9 kB)
+Collecting oyaml (from tensorrt_llm==1.3.0rc19)
+  Using cached oyaml-1.0-py2.py3-none-any.whl.metadata (1.2 kB)
+Requirement already satisfied: parameterized in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (0.9.0)
+Requirement already satisfied: pre-commit in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (4.6.0)
+Requirement already satisfied: pybind11 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (3.0.2)
+Collecting pybind11-stubgen (from tensorrt_llm==1.3.0rc19)
+  Using cached pybind11_stubgen-2.5.5-py3-none-any.whl.metadata (1.9 kB)
+Requirement already satisfied: pytest<9.1 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (8.1.1)
+Requirement already satisfied: pytest-asyncio in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (1.4.0)
+Collecting pytest-cov (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_cov-7.1.0-py3-none-any.whl.metadata (32 kB)
+Collecting pytest-csv (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_csv-3.0.0-py2.py3-none-any.whl.metadata (9.4 kB)
+Collecting pytest-env (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_env-1.6.0-py3-none-any.whl.metadata (13 kB)
+Collecting pytest-forked (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_forked-1.6.0-py3-none-any.whl.metadata (3.5 kB)
+Requirement already satisfied: pytest-xdist in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (3.8.0)
+Requirement already satisfied: pytest-timeout in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (2.4.0)
+Collecting pytest-split (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_split-0.11.0-py3-none-any.whl.metadata (9.5 kB)
+Collecting pytest-mock (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_mock-3.15.1-py3-none-any.whl.metadata (3.9 kB)
+Collecting pytest-threadleak (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_threadleak-0.5.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting pytest-unused-fixtures (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest_unused_fixtures-0.3.1-py3-none-any.whl.metadata (5.6 kB)
+Collecting rouge_score (from tensorrt_llm==1.3.0rc19)
+  Using cached rouge_score-0.1.2-py3-none-any.whl
+Collecting cloudpickle (from tensorrt_llm==1.3.0rc19)
+  Using cached cloudpickle-3.1.2-py3-none-any.whl.metadata (7.1 kB)
+Collecting typeguard==4.4.4 (from tensorrt_llm==1.3.0rc19)
+  Using cached typeguard-4.4.4-py3-none-any.whl.metadata (3.3 kB)
+Requirement already satisfied: typing-extensions==4.15.0 in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (4.15.0)
+Collecting bandit==1.7.7 (from tensorrt_llm==1.3.0rc19)
+  Using cached bandit-1.7.7-py3-none-any.whl.metadata (5.9 kB)
+Collecting jsonlines==4.0.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached jsonlines-4.0.0-py3-none-any.whl.metadata (1.6 kB)
+Collecting jieba==0.42.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached jieba-0.42.1-py3-none-any.whl
+Collecting rouge==1.0.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached rouge-1.0.1-py3-none-any.whl.metadata (4.1 kB)
+Requirement already satisfied: pytest-rerunfailures in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (16.1)
+Requirement already satisfied: ruff==0.9.4 in /root/.local/lib/python3.12/site-packages (from tensorrt_llm==1.3.0rc19) (0.9.4)
+Collecting lm_eval==0.4.10 (from lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached lm_eval-0.4.10-py3-none-any.whl.metadata (54 kB)
+Requirement already satisfied: docstring_parser in /usr/local/lib/python3.12/dist-packages (from tensorrt_llm==1.3.0rc19) (0.17.0)
+Collecting genai-perf==0.0.13 (from tensorrt_llm==1.3.0rc19)
+  Using cached genai_perf-0.0.13-py3-none-any.whl.metadata (27 kB)
+Collecting opentelemetry-sdk>=1.26.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_sdk-1.43.0-py3-none-any.whl.metadata (1.7 kB)
+Collecting opentelemetry-api>=1.26.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_api-1.43.0-py3-none-any.whl.metadata (1.4 kB)
+Collecting opentelemetry-exporter-otlp>=1.26.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_exporter_otlp-1.43.0-py3-none-any.whl.metadata (2.4 kB)
+Collecting opentelemetry-semantic-conventions-ai>=0.4.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_semantic_conventions_ai-0.5.1-py3-none-any.whl.metadata (997 bytes)
+Collecting fuzzywuzzy==0.18.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached fuzzywuzzy-0.18.0-py2.py3-none-any.whl.metadata (4.9 kB)
+Collecting aiperf==0.6.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached aiperf-0.6.0-py3-none-any.whl.metadata (30 kB)
+Collecting nanobind>=2.9.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached nanobind-2.13.0-py3-none-any.whl.metadata (1.8 kB)
+Collecting nixl-cu13==1.0.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached nixl_cu13-1.0.1-cp312-cp312-manylinux_2_28_aarch64.whl.metadata (13 kB)
+Collecting cupti-python<13.2,>=13.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached cupti_python-13.0.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (22 kB)
+Collecting nvidia-cuda-cupti<13.2,>=13.0 (from tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_cupti-13.1.115-py3-none-manylinux_2_25_aarch64.whl.metadata (1.8 kB)
+Collecting cxxfilt (from tensorrt_llm==1.3.0rc19)
+  Using cached cxxfilt-0.3.0-py2.py3-none-any.whl.metadata (3.5 kB)
+Collecting hf-transfer==0.1.9 (from tensorrt_llm==1.3.0rc19)
+  Using cached hf_transfer-0.1.9-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (1.7 kB)
+Collecting line_profiler (from tensorrt_llm==1.3.0rc19)
+  Using cached line_profiler-5.0.2-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (31 kB)
+Collecting aiofiles~=24.1.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached aiofiles-24.1.0-py3-none-any.whl.metadata (10 kB)
+Requirement already satisfied: aiohttp~=3.13.3 in /usr/local/lib/python3.12/dist-packages (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (3.13.3)
+Collecting cyclopts<5,>=4 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached cyclopts-4.21.0-py3-none-any.whl.metadata (12 kB)
+Collecting dash-bootstrap-components~=2.0.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached dash_bootstrap_components-2.0.4-py3-none-any.whl.metadata (18 kB)
+Collecting dash~=3.1.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached dash-3.1.1-py3-none-any.whl.metadata (10 kB)
+Collecting ffmpeg-python~=0.2.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached ffmpeg_python-0.2.0-py3-none-any.whl.metadata (1.7 kB)
+Requirement already satisfied: huggingface-hub<2.0,>=0.34.0 in /usr/local/lib/python3.12/dist-packages (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (1.4.1)
+Requirement already satisfied: jinja2~=3.1.5 in /usr/local/lib/python3.12/dist-packages (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (3.1.6)
+Collecting jmespath~=1.0.1 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached jmespath-1.0.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting kaleido~=1.2.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached kaleido-1.2.0-py3-none-any.whl.metadata (5.6 kB)
+Collecting msgspec<1.0.0,>=0.19.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached msgspec-0.21.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.8 kB)
+Collecting orjson~=3.10.18 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached orjson-3.10.18-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+Collecting pandas (from tensorrt_llm==1.3.0rc19)
+  Using cached pandas-2.3.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (91 kB)
+Collecting plotly (from tensorrt_llm==1.3.0rc19)
+  Using cached plotly-6.4.0-py3-none-any.whl.metadata (8.5 kB)
+Collecting prometheus_client (from tensorrt_llm==1.3.0rc19)
+  Using cached prometheus_client-0.23.1-py3-none-any.whl.metadata (1.9 kB)
+Collecting psutil (from tensorrt_llm==1.3.0rc19)
+  Using cached psutil-7.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (22 kB)
+Requirement already satisfied: pyarrow>=18.0.0 in /usr/local/lib/python3.12/dist-packages (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (23.0.1)
+Collecting pyzmq (from tensorrt_llm==1.3.0rc19)
+  Using cached pyzmq-26.4.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.0 kB)
+Collecting rich~=14.1.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached rich-14.1.0-py3-none-any.whl.metadata (18 kB)
+Collecting ruamel-yaml~=0.18.12 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached ruamel_yaml-0.18.17-py3-none-any.whl.metadata (27 kB)
+Collecting seaborn~=0.13.2 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached seaborn-0.13.2-py3-none-any.whl.metadata (5.4 kB)
+Collecting setproctitle~=1.3.6 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached setproctitle-1.3.7-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (10 kB)
+Collecting textual~=5.3.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached textual-5.3.0-py3-none-any.whl.metadata (9.1 kB)
+Requirement already satisfied: tqdm>=4.67.1 in /usr/local/lib/python3.12/dist-packages (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (4.67.3)
+Collecting uvloop~=0.21.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached uvloop-0.21.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+Requirement already satisfied: PyYAML>=5.3.1 in /usr/lib/python3/dist-packages (from bandit==1.7.7->tensorrt_llm==1.3.0rc19) (6.0.1)
+Collecting stevedore>=1.20.0 (from bandit==1.7.7->tensorrt_llm==1.3.0rc19)
+  Using cached stevedore-5.9.0-py3-none-any.whl.metadata (2.3 kB)
+Requirement already satisfied: filelock in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->tensorrt_llm==1.3.0rc19) (3.24.2)
+Collecting dill<0.3.9,>=0.3.0 (from datasets==3.1.0->tensorrt_llm==1.3.0rc19)
+  Using cached dill-0.3.8-py3-none-any.whl.metadata (10 kB)
+Requirement already satisfied: requests>=2.32.2 in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->tensorrt_llm==1.3.0rc19) (2.32.5)
+Requirement already satisfied: xxhash in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->tensorrt_llm==1.3.0rc19) (3.6.0)
+Collecting multiprocess<0.70.17 (from datasets==3.1.0->tensorrt_llm==1.3.0rc19)
+  Using cached multiprocess-0.70.16-py312-none-any.whl.metadata (7.2 kB)
+Collecting fsspec<=2024.9.0,>=2023.1.0 (from fsspec[http]<=2024.9.0,>=2023.1.0->datasets==3.1.0->tensorrt_llm==1.3.0rc19)
+  Using cached fsspec-2024.9.0-py3-none-any.whl.metadata (11 kB)
+Requirement already satisfied: packaging in /usr/local/lib/python3.12/dist-packages (from datasets==3.1.0->tensorrt_llm==1.3.0rc19) (25.0)
+Requirement already satisfied: grpcio<=2,>=1.66.2 in /usr/local/lib/python3.12/dist-packages (from etcd-sdk-python==0.0.7->tensorrt_llm==1.3.0rc19) (1.78.0)
+Collecting quack-kernels>=0.4.0 (from flash-attn-4==4.0.0b11->tensorrt_llm==1.3.0rc19)
+  Using cached quack_kernels-0.6.1-py3-none-any.whl.metadata (800 bytes)
+Requirement already satisfied: nvidia-cudnn-frontend>=1.13.0 in /usr/local/lib/python3.12/dist-packages (from flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19) (1.18.0)
+Requirement already satisfied: tabulate in /usr/local/lib/python3.12/dist-packages (from flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19) (0.9.0)
+Collecting fastparquet (from genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached fastparquet-2026.5.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (4.8 kB)
+Collecting optuna==3.6.1 (from genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached optuna-3.6.1-py3-none-any.whl.metadata (17 kB)
+Collecting responses (from genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached responses-0.26.2-py3-none-any.whl.metadata (48 kB)
+Collecting statsmodels (from genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached statsmodels-0.14.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (9.5 kB)
+Collecting tritonclient (from genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached tritonclient-2.70.0-py3-none-any.whl.metadata (3.1 kB)
+Requirement already satisfied: attrs>=19.2.0 in /usr/local/lib/python3.12/dist-packages (from jsonlines==4.0.0->tensorrt_llm==1.3.0rc19) (25.4.0)
+Collecting pytablewriter (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached pytablewriter-1.2.1-py3-none-any.whl.metadata (38 kB)
+Collecting sacrebleu>=1.5.0 (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached sacrebleu-2.6.0-py3-none-any.whl.metadata (39 kB)
+Requirement already satisfied: scikit-learn>=0.24.1 in /usr/local/lib/python3.12/dist-packages (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19) (1.8.0)
+Collecting sqlitedict (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached sqlitedict-2.1.0-py3-none-any.whl
+Collecting zstandard (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached zstandard-0.25.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (3.3 kB)
+Collecting word2number (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached word2number-1.1-py3-none-any.whl
+Collecting more_itertools (from lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached more_itertools-11.1.0-py3-none-any.whl.metadata (41 kB)
+Collecting tenacity (from lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached tenacity-9.1.4-py3-none-any.whl.metadata (1.2 kB)
+Requirement already satisfied: mypy_extensions>=1.0.0 in /root/.local/lib/python3.12/site-packages (from mypy==1.19.1->tensorrt_llm==1.3.0rc19) (1.1.0)
+Requirement already satisfied: pathspec>=0.9.0 in /root/.local/lib/python3.12/site-packages (from mypy==1.19.1->tensorrt_llm==1.3.0rc19) (1.1.1)
+Requirement already satisfied: librt>=0.6.2 in /root/.local/lib/python3.12/site-packages (from mypy==1.19.1->tensorrt_llm==1.3.0rc19) (0.11.0)
+Collecting nvidia-cutlass-dsl-libs-base==4.5.0 (from nvidia-cutlass-dsl==4.5.0->nvidia-cutlass-dsl[cu13]==4.5.0; python_version >= "3.10"->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cutlass_dsl_libs_base-4.5.0-cp312-cp312-manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+Collecting nvidia-cutlass-dsl-libs-cu13==4.5.0 (from nvidia-cutlass-dsl[cu13]==4.5.0; python_version >= "3.10"->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cutlass_dsl_libs_cu13-4.5.0-cp312-cp312-manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+Collecting alembic>=1.5.0 (from optuna==3.6.1->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached alembic-1.18.5-py3-none-any.whl.metadata (7.2 kB)
+Collecting colorlog (from optuna==3.6.1->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached colorlog-6.10.1-py3-none-any.whl.metadata (11 kB)
+Collecting sqlalchemy>=1.3.0 (from optuna==3.6.1->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached sqlalchemy-2.0.51-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (9.5 kB)
+Requirement already satisfied: six in /usr/local/lib/python3.12/dist-packages (from rouge==1.0.1->tensorrt_llm==1.3.0rc19) (1.16.0)
+Collecting huggingface-hub<2.0,>=0.34.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached huggingface_hub-1.23.0-py3-none-any.whl.metadata (14 kB)
+Requirement already satisfied: regex>=2025.10.22 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->tensorrt_llm==1.3.0rc19) (2026.1.15)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->tensorrt_llm==1.3.0rc19) (0.22.2)
+Requirement already satisfied: typer in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->tensorrt_llm==1.3.0rc19) (0.24.0)
+Requirement already satisfied: safetensors>=0.4.3 in /usr/local/lib/python3.12/dist-packages (from transformers==5.5.4->tensorrt_llm==1.3.0rc19) (0.7.0)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp~=3.13.3->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (2.6.1)
+Requirement already satisfied: aiosignal>=1.4.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp~=3.13.3->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (1.4.0)
+Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.12/dist-packages (from aiohttp~=3.13.3->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.12/dist-packages (from aiohttp~=3.13.3->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp~=3.13.3->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (0.4.1)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.12/dist-packages (from aiohttp~=3.13.3->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (1.22.0)
+Requirement already satisfied: cuda-bindings~=13.0 in /usr/local/lib/python3.12/dist-packages (from cupti-python<13.2,>=13.0->tensorrt_llm==1.3.0rc19) (13.1.1)
+Requirement already satisfied: cuda-pathfinder~=1.1 in /usr/local/lib/python3.12/dist-packages (from cuda-bindings~=13.0->cupti-python<13.2,>=13.0->tensorrt_llm==1.3.0rc19) (1.3.4)
+Collecting rich-rst<3.0.0,>=1.3.1 (from cyclopts<5,>=4->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached rich_rst-2.1.0-py3-none-any.whl.metadata (4.7 kB)
+Collecting Flask<3.2,>=1.0.4 (from dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached flask-3.1.3-py3-none-any.whl.metadata (3.2 kB)
+Requirement already satisfied: Werkzeug<3.2 in /usr/local/lib/python3.12/dist-packages (from dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (3.1.5)
+Requirement already satisfied: importlib-metadata in /usr/local/lib/python3.12/dist-packages (from dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (8.7.1)
+Collecting retrying (from dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached retrying-1.4.2-py3-none-any.whl.metadata (5.5 kB)
+Requirement already satisfied: nest-asyncio in /usr/local/lib/python3.12/dist-packages (from dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (1.6.0)
+Collecting starlette>=0.49.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached starlette-0.50.0-py3-none-any.whl.metadata (6.3 kB)
+Requirement already satisfied: annotated-doc>=0.0.2 in /usr/local/lib/python3.12/dist-packages (from fastapi<=0.121.3,>=0.120.1->tensorrt_llm==1.3.0rc19) (0.0.4)
+Collecting future (from ffmpeg-python~=0.2.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached future-1.0.0-py3-none-any.whl.metadata (4.0 kB)
+Collecting blinker>=1.9.0 (from Flask<3.2,>=1.0.4->dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+Collecting itsdangerous>=2.2.0 (from Flask<3.2,>=1.0.4->dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+Requirement already satisfied: markupsafe>=2.1.1 in /usr/local/lib/python3.12/dist-packages (from Flask<3.2,>=1.0.4->dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (3.0.3)
+INFO: pip is looking at multiple versions of huggingface-hub to determine which version is compatible with other requirements. This could take a while.
+Collecting huggingface-hub<2.0,>=0.34.0 (from aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached huggingface_hub-1.22.0-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.21.0-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.20.1-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.20.0-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.19.0-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.18.0-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.17.0-py3-none-any.whl.metadata (14 kB)
+INFO: pip is still looking at multiple versions of huggingface-hub to determine which version is compatible with other requirements. This could take a while.
+  Using cached huggingface_hub-1.16.4-py3-none-any.whl.metadata (14 kB)
+  Using cached huggingface_hub-1.16.1-py3-none-any.whl.metadata (14 kB)
+Collecting hf-xet<2.0.0,>=1.4.3 (from huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached hf_xet-1.5.1-cp37-abi3-manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+Requirement already satisfied: httpx<1,>=0.23.0 in /root/.local/lib/python3.12/site-packages (from huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (0.28.1)
+Requirement already satisfied: anyio in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (4.12.1)
+Requirement already satisfied: certifi in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (2026.1.4)
+Requirement already satisfied: httpcore==1.* in /root/.local/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (1.0.9)
+Requirement already satisfied: idna in /usr/local/lib/python3.12/dist-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (3.11)
+Requirement already satisfied: h11>=0.16 in /usr/local/lib/python3.12/dist-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface-hub<2.0,>=0.34.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (0.16.0)
+Collecting choreographer>=1.1.1 (from kaleido~=1.2.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached choreographer-1.3.0-py3-none-any.whl.metadata (6.9 kB)
+Collecting logistro>=1.0.8 (from kaleido~=1.2.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached logistro-2.0.1-py3-none-any.whl.metadata (3.9 kB)
+Requirement already satisfied: scipy in /usr/local/lib/python3.12/dist-packages (from nvidia-modelopt~=0.37.0->nvidia-modelopt[torch]~=0.37.0->tensorrt_llm==1.3.0rc19) (1.17.0)
+Collecting torchprofile>=0.0.4 (from nvidia-modelopt~=0.37.0->nvidia-modelopt[torch]~=0.37.0->tensorrt_llm==1.3.0rc19)
+  Using cached torchprofile-0.1.0-py3-none-any.whl.metadata (2.2 kB)
+WARNING: nvidia-modelopt 0.37.0 does not provide the extra 'torch'
+Requirement already satisfied: python-dateutil>=2.8.2 in /usr/local/lib/python3.12/dist-packages (from pandas->tensorrt_llm==1.3.0rc19) (2.9.0.post0)
+Collecting pytz>=2020.1 (from pandas->tensorrt_llm==1.3.0rc19)
+  Using cached pytz-2026.2-py2.py3-none-any.whl.metadata (22 kB)
+Requirement already satisfied: tzdata>=2022.7 in /usr/local/lib/python3.12/dist-packages (from pandas->tensorrt_llm==1.3.0rc19) (2025.3)
+Collecting narwhals>=1.15.1 (from plotly->tensorrt_llm==1.3.0rc19)
+  Using cached narwhals-2.23.0-py3-none-any.whl.metadata (15 kB)
+Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.12/dist-packages (from pydantic>=2.9.1->tensorrt_llm==1.3.0rc19) (0.7.0)
+Requirement already satisfied: pydantic-core==2.46.4 in /root/.local/lib/python3.12/site-packages (from pydantic>=2.9.1->tensorrt_llm==1.3.0rc19) (2.46.4)
+Requirement already satisfied: typing-inspection>=0.4.2 in /root/.local/lib/python3.12/site-packages (from pydantic>=2.9.1->tensorrt_llm==1.3.0rc19) (0.4.2)
+Requirement already satisfied: python-dotenv>=0.21.0 in /root/.local/lib/python3.12/site-packages (from pydantic-settings[yaml]->tensorrt_llm==1.3.0rc19) (1.2.2)
+Requirement already satisfied: iniconfig in /root/.local/lib/python3.12/site-packages (from pytest<9.1->tensorrt_llm==1.3.0rc19) (2.3.0)
+Requirement already satisfied: pluggy<2.0,>=1.4 in /usr/local/lib/python3.12/dist-packages (from pytest<9.1->tensorrt_llm==1.3.0rc19) (1.6.0)
+Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/local/lib/python3.12/dist-packages (from rich~=14.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (4.0.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.12/dist-packages (from rich~=14.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (2.20.0)
+Collecting ruamel.yaml.clib>=0.2.15 (from ruamel-yaml~=0.18.12->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached ruamel_yaml_clib-0.2.15-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+Requirement already satisfied: cffi>=1.0 in /usr/local/lib/python3.12/dist-packages (from soundfile->tensorrt_llm==1.3.0rc19) (2.0.0)
+Requirement already satisfied: platformdirs<5,>=3.6.0 in /usr/local/lib/python3.12/dist-packages (from textual~=5.3.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (4.9.2)
+Requirement already satisfied: sympy>=1.13.3 in /usr/local/lib/python3.12/dist-packages (from torch<=2.11.0a0,>=2.10.0->tensorrt_llm==1.3.0rc19) (1.14.0)
+Requirement already satisfied: networkx>=2.5.1 in /usr/local/lib/python3.12/dist-packages (from torch<=2.11.0a0,>=2.10.0->tensorrt_llm==1.3.0rc19) (3.6.1)
+Requirement already satisfied: pytokens~=0.4.0 in /usr/local/lib/python3.12/dist-packages (from black>=26.3.1->tensorrt_llm==1.3.0rc19) (0.4.1)
+Requirement already satisfied: pycparser in /usr/local/lib/python3.12/dist-packages (from cffi>=1.0->soundfile->tensorrt_llm==1.3.0rc19) (3.0)
+Collecting simplejson>=3.19.3 (from choreographer>=1.1.1->kaleido~=1.2.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached simplejson-4.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.8 kB)
+Collecting safetensors>=0.4.3 (from transformers==5.5.4->tensorrt_llm==1.3.0rc19)
+  Using cached safetensors-0.8.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.2 kB)
+Requirement already satisfied: argon2-cffi>=21.1 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (25.1.0)
+Requirement already satisfied: jupyter-client>=7.4.4 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (8.8.0)
+Requirement already satisfied: jupyter-core!=5.0.*,>=4.12 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (5.9.1)
+Requirement already satisfied: jupyter-events>=0.11.0 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.12.0)
+Requirement already satisfied: jupyter-server-terminals>=0.4.4 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.5.4)
+Requirement already satisfied: nbconvert>=6.4.4 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (7.17.0)
+Requirement already satisfied: nbformat>=5.3.0 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (5.10.4)
+Requirement already satisfied: send2trash>=1.8.2 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (2.1.0)
+Requirement already satisfied: terminado>=0.8.3 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.18.1)
+Requirement already satisfied: traitlets>=5.6.0 in /root/.local/lib/python3.12/site-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (5.15.1)
+Requirement already satisfied: websocket-client>=1.7 in /usr/local/lib/python3.12/dist-packages (from jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.9.0)
+Requirement already satisfied: argon2-cffi-bindings in /usr/local/lib/python3.12/dist-packages (from argon2-cffi>=21.1->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (25.1.0)
+Requirement already satisfied: python-json-logger>=2.0.4 in /usr/local/lib/python3.12/dist-packages (from jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (4.0.0)
+Requirement already satisfied: referencing in /usr/local/lib/python3.12/dist-packages (from jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.37.0)
+Requirement already satisfied: rfc3339-validator in /usr/local/lib/python3.12/dist-packages (from jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.1.4)
+Requirement already satisfied: rfc3986-validator>=0.1.1 in /usr/local/lib/python3.12/dist-packages (from jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.1.1)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in /usr/local/lib/python3.12/dist-packages (from jsonschema->tensorrt_llm==1.3.0rc19) (2025.9.1)
+Requirement already satisfied: rpds-py>=0.25.0 in /usr/local/lib/python3.12/dist-packages (from jsonschema->tensorrt_llm==1.3.0rc19) (0.30.0)
+Requirement already satisfied: fqdn in /usr/local/lib/python3.12/dist-packages (from jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.5.1)
+Requirement already satisfied: isoduration in /usr/local/lib/python3.12/dist-packages (from jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (20.11.0)
+Requirement already satisfied: jsonpointer>1.13 in /usr/local/lib/python3.12/dist-packages (from jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (3.0.0)
+Requirement already satisfied: rfc3987-syntax>=1.1.0 in /usr/local/lib/python3.12/dist-packages (from jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.1.0)
+Requirement already satisfied: uri-template in /usr/local/lib/python3.12/dist-packages (from jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.3.0)
+Requirement already satisfied: webcolors>=24.6.0 in /usr/local/lib/python3.12/dist-packages (from jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (25.10.0)
+Requirement already satisfied: mdurl~=0.1 in /usr/local/lib/python3.12/dist-packages (from markdown-it-py>=2.2.0->rich~=14.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (0.1.2)
+Collecting linkify-it-py<3,>=1 (from markdown-it-py[linkify,plugins]>=2.1.0->textual~=5.3.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached linkify_it_py-2.1.0-py3-none-any.whl.metadata (8.5 kB)
+Requirement already satisfied: mdit-py-plugins>=0.5.0 in /usr/local/lib/python3.12/dist-packages (from markdown-it-py[linkify,plugins]>=2.1.0->textual~=5.3.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (0.5.0)
+Collecting uc-micro-py (from linkify-it-py<3,>=1->markdown-it-py[linkify,plugins]>=2.1.0->textual~=5.3.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19)
+  Using cached uc_micro_py-2.0.0-py3-none-any.whl.metadata (2.2 kB)
+Requirement already satisfied: contourpy>=1.0.1 in /root/.local/lib/python3.12/site-packages (from matplotlib->tensorrt_llm==1.3.0rc19) (1.3.3)
+Requirement already satisfied: cycler>=0.10 in /root/.local/lib/python3.12/site-packages (from matplotlib->tensorrt_llm==1.3.0rc19) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /root/.local/lib/python3.12/site-packages (from matplotlib->tensorrt_llm==1.3.0rc19) (4.63.0)
+Requirement already satisfied: kiwisolver>=1.3.1 in /root/.local/lib/python3.12/site-packages (from matplotlib->tensorrt_llm==1.3.0rc19) (1.5.0)
+Requirement already satisfied: pyparsing>=3 in /usr/local/lib/python3.12/dist-packages (from matplotlib->tensorrt_llm==1.3.0rc19) (3.3.2)
+Collecting pydantic-extra-types>=2.10.5 (from pydantic-extra-types[pycountry]>=2.10.5->mistral-common>=1.10.0->tensorrt_llm==1.3.0rc19)
+  Using cached pydantic_extra_types-2.11.1-py3-none-any.whl.metadata (4.2 kB)
+Requirement already satisfied: beautifulsoup4 in /usr/local/lib/python3.12/dist-packages (from nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (4.14.3)
+Requirement already satisfied: bleach!=5.0.0 in /usr/local/lib/python3.12/dist-packages (from bleach[css]!=5.0.0->nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (6.3.0)
+Requirement already satisfied: defusedxml in /usr/local/lib/python3.12/dist-packages (from nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.7.1)
+Requirement already satisfied: jupyterlab-pygments in /usr/local/lib/python3.12/dist-packages (from nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.3.0)
+Requirement already satisfied: nbclient>=0.5.0 in /usr/local/lib/python3.12/dist-packages (from nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.10.4)
+Requirement already satisfied: pandocfilters>=1.4.1 in /usr/local/lib/python3.12/dist-packages (from nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.5.1)
+Requirement already satisfied: webencodings in /usr/local/lib/python3.12/dist-packages (from bleach!=5.0.0->bleach[css]!=5.0.0->nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (0.5.1)
+Requirement already satisfied: tinycss2<1.5,>=1.1.0 in /usr/local/lib/python3.12/dist-packages (from bleach[css]!=5.0.0->nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.4.0)
+Requirement already satisfied: fastjsonschema>=2.15 in /usr/local/lib/python3.12/dist-packages (from nbformat>=5.3.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (2.21.2)
+Requirement already satisfied: jupyterlab-server<3,>=2.28.0 in /usr/local/lib/python3.12/dist-packages (from notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (2.28.0)
+Requirement already satisfied: jupyterlab<4.6,>=4.5.8 in /usr/local/lib/python3.12/dist-packages (from notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (4.5.8)
+Requirement already satisfied: notebook-shim<0.3,>=0.2 in /usr/local/lib/python3.12/dist-packages (from notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.2.4)
+Requirement already satisfied: async-lru>=1.0.0 in /usr/local/lib/python3.12/dist-packages (from jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (2.1.0)
+Requirement already satisfied: ipykernel!=6.30.0,>=6.5.0 in /usr/local/lib/python3.12/dist-packages (from jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (7.2.0)
+Requirement already satisfied: jupyter-lsp>=2.0.0 in /usr/local/lib/python3.12/dist-packages (from jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (2.3.0)
+Requirement already satisfied: babel>=2.10 in /usr/local/lib/python3.12/dist-packages (from jupyterlab-server<3,>=2.28.0->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (2.18.0)
+Requirement already satisfied: json5>=0.9.0 in /usr/local/lib/python3.12/dist-packages (from jupyterlab-server<3,>=2.28.0->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.13.0)
+Requirement already satisfied: comm>=0.1.1 in /usr/local/lib/python3.12/dist-packages (from ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.2.3)
+Requirement already satisfied: debugpy>=1.6.5 in /usr/local/lib/python3.12/dist-packages (from ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (1.8.20)
+Requirement already satisfied: ipython>=7.23.1 in /usr/local/lib/python3.12/dist-packages (from ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (9.10.0)
+Requirement already satisfied: matplotlib-inline>=0.1 in /root/.local/lib/python3.12/site-packages (from ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.2.2)
+Requirement already satisfied: decorator>=4.3.2 in /usr/local/lib/python3.12/dist-packages (from ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (5.2.1)
+Requirement already satisfied: ipython-pygments-lexers>=1.0.0 in /usr/local/lib/python3.12/dist-packages (from ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (1.1.1)
+Requirement already satisfied: jedi>=0.18.1 in /usr/local/lib/python3.12/dist-packages (from ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.19.2)
+Requirement already satisfied: pexpect>4.3 in /usr/local/lib/python3.12/dist-packages (from ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (4.9.0)
+Requirement already satisfied: prompt_toolkit<3.1.0,>=3.0.41 in /usr/local/lib/python3.12/dist-packages (from ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (3.0.52)
+Requirement already satisfied: stack_data>=0.6.0 in /usr/local/lib/python3.12/dist-packages (from ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.6.3)
+Requirement already satisfied: wcwidth in /usr/local/lib/python3.12/dist-packages (from prompt_toolkit<3.1.0,>=3.0.41->ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.6.0)
+Requirement already satisfied: parso<0.9.0,>=0.8.4 in /usr/local/lib/python3.12/dist-packages (from jedi>=0.18.1->ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.8.6)
+Requirement already satisfied: protobuf>=4.25.1 in /usr/local/lib/python3.12/dist-packages (from onnx>=1.21.0->tensorrt_llm==1.3.0rc19) (6.33.5)
+Requirement already satisfied: ml_dtypes>=0.5.4 in /root/.local/lib/python3.12/site-packages (from onnx>=1.21.0->tensorrt_llm==1.3.0rc19) (0.5.4)
+Collecting opentelemetry-exporter-otlp-proto-grpc==1.43.0 (from opentelemetry-exporter-otlp>=1.26.0->tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_exporter_otlp_proto_grpc-1.43.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting opentelemetry-exporter-otlp-proto-http==1.43.0 (from opentelemetry-exporter-otlp>=1.26.0->tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_exporter_otlp_proto_http-1.43.0-py3-none-any.whl.metadata (2.4 kB)
+Collecting googleapis-common-protos~=1.57 (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.26.0->tensorrt_llm==1.3.0rc19)
+  Using cached googleapis_common_protos-1.75.0-py3-none-any.whl.metadata (8.6 kB)
+Collecting opentelemetry-exporter-otlp-proto-common==1.43.0 (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.26.0->tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_exporter_otlp_proto_common-1.43.0-py3-none-any.whl.metadata (1.8 kB)
+Collecting opentelemetry-proto==1.43.0 (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.26.0->tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_proto-1.43.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting opentelemetry-semantic-conventions==0.64b0 (from opentelemetry-sdk>=1.26.0->tensorrt_llm==1.3.0rc19)
+  Using cached opentelemetry_semantic_conventions-0.64b0-py3-none-any.whl.metadata (2.4 kB)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.2->datasets==3.1.0->tensorrt_llm==1.3.0rc19) (3.4.4)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /usr/local/lib/python3.12/dist-packages (from requests>=2.32.2->datasets==3.1.0->tensorrt_llm==1.3.0rc19) (2.6.3)
+Requirement already satisfied: ptyprocess>=0.5 in /usr/local/lib/python3.12/dist-packages (from pexpect>4.3->ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.7.0)
+Collecting pycountry>=23 (from pydantic-extra-types[pycountry]>=2.10.5->mistral-common>=1.10.0->tensorrt_llm==1.3.0rc19)
+  Using cached pycountry-26.2.16-py3-none-any.whl.metadata (12 kB)
+INFO: pip is looking at multiple versions of quack-kernels to determine which version is compatible with other requirements. This could take a while.
+Collecting quack-kernels>=0.4.0 (from flash-attn-4==4.0.0b11->tensorrt_llm==1.3.0rc19)
+  Using cached quack_kernels-0.6.0-py3-none-any.whl.metadata (800 bytes)
+  Using cached quack_kernels-0.5.3-py3-none-any.whl.metadata (810 bytes)
+  Using cached quack_kernels-0.5.2-py3-none-any.whl.metadata (810 bytes)
+  Using cached quack_kernels-0.5.1-py3-none-any.whl.metadata (810 bytes)
+  Using cached quack_kernels-0.5.0-py3-none-any.whl.metadata (800 bytes)
+  Using cached quack_kernels-0.4.1-py3-none-any.whl.metadata (640 bytes)
+Requirement already satisfied: absl-py in /usr/local/lib/python3.12/dist-packages (from rouge_score->tensorrt_llm==1.3.0rc19) (2.4.0)
+Collecting nltk (from rouge_score->tensorrt_llm==1.3.0rc19)
+  Using cached nltk-3.10.0-py3-none-any.whl.metadata (3.2 kB)
+Collecting portalocker (from sacrebleu>=1.5.0->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached portalocker-3.2.0-py3-none-any.whl.metadata (8.7 kB)
+Collecting colorama (from sacrebleu>=1.5.0->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Collecting lxml (from sacrebleu>=1.5.0->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached lxml-6.1.1-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+Requirement already satisfied: joblib>=1.3.0 in /usr/local/lib/python3.12/dist-packages (from scikit-learn>=0.24.1->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19) (1.5.3)
+Requirement already satisfied: threadpoolctl>=3.2.0 in /usr/local/lib/python3.12/dist-packages (from scikit-learn>=0.24.1->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19) (3.6.0)
+Collecting grpcio<=2,>=1.66.2 (from etcd-sdk-python==0.0.7->tensorrt_llm==1.3.0rc19)
+  Using cached grpcio-1.82.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (3.7 kB)
+Collecting greenlet>=1 (from sqlalchemy>=1.3.0->optuna==3.6.1->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached greenlet-3.5.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (3.8 kB)
+Requirement already satisfied: executing>=1.2.0 in /usr/local/lib/python3.12/dist-packages (from stack_data>=0.6.0->ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (2.2.1)
+Requirement already satisfied: asttokens>=2.1.0 in /usr/local/lib/python3.12/dist-packages (from stack_data>=0.6.0->ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (3.0.1)
+Requirement already satisfied: pure-eval in /usr/local/lib/python3.12/dist-packages (from stack_data>=0.6.0->ipython>=7.23.1->ipykernel!=6.30.0,>=6.5.0->jupyterlab<4.6,>=4.5.8->notebook>=7.5.6->tensorrt_llm==1.3.0rc19) (0.2.3)
+Requirement already satisfied: shellingham>=1.3.0 in /usr/local/lib/python3.12/dist-packages (from typer->transformers==5.5.4->tensorrt_llm==1.3.0rc19) (1.5.4)
+Collecting immutabledict<4.3.2 (from xdsl>=0.59.0->tensorrt_llm==1.3.0rc19)
+  Using cached immutabledict-4.3.1-py3-none-any.whl.metadata (3.5 kB)
+Requirement already satisfied: soupsieve>=1.6.1 in /usr/local/lib/python3.12/dist-packages (from beautifulsoup4->nbconvert>=6.4.4->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (2.8.3)
+Collecting pycryptodomex>=3.8 (from blobfile->tensorrt_llm==1.3.0rc19)
+  Using cached pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (3.4 kB)
+Requirement already satisfied: pyproject_hooks in /usr/local/lib/python3.12/dist-packages (from build->tensorrt_llm==1.3.0rc19) (1.2.0)
+Collecting cuda-pathfinder~=1.1 (from cuda-bindings~=13.0->cupti-python<13.2,>=13.0->tensorrt_llm==1.3.0rc19)
+  Using cached cuda_pathfinder-1.5.6-py3-none-any.whl.metadata (1.9 kB)
+Collecting cuda-toolkit<13.4,>=13.2 (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached cuda_toolkit-13.3.1-py2.py3-none-any.whl.metadata (20 kB)
+Collecting nvidia-cuda-crt==13.3.73.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_crt-13.3.73-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting nvidia-cuda-nvcc==13.3.73.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_nvcc-13.3.73-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.9 kB)
+Collecting nvidia-cuda-runtime==13.3.29.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_runtime-13.3.29-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.8 kB)
+Collecting nvidia-nvvm==13.3.73.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_nvvm-13.3.73-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+INFO: pip is looking at multiple versions of cuda-toolkit[nvcc,nvvm,tileiras] to determine which version is compatible with other requirements. This could take a while.
+Collecting cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2 (from cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached cuda_toolkit-13.3.0-py2.py3-none-any.whl.metadata (20 kB)
+Collecting nvidia-cuda-crt==13.3.33.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_crt-13.3.33-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting nvidia-cuda-nvcc==13.3.33.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_nvcc-13.3.33-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.9 kB)
+Collecting nvidia-nvvm==13.3.33.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_nvvm-13.3.33-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2 (from cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached cuda_toolkit-13.2.1-py2.py3-none-any.whl.metadata (20 kB)
+Collecting nvidia-cuda-crt==13.2.78.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_crt-13.2.78-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting nvidia-cuda-nvcc==13.2.78.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_nvcc-13.2.78-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.9 kB)
+Collecting nvidia-cuda-runtime==13.2.75.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_runtime-13.2.75-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.8 kB)
+Collecting nvidia-nvvm==13.2.78.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_nvvm-13.2.78-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2 (from cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached cuda_toolkit-13.2.0-py2.py3-none-any.whl.metadata (10 kB)
+Collecting nvidia-cuda-nvcc==13.2.51.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_cuda_nvcc-13.2.51-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.9 kB)
+Collecting nvidia-nvvm==13.2.51.* (from cuda-toolkit[nvcc,nvvm,tileiras]<13.4,>=13.2; extra == "tileiras"->cuda-tile[tileiras]->flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached nvidia_nvvm-13.2.51-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (1.7 kB)
+Collecting cuda-tile[tileiras] (from flashinfer-python==0.6.12->tensorrt_llm==1.3.0rc19)
+  Using cached cuda_tile-1.4.0-cp312-cp312-manylinux2014_aarch64.whl.metadata (7.4 kB)
+INFO: pip is still looking at multiple versions of cuda-toolkit[nvcc,nvvm,tileiras] to determine which version is compatible with other requirements. This could take a while.
+  Using cached cuda_tile-1.3.0-cp312-cp312-manylinux2014_aarch64.whl.metadata (7.3 kB)
+INFO: pip is looking at multiple versions of cuda-tile[tileiras] to determine which version is compatible with other requirements. This could take a while.
+  Using cached cuda_tile-1.2.0-cp312-cp312-manylinux2014_aarch64.whl.metadata (7.1 kB)
+  Using cached cuda_tile-1.1.0-cp312-cp312-manylinux2014_aarch64.whl.metadata (6.9 kB)
+WARNING: cuda-tile 1.1.0 does not provide the extra 'tileiras'
+Collecting cramjam>=2.3 (from fastparquet->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached cramjam-2.11.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (5.6 kB)
+Requirement already satisfied: zipp>=3.20 in /usr/local/lib/python3.12/dist-packages (from importlib-metadata->dash~=3.1.0->aiperf==0.6.0->tensorrt_llm==1.3.0rc19) (3.23.0)
+Requirement already satisfied: arrow>=0.15.0 in /usr/local/lib/python3.12/dist-packages (from isoduration->jsonschema[format-nongpl]>=4.18.0->jupyter-events>=0.11.0->jupyter_server>=2.18.0->tensorrt_llm==1.3.0rc19) (1.4.0)
+Requirement already satisfied: httpx-sse>=0.4 in /root/.local/lib/python3.12/site-packages (from mcp->tensorrt_llm==1.3.0rc19) (0.4.3)
+Collecting pyjwt>=2.10.1 (from pyjwt[crypto]>=2.10.1->mcp->tensorrt_llm==1.3.0rc19)
+  Using cached pyjwt-2.13.0-py3-none-any.whl.metadata (3.4 kB)
+Requirement already satisfied: sse-starlette>=1.6.1 in /root/.local/lib/python3.12/site-packages (from mcp->tensorrt_llm==1.3.0rc19) (3.4.5)
+Collecting cryptography>=3.4.0 (from pyjwt[crypto]>=2.10.1->mcp->tensorrt_llm==1.3.0rc19)
+  Using cached cryptography-49.0.0-cp311-abi3-manylinux_2_34_aarch64.whl.metadata (4.3 kB)
+Collecting antlr4-python3-runtime==4.9.* (from omegaconf->tensorrt_llm==1.3.0rc19)
+  Using cached antlr4_python3_runtime-4.9.3-py3-none-any.whl
+Collecting distro<2,>=1.7.0 (from openai->tensorrt_llm==1.3.0rc19)
+  Using cached distro-1.9.0-py3-none-any.whl.metadata (6.8 kB)
+Collecting jiter<1,>=0.10.0 (from openai->tensorrt_llm==1.3.0rc19)
+  Using cached jiter-0.16.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (5.2 kB)
+Collecting sniffio (from openai->tensorrt_llm==1.3.0rc19)
+  Using cached sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+Requirement already satisfied: cfgv>=2.0.0 in /root/.local/lib/python3.12/site-packages (from pre-commit->tensorrt_llm==1.3.0rc19) (3.5.0)
+Requirement already satisfied: identify>=1.0.0 in /root/.local/lib/python3.12/site-packages (from pre-commit->tensorrt_llm==1.3.0rc19) (2.6.19)
+Requirement already satisfied: nodeenv>=0.11.1 in /root/.local/lib/python3.12/site-packages (from pre-commit->tensorrt_llm==1.3.0rc19) (1.10.0)
+Requirement already satisfied: virtualenv>=20.10.0 in /usr/local/lib/python3.12/dist-packages (from pre-commit->tensorrt_llm==1.3.0rc19) (21.6.1)
+Requirement already satisfied: distlib<1,>=0.3.7 in /usr/local/lib/python3.12/dist-packages (from virtualenv>=20.10.0->pre-commit->tensorrt_llm==1.3.0rc19) (0.4.3)
+Requirement already satisfied: python-discovery>=1.4.2 in /usr/local/lib/python3.12/dist-packages (from virtualenv>=20.10.0->pre-commit->tensorrt_llm==1.3.0rc19) (1.4.4)
+INFO: pip is looking at multiple versions of prometheus-fastapi-instrumentator to determine which version is compatible with other requirements. This could take a while.
+Collecting prometheus_fastapi_instrumentator (from tensorrt_llm==1.3.0rc19)
+  Using cached prometheus_fastapi_instrumentator-8.0.1-py3-none-any.whl.metadata (13 kB)
+  Using cached prometheus_fastapi_instrumentator-8.0.0-py3-none-any.whl.metadata (13 kB)
+  Using cached prometheus_fastapi_instrumentator-7.1.0-py3-none-any.whl.metadata (13 kB)
+Collecting DataProperty<2,>=1.1.0 (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached dataproperty-1.1.1-py3-none-any.whl.metadata (12 kB)
+Collecting mbstrdecoder<2,>=1.0.0 (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached mbstrdecoder-1.1.5-py3-none-any.whl.metadata (4.3 kB)
+Collecting pathvalidate<4,>=2.3.0 (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached pathvalidate-3.3.1-py3-none-any.whl.metadata (12 kB)
+Collecting tabledata<2,>=1.3.1 (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached tabledata-1.3.5-py3-none-any.whl.metadata (4.0 kB)
+Collecting tcolorpy<1,>=0.0.5 (from pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached tcolorpy-0.1.7-py3-none-any.whl.metadata (6.3 kB)
+Collecting typepy<2,>=1.3.2 (from typepy[datetime]<2,>=1.3.2->pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached typepy-1.3.5-py3-none-any.whl.metadata (9.6 kB)
+Collecting chardet<7,>=3.0.4 (from mbstrdecoder<2,>=1.0.0->pytablewriter->lm_eval==0.4.10->lm_eval[api]==0.4.10; extra == "devel"->tensorrt_llm==1.3.0rc19)
+  Using cached chardet-6.0.0.post1-py3-none-any.whl.metadata (3.3 kB)
+Collecting pytest<9.1 (from tensorrt_llm==1.3.0rc19)
+  Using cached pytest-9.0.3-py3-none-any.whl.metadata (7.6 kB)
+Collecting coverage>=7.10.6 (from coverage[toml]>=7.10.6->pytest-cov->tensorrt_llm==1.3.0rc19)
+  Using cached coverage-7.15.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (8.6 kB)
+Collecting py (from pytest-forked->tensorrt_llm==1.3.0rc19)
+  Using cached py-1.11.0-py2.py3-none-any.whl.metadata (2.8 kB)
+Requirement already satisfied: execnet>=2.1 in /usr/local/lib/python3.12/dist-packages (from pytest-xdist->tensorrt_llm==1.3.0rc19) (2.1.2)
+Collecting patsy>=0.5.6 (from statsmodels->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached patsy-1.0.2-py2.py3-none-any.whl.metadata (3.6 kB)
+Collecting python-rapidjson>=0.9.1 (from tritonclient->genai-perf==0.0.13->tensorrt_llm==1.3.0rc19)
+  Using cached python_rapidjson-1.23-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (24 kB)
+Using cached aiperf-0.6.0-py3-none-any.whl (3.4 MB)
+Using cached apache_tvm_ffi-0.1.6-cp312-abi3-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (1.9 MB)
+Using cached bandit-1.7.7-py3-none-any.whl (124 kB)
+Using cached datasets-3.1.0-py3-none-any.whl (480 kB)
+Using cached etcd_sdk_python-0.0.7-py3-none-any.whl (52 kB)
+Using cached flash_attn_4-4.0.0b11-py3-none-any.whl (324 kB)
+Using cached flashinfer_python-0.6.12-py3-none-any.whl (14.0 MB)
+Using cached fuzzywuzzy-0.18.0-py2.py3-none-any.whl (18 kB)
+Using cached genai_perf-0.0.13-py3-none-any.whl (2.8 MB)
+Using cached h5py-3.12.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (5.2 MB)
+Using cached hf_transfer-0.1.9-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (3.7 MB)
+Using cached jsonlines-4.0.0-py3-none-any.whl (8.7 kB)
+Using cached llguidance-0.7.29-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (15.0 MB)
+Using cached lm_eval-0.4.10-py3-none-any.whl (8.7 MB)
+Using cached mypy-1.19.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (12.7 MB)
+Using cached nixl_cu13-1.0.1-cp312-cp312-manylinux_2_28_aarch64.whl (49.2 MB)
+Using cached nvidia_cutlass_dsl-4.5.0-py3-none-any.whl (10 kB)
+Using cached nvidia_cutlass_dsl_libs_base-4.5.0-cp312-cp312-manylinux_2_28_aarch64.whl (75.6 MB)
+Using cached nvidia_cutlass_dsl_libs_cu13-4.5.0-cp312-cp312-manylinux_2_28_aarch64.whl (79.1 MB)
+Using cached openai_harmony-0.0.4-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (3.0 MB)
+Using cached optuna-3.6.1-py3-none-any.whl (380 kB)
+Using cached rouge-1.0.1-py3-none-any.whl (13 kB)
+Using cached torch_c_dlpack_ext-0.1.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (433 kB)
+Using cached transformers-5.5.4-py3-none-any.whl (10.2 MB)
+Using cached triton-3.6.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (176.1 MB)
+Using cached typeguard-4.4.4-py3-none-any.whl (34 kB)
+Using cached xgrammar-0.1.32-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (37.7 MB)
+Using cached aiofiles-24.1.0-py3-none-any.whl (15 kB)
+Using cached cupti_python-13.0.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (835 kB)
+Using cached cyclopts-4.21.0-py3-none-any.whl (230 kB)
+Using cached dash-3.1.1-py3-none-any.whl (7.9 MB)
+Using cached dash_bootstrap_components-2.0.4-py3-none-any.whl (204 kB)
+Using cached dill-0.3.8-py3-none-any.whl (116 kB)
+Using cached fastapi-0.121.3-py3-none-any.whl (109 kB)
+Using cached ffmpeg_python-0.2.0-py3-none-any.whl (25 kB)
+Using cached flask-3.1.3-py3-none-any.whl (103 kB)
+Using cached fsspec-2024.9.0-py3-none-any.whl (179 kB)
+Using cached huggingface_hub-1.16.1-py3-none-any.whl (668 kB)
+Using cached hf_xet-1.5.1-cp37-abi3-manylinux_2_28_aarch64.whl (4.3 MB)
+Using cached jmespath-1.0.1-py3-none-any.whl (20 kB)
+Using cached kaleido-1.2.0-py3-none-any.whl (68 kB)
+Using cached msgspec-0.21.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (218 kB)
+Using cached multiprocess-0.70.16-py312-none-any.whl (146 kB)
+Using cached nvidia_cuda_cupti-13.1.115-py3-none-manylinux_2_25_aarch64.whl (10.9 MB)
+Using cached nvidia_cuda_tileiras-13.1.80-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (35.3 MB)
+Using cached nvidia_modelopt-0.37.0-py3-none-any.whl (831 kB)
+Using cached nvidia_nccl_cu13-2.29.2-py3-none-manylinux_2_18_aarch64.whl (201.0 MB)
+Using cached orjson-3.10.18-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (136 kB)
+Using cached pandas-2.3.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (11.7 MB)
+Using cached peft-0.18.1-py3-none-any.whl (556 kB)
+Using cached plotly-6.4.0-py3-none-any.whl (9.9 MB)
+Using cached prometheus_client-0.23.1-py3-none-any.whl (61 kB)
+Using cached psutil-7.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (279 kB)
+Using cached pyzmq-26.4.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (665 kB)
+Using cached rich-14.1.0-py3-none-any.whl (243 kB)
+Using cached rich_rst-2.1.0-py3-none-any.whl (272 kB)
+Using cached ruamel_yaml-0.18.17-py3-none-any.whl (121 kB)
+Using cached seaborn-0.13.2-py3-none-any.whl (294 kB)
+Using cached setproctitle-1.3.7-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (33 kB)
+Using cached setuptools-79.0.1-py3-none-any.whl (1.3 MB)
+Using cached starlette-0.50.0-py3-none-any.whl (74 kB)
+Using cached textual-5.3.0-py3-none-any.whl (702 kB)
+Using cached torchao-0.15.0-py3-none-any.whl (1.1 MB)
+Using cached uvloop-0.21.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (4.6 MB)
+Using cached accelerate-1.14.0-py3-none-any.whl (389 kB)
+Using cached alembic-1.18.5-py3-none-any.whl (264 kB)
+Using cached blinker-1.9.0-py3-none-any.whl (8.5 kB)
+Using cached cache_dit-1.5.0-py3-none-any.whl (488 kB)
+Using cached choreographer-1.3.0-py3-none-any.whl (52 kB)
+Using cached diffusers-0.39.0-py3-none-any.whl (5.6 MB)
+Using cached evaluate-0.4.6-py3-none-any.whl (84 kB)
+Using cached itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+Using cached logistro-2.0.1-py3-none-any.whl (8.6 kB)
+Using cached linkify_it_py-2.1.0-py3-none-any.whl (19 kB)
+Using cached mistral_common-1.11.5-py3-none-any.whl (6.6 MB)
+Using cached nanobind-2.13.0-py3-none-any.whl (269 kB)
+Using cached narwhals-2.23.0-py3-none-any.whl (458 kB)
+Using cached onnx-1.22.0-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (18.9 MB)
+Using cached onnx_graphsurgeon-0.6.1-py2.py3-none-any.whl (59 kB)
+Using cached opentelemetry_api-1.43.0-py3-none-any.whl (61 kB)
+Using cached opentelemetry_exporter_otlp-1.43.0-py3-none-any.whl (6.7 kB)
+Using cached opentelemetry_exporter_otlp_proto_grpc-1.43.0-py3-none-any.whl (19 kB)
+Using cached opentelemetry_exporter_otlp_proto_common-1.43.0-py3-none-any.whl (17 kB)
+Using cached opentelemetry_exporter_otlp_proto_http-1.43.0-py3-none-any.whl (21 kB)
+Using cached opentelemetry_proto-1.43.0-py3-none-any.whl (72 kB)
+Using cached googleapis_common_protos-1.75.0-py3-none-any.whl (300 kB)
+Using cached opentelemetry_sdk-1.43.0-py3-none-any.whl (178 kB)
+Using cached opentelemetry_semantic_conventions-0.64b0-py3-none-any.whl (203 kB)
+Using cached opentelemetry_semantic_conventions_ai-0.5.1-py3-none-any.whl (11 kB)
+Using cached pydantic_extra_types-2.11.1-py3-none-any.whl (79 kB)
+Using cached pycountry-26.2.16-py3-none-any.whl (8.0 MB)
+Using cached pytz-2026.2-py2.py3-none-any.whl (510 kB)
+Using cached quack_kernels-0.4.1-py3-none-any.whl (260 kB)
+Using cached ruamel_yaml_clib-0.2.15-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (753 kB)
+Using cached sacrebleu-2.6.0-py3-none-any.whl (100 kB)
+Using cached safetensors-0.8.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (502 kB)
+Using cached sentencepiece-0.2.2-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (1.3 MB)
+Using cached simplejson-4.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (187 kB)
+Using cached smg_grpc_proto-0.4.14-py3-none-any.whl (96 kB)
+Using cached grpcio-1.82.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (6.7 MB)
+Using cached sqlalchemy-2.0.51-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (3.3 MB)
+Using cached greenlet-3.5.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (604 kB)
+Using cached stevedore-5.9.0-py3-none-any.whl (54 kB)
+Using cached tiktoken-0.13.0-cp312-cp312-manylinux_2_28_aarch64.whl (1.1 MB)
+Using cached torchprofile-0.1.0-py3-none-any.whl (9.3 kB)
+Using cached xdsl-0.68.0-py3-none-any.whl (4.5 MB)
+Using cached ordered_set-4.1.0-py3-none-any.whl (7.6 kB)
+Using cached immutabledict-4.3.1-py3-none-any.whl (5.0 kB)
+Using cached aenum-3.1.17-py3-none-any.whl (165 kB)
+Using cached backoff-2.2.1-py3-none-any.whl (15 kB)
+Using cached blake3-1.0.9-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (373 kB)
+Using cached blobfile-3.2.0-py3-none-any.whl (76 kB)
+Using cached lxml-6.1.1-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (5.0 MB)
+Using cached pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (2.2 MB)
+Using cached click_option_group-0.5.9-py3-none-any.whl (11 kB)
+Using cached cloudpickle-3.1.2-py3-none-any.whl (22 kB)
+Using cached colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Using cached colored-2.3.2-py3-none-any.whl (20 kB)
+Using cached colorlog-6.10.1-py3-none-any.whl (11 kB)
+Using cached cuda_core-1.1.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (5.8 MB)
+Using cached cuda_pathfinder-1.5.6-py3-none-any.whl (52 kB)
+Using cached cuda_tile-1.1.0-cp312-cp312-manylinux2014_aarch64.whl (186 kB)
+Using cached cxxfilt-0.3.0-py2.py3-none-any.whl (4.6 kB)
+Using cached fastparquet-2026.5.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (1.9 MB)
+Using cached cramjam-2.11.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.8 MB)
+Using cached ftfy-6.3.1-py3-none-any.whl (44 kB)
+Using cached future-1.0.0-py3-none-any.whl (491 kB)
+Using cached graphviz-0.21-py3-none-any.whl (47 kB)
+Using cached line_profiler-5.0.2-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (1.5 MB)
+Using cached lpips-0.1.4-py3-none-any.whl (53 kB)
+Using cached mako-1.3.12-py3-none-any.whl (78 kB)
+Using cached pyjwt-2.13.0-py3-none-any.whl (31 kB)
+Using cached cryptography-49.0.0-cp311-abi3-manylinux_2_34_aarch64.whl (4.7 MB)
+Using cached uvicorn-0.51.0-py3-none-any.whl (73 kB)
+Using cached more_itertools-11.1.0-py3-none-any.whl (72 kB)
+Using cached nltk-3.10.0-py3-none-any.whl (1.7 MB)
+Using cached numexpr-2.14.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (452 kB)
+Using cached nvidia_cuda_nvrtc-13.3.33-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (49.3 MB)
+Using cached omegaconf-2.3.1-py3-none-any.whl (79 kB)
+Using cached openai-2.45.0-py3-none-any.whl (1.6 MB)
+Using cached distro-1.9.0-py3-none-any.whl (20 kB)
+Using cached jiter-0.16.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (335 kB)
+Using cached optimum-2.2.0-py3-none-any.whl (161 kB)
+Using cached oyaml-1.0-py2.py3-none-any.whl (3.0 kB)
+Using cached partial_json_parser-0.2.1.1.post7-py3-none-any.whl (10 kB)
+Using cached patchelf-0.17.2.4-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.musllinux_1_1_aarch64.whl (477 kB)
+Using cached portalocker-3.2.0-py3-none-any.whl (22 kB)
+Using cached prometheus_fastapi_instrumentator-7.1.0-py3-none-any.whl (19 kB)
+Using cached pybind11_stubgen-2.5.5-py3-none-any.whl (30 kB)
+Using cached pytablewriter-1.2.1-py3-none-any.whl (91 kB)
+Using cached dataproperty-1.1.1-py3-none-any.whl (27 kB)
+Using cached mbstrdecoder-1.1.5-py3-none-any.whl (8.0 kB)
+Using cached chardet-6.0.0.post1-py3-none-any.whl (627 kB)
+Using cached pathvalidate-3.3.1-py3-none-any.whl (24 kB)
+Using cached tabledata-1.3.5-py3-none-any.whl (11 kB)
+Using cached tcolorpy-0.1.7-py3-none-any.whl (8.1 kB)
+Using cached typepy-1.3.5-py3-none-any.whl (31 kB)
+Using cached pytest-9.0.3-py3-none-any.whl (375 kB)
+Using cached pytest_cov-7.1.0-py3-none-any.whl (22 kB)
+Using cached coverage-7.15.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (257 kB)
+Using cached pytest_csv-3.0.0-py2.py3-none-any.whl (26 kB)
+Using cached pytest_env-1.6.0-py3-none-any.whl (10 kB)
+Using cached pytest_forked-1.6.0-py3-none-any.whl (4.9 kB)
+Using cached py-1.11.0-py2.py3-none-any.whl (98 kB)
+Using cached pytest_mock-3.15.1-py3-none-any.whl (10 kB)
+Using cached pytest_split-0.11.0-py3-none-any.whl (11 kB)
+Using cached pytest_threadleak-0.5.0-py3-none-any.whl (3.7 kB)
+Using cached pytest_unused_fixtures-0.3.1-py3-none-any.whl (8.3 kB)
+Using cached responses-0.26.2-py3-none-any.whl (35 kB)
+Using cached retrying-1.4.2-py3-none-any.whl (10 kB)
+Using cached sniffio-1.3.1-py3-none-any.whl (10 kB)
+Using cached statsmodels-0.14.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (10.1 MB)
+Using cached patsy-1.0.2-py2.py3-none-any.whl (233 kB)
+Using cached tenacity-9.1.4-py3-none-any.whl (28 kB)
+Using cached tritonclient-2.70.0-py3-none-any.whl (111 kB)
+Using cached python_rapidjson-1.23-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (1.7 MB)
+Using cached uc_micro_py-2.0.0-py3-none-any.whl (6.4 kB)
+Using cached zstandard-0.25.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (5.1 MB)
+Building wheels for collected packages: tensorrt_llm
+  Building editable for tensorrt_llm (pyproject.toml): started
+  Building editable for tensorrt_llm (pyproject.toml): finished with status 'done'
+  Created wheel for tensorrt_llm: filename=tensorrt_llm-1.3.0rc19-0.editable-cp312-cp312-linux_aarch64.whl size=262709 sha256=6d17dd650e997fb53f84cb66b5c39ea77fc83326831321e72fddc1c94ad60995
+  Stored in directory: /tmp/pip-ephem-wheel-cache-mm54vckw/wheels/56/ea/aa/89d24562fedbdaa656a2cd4563402cbb001c751db955e04b7c
+Successfully built tensorrt_llm
+Installing collected packages: word2number, torchao, sqlitedict, pytz, nanobind, llist, jieba, fuzzywuzzy, cxxfilt, antlr4-python3-runtime, aenum, zstandard, uvloop, uvicorn, uc-micro-py, typeguard, triton, tenacity, tcolorpy, stevedore, sniffio, simplejson, setuptools, setproctitle, sentencepiece, safetensors, ruamel.yaml.clib, rouge, retrying, pyzmq, python-rapidjson, pytest, pyjwt, pycryptodomex, pycountry, pybind11-stubgen, py, psutil, prometheus_client, portalocker, patsy, pathvalidate, patchelf, partial_json_parser, oyaml, orjson, ordered-set, opentelemetry-proto, opentelemetry-api, omegaconf, nvidia-nccl-cu13, nvidia-cuda-tileiras, nvidia-cuda-nvrtc, nvidia-cuda-cupti, numexpr, nltk, narwhals, mypy, msgspec, more_itertools, mako, lxml, logistro, llguidance, line_profiler, jsonlines, jmespath, jiter, itsdangerous, immutabledict, hf-xet, hf-transfer, h5py, grpcio, greenlet, graphviz, googleapis-common-protos, future, ftfy, fsspec, distro, dill, cuda-tile, cuda-pathfinder, cramjam, coverage, colorlog, colored, colorama, cloudpickle, click_option_group, chardet, blinker, blake3, backoff, apache-tvm-ffi, aiofiles, xdsl, tritonclient, tiktoken, starlette, sqlalchemy, smg-grpc-proto, sacrebleu, ruamel-yaml, rouge_score, rich, responses, pytest-unused-fixtures, pytest-threadleak, pytest-split, pytest-mock, pytest-forked, pytest-env, pytest-csv, plotly, pandas, opentelemetry-semantic-conventions, opentelemetry-exporter-otlp-proto-common, onnx, multiprocess, mbstrdecoder, linkify-it-py, Flask, ffmpeg-python, etcd-sdk-python, cuda-core, cryptography, choreographer, blobfile, typepy, torchprofile, torch-c-dlpack-ext, statsmodels, seaborn, rich-rst, pytest-cov, pydantic-extra-types, prometheus_fastapi_instrumentator, opentelemetry-sdk, openai-harmony, openai, onnx_graphsurgeon, nixl-cu13, kaleido, fastparquet, fastapi, dash, cupti-python, bandit, alembic, textual, optuna, opentelemetry-semantic-conventions-ai, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, nvidia-modelopt, nvidia-cutlass-dsl-libs-base, lpips, huggingface-hub, dash-bootstrap-components, cyclopts, opentelemetry-exporter-otlp, nvidia-cutlass-dsl-libs-cu13, nvidia-cutlass-dsl, mistral-common, diffusers, datasets, DataProperty, accelerate, transformers, tabledata, quack-kernels, flashinfer-python, evaluate, xgrammar, pytablewriter, peft, optimum, genai-perf, flash-attn-4, cache-dit, aiperf, lm_eval, tensorrt_llm
+  Attempting uninstall: torchao
+    Found existing installation: torchao 0.16.0+gita89eaab2
+    Uninstalling torchao-0.16.0+gita89eaab2:
+      Successfully uninstalled torchao-0.16.0+gita89eaab2
+  Attempting uninstall: typeguard
+    Found existing installation: typeguard 4.5.0
+    Uninstalling typeguard-4.5.0:
+      Successfully uninstalled typeguard-4.5.0
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 81.0.0
+    Uninstalling setuptools-81.0.0:
+      Successfully uninstalled setuptools-81.0.0
+  Attempting uninstall: safetensors
+    Found existing installation: safetensors 0.7.0
+    Uninstalling safetensors-0.7.0:
+      Successfully uninstalled safetensors-0.7.0
+  Attempting uninstall: pyzmq
+    Found existing installation: pyzmq 27.1.0
+    Uninstalling pyzmq-27.1.0:
+      Successfully uninstalled pyzmq-27.1.0
+  Attempting uninstall: pytest
+    Found existing installation: pytest 8.1.1
+    Uninstalling pytest-8.1.1:
+      Successfully uninstalled pytest-8.1.1
+  Attempting uninstall: psutil
+    Found existing installation: psutil 7.2.2
+    Uninstalling psutil-7.2.2:
+      Successfully uninstalled psutil-7.2.2
+  Attempting uninstall: prometheus_client
+    Found existing installation: prometheus_client 0.24.1
+    Uninstalling prometheus_client-0.24.1:
+      Successfully uninstalled prometheus_client-0.24.1
+  Attempting uninstall: hf-xet
+    Found existing installation: hf-xet 1.2.0
+    Uninstalling hf-xet-1.2.0:
+      Successfully uninstalled hf-xet-1.2.0
+  Attempting uninstall: grpcio
+    Found existing installation: grpcio 1.78.0
+    Uninstalling grpcio-1.78.0:
+      Successfully uninstalled grpcio-1.78.0
+  Attempting uninstall: fsspec
+    Found existing installation: fsspec 2025.10.0
+    Uninstalling fsspec-2025.10.0:
+      Successfully uninstalled fsspec-2025.10.0
+  Attempting uninstall: dill
+    Found existing installation: dill 0.4.0
+    Uninstalling dill-0.4.0:
+      Successfully uninstalled dill-0.4.0
+  Attempting uninstall: cuda-pathfinder
+    Found existing installation: cuda-pathfinder 1.3.4
+    Uninstalling cuda-pathfinder-1.3.4:
+      Successfully uninstalled cuda-pathfinder-1.3.4
+  Attempting uninstall: rich
+    Found existing installation: rich 14.3.2
+    Uninstalling rich-14.3.2:
+      Successfully uninstalled rich-14.3.2
+  Attempting uninstall: pandas
+    Found existing installation: pandas 3.0.1
+    Uninstalling pandas-3.0.1:
+      Successfully uninstalled pandas-3.0.1
+  Attempting uninstall: onnx
+    Found existing installation: onnx 1.18.0
+    Uninstalling onnx-1.18.0:
+      Successfully uninstalled onnx-1.18.0
+  Attempting uninstall: multiprocess
+    Found existing installation: multiprocess 0.70.18
+    Uninstalling multiprocess-0.70.18:
+      Successfully uninstalled multiprocess-0.70.18
+  Attempting uninstall: nvidia-modelopt
+    Found existing installation: nvidia-modelopt 0.41.0
+    Uninstalling nvidia-modelopt-0.41.0:
+      Successfully uninstalled nvidia-modelopt-0.41.0
+  Attempting uninstall: nvidia-cutlass-dsl-libs-base
+    Found existing installation: nvidia-cutlass-dsl-libs-base 4.5.2
+    Uninstalling nvidia-cutlass-dsl-libs-base-4.5.2:
+      Successfully uninstalled nvidia-cutlass-dsl-libs-base-4.5.2
+  Attempting uninstall: huggingface-hub
+    Found existing installation: huggingface_hub 1.4.1
+    Uninstalling huggingface_hub-1.4.1:
+      Successfully uninstalled huggingface_hub-1.4.1
+  Attempting uninstall: nvidia-cutlass-dsl
+    Found existing installation: nvidia-cutlass-dsl 4.5.2
+    Uninstalling nvidia-cutlass-dsl-4.5.2:
+      Successfully uninstalled nvidia-cutlass-dsl-4.5.2
+  Attempting uninstall: datasets
+    Found existing installation: datasets 4.5.0
+    Uninstalling datasets-4.5.0:
+      Successfully uninstalled datasets-4.5.0
+
+Successfully installed DataProperty-1.1.1 Flask-3.1.3 accelerate-1.14.0 aenum-3.1.17 aiofiles-24.1.0 aiperf-0.6.0 alembic-1.18.5 antlr4-python3-runtime-4.9.3 apache-tvm-ffi-0.1.6 backoff-2.2.1 bandit-1.7.7 blake3-1.0.9 blinker-1.9.0 blobfile-3.2.0 cache-dit-1.5.0 chardet-6.0.0.post1 choreographer-1.3.0 click_option_group-0.5.9 cloudpickle-3.1.2 colorama-0.4.6 colored-2.3.2 colorlog-6.10.1 coverage-7.15.1 cramjam-2.11.0 cryptography-49.0.0 cuda-core-1.1.0 cuda-pathfinder-1.5.6 cuda-tile-1.1.0 cupti-python-13.0.1 cxxfilt-0.3.0 cyclopts-4.21.0 dash-3.1.1 dash-bootstrap-components-2.0.4 datasets-3.1.0 diffusers-0.39.0 dill-0.3.8 distro-1.9.0 etcd-sdk-python-0.0.7 evaluate-0.4.6 fastapi-0.121.3 fastparquet-2026.5.0 ffmpeg-python-0.2.0 flash-attn-4-4.0.0b11 flashinfer-python-0.6.12 fsspec-2024.9.0 ftfy-6.3.1 future-1.0.0 fuzzywuzzy-0.18.0 genai-perf-0.0.13 googleapis-common-protos-1.75.0 graphviz-0.21 greenlet-3.5.3 grpcio-1.82.1 h5py-3.12.1 hf-transfer-0.1.9 hf-xet-1.5.1 huggingface-hub-1.16.1 immutabledict-4.3.1 itsdangerous-2.2.0 jieba-0.42.1 jiter-0.16.0 jmespath-1.0.1 jsonlines-4.0.0 kaleido-1.2.0 line_profiler-5.0.2 linkify-it-py-2.1.0 llguidance-0.7.29 llist-0.7.1 lm_eval-0.4.10 logistro-2.0.1 lpips-0.1.4 lxml-6.1.1 mako-1.3.12 mbstrdecoder-1.1.5 mistral-common-1.11.5 more_itertools-11.1.0 msgspec-0.21.1 multiprocess-0.70.16 mypy-1.19.1 nanobind-2.13.0 narwhals-2.23.0 nixl-cu13-1.0.1 nltk-3.10.0 numexpr-2.14.1 nvidia-cuda-cupti-13.1.115 nvidia-cuda-nvrtc-13.3.33 nvidia-cuda-tileiras-13.1.80 nvidia-cutlass-dsl-4.5.0 nvidia-cutlass-dsl-libs-base-4.5.0 nvidia-cutlass-dsl-libs-cu13-4.5.0 nvidia-modelopt-0.37.0 nvidia-nccl-cu13-2.29.2 omegaconf-2.3.1 onnx-1.22.0 onnx_graphsurgeon-0.6.1 openai-2.45.0 openai-harmony-0.0.4 opentelemetry-api-1.43.0 opentelemetry-exporter-otlp-1.43.0 opentelemetry-exporter-otlp-proto-common-1.43.0 opentelemetry-exporter-otlp-proto-grpc-1.43.0 opentelemetry-exporter-otlp-proto-http-1.43.0 opentelemetry-proto-1.43.0 opentelemetry-sdk-1.43.0 opentelemetry-semantic-conventions-0.64b0 opentelemetry-semantic-conventions-ai-0.5.1 optimum-2.2.0 optuna-3.6.1 ordered-set-4.1.0 orjson-3.10.18 oyaml-1.0 pandas-2.3.3 partial_json_parser-0.2.1.1.post7 patchelf-0.17.2.4 pathvalidate-3.3.1 patsy-1.0.2 peft-0.18.1 plotly-6.4.0 portalocker-3.2.0 prometheus_client-0.23.1 prometheus_fastapi_instrumentator-7.1.0 psutil-7.0.0 py-1.11.0 pybind11-stubgen-2.5.5 pycountry-26.2.16 pycryptodomex-3.23.0 pydantic-extra-types-2.11.1 pyjwt-2.13.0 pytablewriter-1.2.1 pytest-9.0.3 pytest-cov-7.1.0 pytest-csv-3.0.0 pytest-env-1.6.0 pytest-forked-1.6.0 pytest-mock-3.15.1 pytest-split-0.11.0 pytest-threadleak-0.5.0 pytest-unused-fixtures-0.3.1 python-rapidjson-1.23 pytz-2026.2 pyzmq-26.4.0 quack-kernels-0.4.1 responses-0.26.2 retrying-1.4.2 rich-14.1.0 rich-rst-2.1.0 rouge-1.0.1 rouge_score-0.1.2 ruamel-yaml-0.18.17 ruamel.yaml.clib-0.2.15 sacrebleu-2.6.0 safetensors-0.8.0 seaborn-0.13.2 sentencepiece-0.2.2 setproctitle-1.3.7 setuptools-82.0.1 simplejson-4.1.1 smg-grpc-proto-0.4.14 sniffio-1.3.1 sqlalchemy-2.0.51 sqlitedict-2.1.0 starlette-0.50.0 statsmodels-0.14.6 stevedore-5.9.0 tabledata-1.3.5 tcolorpy-0.1.7 tenacity-9.1.4 tensorrt_llm-1.3.0rc19 textual-5.3.0 tiktoken-0.13.0 torch-c-dlpack-ext-0.1.3 torchao-0.15.0 torchprofile-0.1.0 transformers-5.5.4 triton-3.6.0 tritonclient-2.70.0 typeguard-4.4.4 typepy-1.3.5 uc-micro-py-2.0.0 uvicorn-0.51.0 uvloop-0.21.0 word2number-1.1 xdsl-0.68.0 xgrammar-0.1.32 zstandard-0.25.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+RUN_START
+/usr/local/lib/python3.12/dist-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (6.0.0.post1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Skipping import of cpp extensions due to incompatible torch version 2.11.0a0+eb65b36914.nv26.02 for torchao version 0.15.0             Please see https://github.com/pytorch/ao/issues/2919 for more info
+[TensorRT-LLM] TensorRT LLM version: 1.3.0rc19
+Link state is 1
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second/tests/unittest
+configfile: pytest.ini
+plugins: asyncio-1.4.0, timeout-2.4.0, shard-0.1.2, flakefinder-1.1.0, xdist-3.8.0, anyio-4.12.1, hypothesis-6.130.8, typeguard-4.4.4, mock-3.15.1, split-0.11.0, cov-7.1.0, threadleak-0.5.0, csv-3.0.0, forked-1.6.0, env-1.6.0, unused-fixtures-0.3.1, rerunfailures-16.1, dash-3.1.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=module, asyncio_default_test_loop_scope=function
+collected 12 items / 11 deselected / 1 selected
+Running 1 items in this shard
+
+tests/unittest/_torch/modeling/test_modeling_minimax_m3.py [07/13/2026-00:12:18] [TRT-LLM] [E] [_torch] Error executing load_single_module with args ('model.layers.3.mlp.shared_experts.gate_up_proj', Linear()): 
+`torch_dtype` is deprecated! Use `dtype` instead!
+F
+
+=================================== FAILURES ===================================
+__ TestMiniMaxM3WeightLoading.test_load_weights_from_hf_checkpoint_key_names ___
+
+self = <test_modeling_minimax_m3.TestMiniMaxM3WeightLoading testMethod=test_load_weights_from_hf_checkpoint_key_names>
+
+    @unittest.skipUnless(
+        torch.cuda.is_available(), "constructing the MiniMax-M3 model requires CUDA"
+    )
+    def test_load_weights_from_hf_checkpoint_key_names(self):
+        from tensorrt_llm._torch.models.modeling_auto import AutoModelForCausalLM
+        from tensorrt_llm._torch.models.modeling_minimaxm3 import MiniMaxM3MoE
+    
+        num_layers, num_dense, num_experts = 5, 3, 8
+        model_config = _reduced_model_config(num_layers, num_dense, num_experts)
+        cfg = model_config.pretrained_config
+        model = AutoModelForCausalLM.from_config(model_config)
+    
+        sac = cfg.sparse_attention_config
+        H = cfg.hidden_size
+        head_dim = cfg.head_dim
+        q_dim = cfg.num_attention_heads * head_dim
+        kv_dim = cfg.num_key_value_heads * head_dim
+        idx_dim = sac["sparse_index_dim"]
+        idx_q_dim = sac["sparse_num_index_heads"] * idx_dim
+        dense_i = cfg.dense_intermediate_size
+        moe_i = cfg.intermediate_size
+        shared_i = cfg.shared_intermediate_size
+        vocab = cfg.vocab_size
+        sparse_freq = sac["sparse_attention_freq"]
+        moe_freq = cfg.moe_layer_freq
+    
+        def rand(*shape, dtype=torch.bfloat16):
+            # Small non-zero values keyed with a recognizable scale so a loaded
+            # weight is trivially distinguishable from the module's random init.
+            return (torch.randn(*shape, dtype=torch.float32) * 0.02).to(dtype)
+    
+        prefix = "language_model."
+        sd: dict[str, torch.Tensor] = {}
+        sd[prefix + "model.embed_tokens.weight"] = rand(vocab, H)
+        sd[prefix + "lm_head.weight"] = rand(vocab, H)
+        sd[prefix + "model.norm.weight"] = rand(H)
+    
+        gate_ref: dict[int, torch.Tensor] = {}
+        bias_ref: dict[int, torch.Tensor] = {}
+        for layer in range(num_layers):
+            base = prefix + f"model.layers.{layer}."
+            sd[base + "input_layernorm.weight"] = rand(H)
+            sd[base + "post_attention_layernorm.weight"] = rand(H)
+            sd[base + "self_attn.q_proj.weight"] = rand(q_dim, H)
+            sd[base + "self_attn.k_proj.weight"] = rand(kv_dim, H)
+            sd[base + "self_attn.v_proj.weight"] = rand(kv_dim, H)
+            sd[base + "self_attn.o_proj.weight"] = rand(H, q_dim)
+            sd[base + "self_attn.q_norm.weight"] = rand(head_dim)
+            sd[base + "self_attn.k_norm.weight"] = rand(head_dim)
+            if sparse_freq[layer]:
+                sd[base + "self_attn.index_q_proj.weight"] = rand(idx_q_dim, H)
+                sd[base + "self_attn.index_k_proj.weight"] = rand(idx_dim, H)
+                sd[base + "self_attn.index_q_norm.weight"] = rand(idx_dim)
+                sd[base + "self_attn.index_k_norm.weight"] = rand(idx_dim)
+            if moe_freq[layer]:
+                m = base + "block_sparse_moe."
+                gate = rand(num_experts, H, dtype=torch.float32)
+                sd[m + "gate.weight"] = gate
+                gate_ref[layer] = gate
+                bias = (torch.randn(num_experts, dtype=torch.float32) * 0.1)
+                sd[m + "e_score_correction_bias"] = bias
+                bias_ref[layer] = bias
+                for e in range(num_experts):
+                    sd[m + f"experts.{e}.w1.weight"] = rand(moe_i, H)
+                    sd[m + f"experts.{e}.w3.weight"] = rand(moe_i, H)
+                    sd[m + f"experts.{e}.w2.weight"] = rand(H, moe_i)
+                sd[m + "shared_experts.gate_proj.weight"] = rand(shared_i, H)
+                sd[m + "shared_experts.up_proj.weight"] = rand(shared_i, H)
+                sd[m + "shared_experts.down_proj.weight"] = rand(H, shared_i)
+            else:
+                sd[base + "mlp.gate_proj.weight"] = rand(dense_i, H)
+                sd[base + "mlp.up_proj.weight"] = rand(dense_i, H)
+                sd[base + "mlp.down_proj.weight"] = rand(H, dense_i)
+    
+        # Must not raise: every module in the tree has to find its weights,
+        # including the MoE FFN stored under the block_sparse_moe.* prefix.
+>       model.load_weights(sd)
+
+tests/unittest/_torch/modeling/test_modeling_minimax_m3.py:593: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tensorrt_llm/_torch/models/modeling_minimaxm3.py:737: in load_weights
+    super().load_weights(text_weights, weight_mapper=weight_mapper)
+tensorrt_llm/_torch/models/modeling_utils.py:678: in load_weights
+    _load_weights_impl(self,
+tensorrt_llm/_torch/models/modeling_utils.py:1103: in _load_weights_impl
+    run_concurrently(load_single_module, args_list, pbar=pbar)
+tensorrt_llm/_torch/models/modeling_utils.py:941: in run_concurrently
+    part_weights = result.result()
+                   ^^^^^^^^^^^^^^^
+/usr/lib/python3.12/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/usr/lib/python3.12/concurrent/futures/thread.py:58: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tensorrt_llm/_torch/models/modeling_utils.py:1041: in load_single_module
+    module.load_weights(weights=module_weights,
+tensorrt_llm/_torch/modules/linear.py:3130: in load_weights
+    self.quant_method.load_weights(
+tensorrt_llm/_torch/modules/linear.py:378: in load_weights
+    load_fn(module, weights, **kargs)
+tensorrt_llm/_torch/modules/linear.py:585: in load_weights_fused_gate_up_linear
+    gate_weight, up_weight = load_weights_fused_gate_up_helper(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+module = Linear(), weights = [{}, {}]
+weight_transform = <function <lambda> at 0xfffaacfa47c0>
+bias_transform = <function <lambda> at 0xfffaacfa4860>
+allow_partial_loading = False
+
+    def load_weights_fused_gate_up_helper(
+            module: Linear,
+            weights: List[Dict],
+            weight_transform=lambda x: x,
+            bias_transform=lambda x: x,
+            allow_partial_loading: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if not allow_partial_loading:
+>           assert all('weight' in weights[i] for i in range(2))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError
+
+tensorrt_llm/_torch/modules/linear.py:273: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../../../../usr/local/lib/python3.12/dist-packages/modelopt/torch/__init__.py:36
+  /usr/local/lib/python3.12/dist-packages/modelopt/torch/__init__.py:36: UserWarning: transformers version 5.5.4 is incompatible with nvidia-modelopt and may cause issues. Please install recommended version with `pip install nvidia-modelopt[hf]` if working with HF models.
+    _warnings.warn(
+
+../../../../../../../../../../usr/local/lib/python3.12/dist-packages/_pytest/config/__init__.py:1434
+  /usr/local/lib/python3.12/dist-packages/_pytest/config/__init__.py:1434: PytestConfigWarning: Unknown config option: xdist_start_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================== slowest durations ===============================
+16.22s call     _torch/modeling/test_modeling_minimax_m3.py::TestMiniMaxM3WeightLoading::test_load_weights_from_hf_checkpoint_key_names
+
+(2 durations < 0.005s hidden.  Use -vv to show these durations.)
+=========================== short test summary info ============================
+FAILED tests/unittest/_torch/modeling/test_modeling_minimax_m3.py::TestMiniMaxM3WeightLoading::test_load_weights_from_hf_checkpoint_key_names
+================ 1 failed, 11 deselected, 2 warnings in 16.99s =================
+Loading weights concurrently:   0%|          | 0/148 [00:00<?, ?it/s]srun: error: nvl72005-T15: task 0: Exited with exit code 1
+srun: Terminating StepId=4938697.0

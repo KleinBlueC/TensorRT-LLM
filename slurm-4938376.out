@@ -1,0 +1,6 @@
+sh: 1: ls: not found
+[Jul 13 00:04:28.792113 1964147 slurmstepd   0xfffff7ffaf20] error: pyxis: couldn't chdir to /lustre/fs1/portfolios/coreai/projects/coreai_comparch_trtllm/users/kleinc/codes/TensorRT-LLM-second: No such file or directory
+[Jul 13 00:04:28.792289 1964147 slurmstepd   0xfffff7ffaf20] error: spank: required plugin spank_pyxis.so: task_init() failed with rc=-1
+[Jul 13 00:04:28.792309 1964147 slurmstepd   0xfffff7ffaf20] error: Failed to invoke spank plugin stack
+srun: error: nvl72153-T14: task 0: Exited with exit code 1
+srun: Terminating StepId=4938376.0
