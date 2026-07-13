@@ -7580,6 +7580,50 @@ class TestMiniMaxM2(LlmapiAccuracyTestHarness):
             task.evaluate(llm)
 
 
+class TestMiniMaxM3(LlmapiAccuracyTestHarness):
+    # MiniMax-M3 is a hybrid sparse-attention MoE model: dense GQA layers 0-2 and
+    # MiniMax Sparse Attention (MSA) layers 3-59 (a low-dim "index" branch selects
+    # the top-k 128-token KV blocks), with a 128-expert top-4 MoE + one shared
+    # expert. The released checkpoint is multimodal
+    # (MiniMaxM3SparseForConditionalGeneration); text-only GSM8K exercises the
+    # MiniMaxM3SparseForCausalLM text tower. The ~400B bf16 text tower needs 8
+    # GPUs (tp8/ep8). The MSA path is mandated to run on KVCacheManagerV2
+    # (use_kv_cache_manager_v2) + the TRTLLM attention backend + the MiniMax-M3
+    # Triton sparse kernels; the CUTLASS fused-MoE backend serves the bf16
+    # experts. Both the baseline (cuda_graph/overlap off) and the enabled
+    # (cuda_graph via CudaGraphConfig() + overlap on) configurations are gated.
+    MODEL_NAME = "MiniMaxAI/MiniMax-M3"
+    MODEL_PATH = f"{llm_models_root()}/MiniMax-M3"
+
+    @parametrize_with_ids("tp_size,ep_size", [(8, 8)])
+    @pytest.mark.skip_less_device(8)
+    @pytest.mark.skip_less_device_memory(140000)
+    @parametrize_with_ids("attention_dp,cuda_graph,overlap_scheduler",
+                          [(False, False, False), (True, True, True)])
+    def test_8gpus(self, tp_size, ep_size, attention_dp, cuda_graph,
+                   overlap_scheduler):
+        kv_cache_config = KvCacheConfig(free_gpu_memory_fraction=0.7,
+                                        use_kv_cache_manager_v2=True)
+
+        pytorch_config = dict(
+            disable_overlap_scheduler=not overlap_scheduler,
+            cuda_graph_config=CudaGraphConfig() if cuda_graph else None,
+            moe_config=MoeConfig(backend="CUTLASS"),
+        )
+
+        with LLM(self.MODEL_PATH,
+                 tensor_parallel_size=tp_size,
+                 pipeline_parallel_size=1,
+                 moe_expert_parallel_size=ep_size,
+                 kv_cache_config=kv_cache_config,
+                 max_seq_len=4096,
+                 attn_backend="TRTLLM",
+                 **pytorch_config,
+                 enable_attention_dp=attention_dp) as llm:
+            task = GSM8K(self.MODEL_NAME)
+            task.evaluate(llm)
+
+
 @skip_pre_blackwell
 class TestGLM5FP8(LlmapiAccuracyTestHarness):
     MODEL_NAME = "zai-org/GLM-5-FP8"
