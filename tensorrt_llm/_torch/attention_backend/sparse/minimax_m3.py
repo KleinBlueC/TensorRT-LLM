@@ -57,6 +57,7 @@ from typing import Dict, List, Literal, Optional, Sequence, Tuple
 import torch
 
 from ...pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2
+from ..trtllm import TrtllmAttention
 from .minimax_m3_kernels import (
     minimax_m3_sparse_attention_decode,
     minimax_m3_sparse_attention_prefill,
@@ -89,6 +90,32 @@ class MiniMaxM3Params(SparseParams):
     def indices_block_size(self) -> int:
         # MiniMax-M3 selects whole KV blocks; block granularity == block_size.
         return self.block_size
+
+
+class MiniMaxM3TrtllmAttention(TrtllmAttention):
+    """Dense-GQA TRTLLM attention backend for MiniMax-M3.
+
+    Selected for every attention layer when ``model_config.sparse_attention_config``
+    is a ``MiniMaxM3SparseAttentionConfig`` (via
+    ``get_trtllm_sparse_attn_attention_backend``). Unlike DSA/rocket, MiniMax-M3's
+    block selection is **model-owned** -- the index projections and the Triton MSA
+    kernels (over the ``MiniMaxM3CacheManager`` index side pool) live in the model,
+    not the backend -- so the block-sparse computation is *not* the C++
+    sparse-index op that :class:`TrtllmAttention` runs when ``sparse_params`` is a
+    non-skip-softmax params object. This subclass therefore drops ``sparse_params``
+    before constructing the base backend: the base op computes plain dense GQA (the
+    correct dense sub-computation for both the leading dense layers 0-2 and the
+    dense part of the sparse layers 3-59), and the MiniMax-M3 model layers the
+    Triton MSA on top. Registering a distinct class -- rather than returning
+    :class:`TrtllmAttention` -- keeps the factory contract explicit and guarantees
+    ``MiniMaxM3Params`` never routes through the unsupported C++ sparse path.
+    """
+
+    def __init__(self, *args, sparse_params: Optional[SparseParams] = None, **kwargs):
+        # Keep the lowered MSA params visible for model-owned dispatch/debug, but
+        # run the runtime backend as dense GQA (sparse_params=None on the base).
+        self.msa_params = sparse_params
+        super().__init__(*args, sparse_params=None, **kwargs)
 
 
 def minimax_m3_build_req_to_token(
@@ -155,10 +182,27 @@ class MiniMaxM3CacheManager(KVCacheManagerV2):
     def __init__(
         self,
         *args,
-        index_head_dim: int = 128,
+        index_head_dim: Optional[int] = None,
         index_dtype: torch.dtype = torch.bfloat16,
+        sparse_attention_config=None,
+        pretrained_config=None,
         **kwargs,
     ):
+        # Runtime call convention (pyexecutor/_util.py::_create_kv_cache_manager)
+        # passes ``sparse_attention_config`` + ``pretrained_config`` rather than a
+        # bare ``index_head_dim`` (mirrors DSACacheManager): derive the index
+        # width from the lowered sparse params. The explicit ``index_head_dim``
+        # kwarg path is kept for focused unit construction.
+        if index_head_dim is None and sparse_attention_config is not None:
+            sparse_params = sparse_attention_config.to_sparse_params(
+                pretrained_config=pretrained_config
+            )
+            index_head_dim = sparse_params.index_head_dim
+        if index_head_dim is None:
+            index_head_dim = 128
+        # ``sparse_attention_config``/``pretrained_config`` are consumed here and
+        # must not reach the base V2 manager; any other runtime kwargs it does not
+        # use are absorbed by its own ``**kwargs``.
         super().__init__(*args, **kwargs)
         self.index_head_dim = index_head_dim
         self.index_dtype = index_dtype

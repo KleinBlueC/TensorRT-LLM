@@ -25,6 +25,9 @@ def get_sparse_attn_kv_cache_manager(
         return RocketKVCacheManager
     elif sparse_attention_config.algorithm == "dsa":
         return DSACacheManager
+    elif sparse_attention_config.algorithm == "minimax_m3":
+        from .minimax_m3 import MiniMaxM3CacheManager
+        return MiniMaxM3CacheManager
     elif sparse_attention_config.algorithm == "skip_softmax":
         return KVCacheManager
     else:
@@ -54,6 +57,9 @@ def get_trtllm_sparse_attn_attention_backend(
         return RocketTrtllmAttention
     elif sparse_attention_config.algorithm == "dsa":
         return DSATrtllmAttention
+    elif sparse_attention_config.algorithm == "minimax_m3":
+        from .minimax_m3 import MiniMaxM3TrtllmAttention
+        return MiniMaxM3TrtllmAttention
     elif sparse_attention_config.algorithm == "skip_softmax":
         return TrtllmAttention
     else:
