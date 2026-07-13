@@ -107,16 +107,12 @@ def minimax_m3_build_req_to_token(
     """
     num_seqs = len(block_ids_per_seq)
     max_kv_len = max((int(s) for s in seq_lens), default=0)
-    req_to_token = torch.zeros(
-        num_seqs, max(1, max_kv_len), dtype=torch.int32, device=device
-    )
+    req_to_token = torch.zeros(num_seqs, max(1, max_kv_len), dtype=torch.int32, device=device)
     for r in range(num_seqs):
         length = int(seq_lens[r])
         if length <= 0:
             continue
-        block_ids = torch.as_tensor(
-            list(block_ids_per_seq[r]), dtype=torch.int64, device=device
-        )
+        block_ids = torch.as_tensor(list(block_ids_per_seq[r]), dtype=torch.int64, device=device)
         pos = torch.arange(length, device=device, dtype=torch.int64)
         block = block_ids[pos // tokens_per_block]
         slot = block * tokens_per_block + (pos % tokens_per_block)
@@ -141,7 +137,9 @@ def flatten_slot_ids(
     slots: List[int] = []
     for pos, req in zip(token_positions, req_ids_per_token):
         block_ids = block_ids_per_seq[req]
-        slots.append(int(block_ids[pos // tokens_per_block]) * tokens_per_block + pos % tokens_per_block)
+        slots.append(
+            int(block_ids[pos // tokens_per_block]) * tokens_per_block + pos % tokens_per_block
+        )
     return torch.as_tensor(slots, dtype=torch.int64, device=device)
 
 
@@ -187,9 +185,7 @@ class MiniMaxM3CacheManager(KVCacheManagerV2):
         """The layer's K-only index side pool, ``[num_slots, 1, index_head_dim]``."""
         return self._index_k_pool[layer_idx]
 
-    def get_main_kv_slot_buffers(
-        self, layer_idx: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_main_kv_slot_buffers(self, layer_idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Main K and V as flat ``[num_slots, num_kv_heads, head_dim]`` read views.
 
         ``get_buffers`` returns the native ``[num_blocks, kv_factor, tpb, H, D]``
@@ -227,9 +223,7 @@ class MiniMaxM3CacheManager(KVCacheManagerV2):
         buf[:, 0][block, pos] = k.to(buf.dtype)
         buf[:, 1][block, pos] = v.to(buf.dtype)
 
-    def write_index_k(
-        self, layer_idx: int, slots: torch.Tensor, index_k: torch.Tensor
-    ) -> None:
+    def write_index_k(self, layer_idx: int, slots: torch.Tensor, index_k: torch.Tensor) -> None:
         """Scatter new index-K into the side pool at flat ``slots``.
 
         ``index_k`` ``[num_tokens, index_head_dim]`` (single replicated head).
