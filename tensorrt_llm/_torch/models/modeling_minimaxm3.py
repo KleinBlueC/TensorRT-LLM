@@ -502,7 +502,7 @@ class MiniMaxM3Attention(Attention):
             cu[1:] = torch.tensor(query_lens[:num_contexts], device=device).cumsum(0)
             prefix = torch.tensor(cached_lens[:num_contexts], dtype=torch.int32, device=device)
             slot_ids = torch.arange(num_contexts, dtype=torch.int32, device=device)
-            o_ctx, _ = minimax_m3_paged_prefill(
+            o_ctx, topk_ctx = minimax_m3_paged_prefill(
                 cache,
                 layer_idx,
                 q[:num_ctx_tokens],
@@ -514,6 +514,13 @@ class MiniMaxM3Attention(Attention):
                 self.msa_params,
             )
             out[:num_ctx_tokens] = o_ctx
+            if getattr(self, "_capture_msa_topk", False):
+                # Debug-only (default off): the second kernel return is the real
+                # per-query top-k 128-token block selection. Surface it so the
+                # parity harness can report/assert the actual selected block ids
+                # instead of a length estimate. Output (``out``) is unchanged, and
+                # the branch is never taken under production / CUDA-graph capture.
+                self._last_msa_topk_prefill = topk_ctx.detach()
         if num_generations > 0:
             seq_lens_gen = torch.tensor(
                 total_kv_lens[num_contexts:], dtype=torch.int32, device=device
@@ -522,7 +529,7 @@ class MiniMaxM3Attention(Attention):
             max_nb = (max(total_kv_lens[num_contexts:]) + self.index_block_size - 1) // (
                 self.index_block_size
             )
-            o_gen, _ = minimax_m3_paged_decode(
+            o_gen, topk_gen = minimax_m3_paged_decode(
                 cache,
                 layer_idx,
                 q[num_ctx_tokens:],
@@ -534,6 +541,10 @@ class MiniMaxM3Attention(Attention):
                 max_num_blocks=max_nb,
             )
             out[num_ctx_tokens:] = o_gen
+            if getattr(self, "_capture_msa_topk", False):
+                # Debug-only (default off): real per-query decode block selection;
+                # see the prefill-branch note. Output is unchanged.
+                self._last_msa_topk_decode = topk_gen.detach()
 
         return self.o_proj(out.reshape(-1, self.num_heads * self.head_dim))
 
