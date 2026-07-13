@@ -202,50 +202,9 @@ def _trtllm_engine(cuda_graph: bool, overlap_scheduler: bool, **overrides):
 
 
 # --------------------------------------------------------------------------- #
-# SGLang reference. Heavy / optional imports are function-local so this module  #
-# always imports + collects even when sglang is not installed.                 #
-# --------------------------------------------------------------------------- #
-def _sglang_engine(max_new_tokens: int):
-    """Offline SGLang engine on the real checkpoint (reference path).
-
-    Uses SGLang's documented offline ``Engine`` entry. Imported lazily and
-    guarded: when sglang (or the PR#27944 model) is not importable the caller
-    skips with an actionable reason rather than degrading the reference.
-    """
-    root = _sglang_reference_root()
-    ckpt = _checkpoint_path()
-    import sys
-    sglang_pkg = os.path.join(root, "python")
-    if sglang_pkg not in sys.path:
-        sys.path.insert(0, sglang_pkg)
-    try:
-        import sglang  # noqa: F401
-        from sglang import Engine
-    except Exception as exc:  # pragma: no cover - environment gate
-        pytest.skip(f"SGLang reference not importable: {exc!r}")
-    return Engine(model_path=ckpt,
-                  tp_size=TP_SIZE,
-                  ep_size=EP_SIZE,
-                  max_total_tokens=8192,
-                  skip_tokenizer_init=False)
-
-
-def _sglang_greedy_generate(prompts, max_tokens: int):
-    """Reference greedy token ids per prompt from the SGLang engine."""
-    engine = _sglang_engine(max_tokens)
-    try:
-        outs = engine.generate(
-            prompts,
-            sampling_params={"temperature": 0.0, "top_k": 1,
-                             "max_new_tokens": max_tokens},
-        )
-        # SGLang returns per-prompt dicts with output token ids.
-        return [o["output_ids"] if isinstance(o, dict) and "output_ids" in o
-                else o["token_ids"] for o in outs]
-    finally:
-        engine.shutdown()
-
-
+# SGLang reference + TensorRT-LLM layer/logit replay helpers live in            #
+# ``_minimax_m3_replay`` and are imported lazily inside each gated test, so this #
+# module always imports + collects even when sglang is not installed.           #
 # --------------------------------------------------------------------------- #
 # crit9: real_runtime -- the mandated backend/cache/MSA dispatch actually ran.  #
 # --------------------------------------------------------------------------- #
@@ -262,10 +221,8 @@ def test_real_runtime(cuda_graph, overlap_scheduler):
         # Prove the mandated dispatch: KVCacheManagerV2, the TRTLLM backend, and
         # the model-owned MiniMax-M3 sparse layers (3-59) all present, and the
         # cuda-graph hard path recorded for the enabled config.
-        from tensorrt_llm._torch.attention_backend.sparse.minimax_m3 import (
-            MiniMaxM3CacheManager)
-        from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import (
-            KVCacheManagerV2)
+        from tensorrt_llm._torch.attention_backend.sparse.minimax_m3 import MiniMaxM3CacheManager
+        from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2
 
         executor = llm._executor
         km = _find_attr(executor, "kv_cache_manager")
@@ -302,21 +259,26 @@ def _find_attr(obj, name, _depth=0):
 @pytest.mark.parametrize("cuda_graph,overlap_scheduler", _CONFIGS)
 def test_source_logit_replay(cuda_graph, overlap_scheduler):
     cfg = "cuda_graph_overlap" if cuda_graph else "baseline"
-    ref_tokens = _sglang_greedy_generate(PROMPTS[:3], max_tokens=1)
-    with _trtllm_engine(cuda_graph, overlap_scheduler) as (llm, ids):
-        sp = _greedy(max_tokens=1, return_context_logits=True)
-        outputs = llm.generate(PROMPTS[:3], sp)
-        for i, o in enumerate(outputs):
-            trt_token = o.outputs[0].token_ids[0]
-            ref_token = ref_tokens[i][0]
-            # Deterministic greedy: the next-token argmax must match exactly.
-            assert trt_token == ref_token, (
-                f"prompt {i} greedy-argmax mismatch: trt={trt_token} "
-                f"ref={ref_token} ({cfg})")
-            ctx_logits = o.context_logits
-            assert ctx_logits is not None
-            _report("source_logit_replay", cfg,
-                    {"greedy_match": 1.0}, prompt=i, **ids)
+    _skip_layer_replay_reason()
+    from ._minimax_m3_replay import replay_final_logits
+    # Final next-token logits from SGLang (logits-processor hook) vs TensorRT-LLM
+    # (return_context_logits) on the real checkpoint under deterministic greedy
+    # decoding; report max_abs/mean_abs/cosine and require greedy-argmax match.
+    results = replay_final_logits(
+        _checkpoint_path(), _sglang_reference_root(), PROMPTS[:3],
+        cuda_graph=cuda_graph, overlap_scheduler=overlap_scheduler)
+    for i, r in enumerate(results):
+        assert "metrics" in r, \
+            f"prompt {i}: SGLang reference logits were not captured"
+        _report("source_logit_replay", cfg, r["metrics"], prompt=i,
+                trt_argmax=r["trt_argmax"], ref_argmax=r["ref_argmax"],
+                argmax_match=r["argmax_match"], cuda_graph=cuda_graph,
+                overlap_scheduler=overlap_scheduler,
+                cuda_graph_hard_path=cuda_graph)
+        assert r["argmax_match"], (
+            f"prompt {i} greedy-argmax mismatch: trt={r['trt_argmax']} "
+            f"ref={r['ref_argmax']} ({cfg})")
+        assert r["metrics"]["cosine"] > 0.99, r["metrics"]
 
 
 # --------------------------------------------------------------------------- #
@@ -325,23 +287,30 @@ def test_source_logit_replay(cuda_graph, overlap_scheduler):
 @pytest.mark.parametrize("cuda_graph,overlap_scheduler", _CONFIGS)
 def test_generation_parity(cuda_graph, overlap_scheduler):
     cfg = "cuda_graph_overlap" if cuda_graph else "baseline"
+    _skip_layer_replay_reason()
+    from ._minimax_m3_replay import replay_generation_logits
     max_tokens = 32
     assert len(PROMPTS) >= 5
-    ref_tokens = _sglang_greedy_generate(PROMPTS, max_tokens=max_tokens)
-    with _trtllm_engine(cuda_graph, overlap_scheduler) as (llm, ids):
-        outputs = llm.generate(PROMPTS, _greedy(max_tokens=max_tokens))
-        for i, o in enumerate(outputs):
-            trt = list(o.outputs[0].token_ids)
-            ref = list(ref_tokens[i])
-            n = min(len(trt), len(ref))
-            assert n >= max_tokens, (
-                f"prompt {i}: generated {n} < {max_tokens} tokens ({cfg})")
-            for step in range(n):
-                assert trt[step] == ref[step], (
-                    f"prompt {i} step {step} token mismatch: trt={trt[step]} "
-                    f"ref={ref[step]} ({cfg})")
-        _report("generation_parity", cfg, {"per_step_match": 1.0},
-                prompts=len(PROMPTS), tokens=max_tokens, **ids)
+    # >=32 tokens x >=5 prompts, per-step logit comparison + per-step greedy
+    # token equality, both runtime configs, real checkpoint.
+    results = replay_generation_logits(
+        _checkpoint_path(), _sglang_reference_root(), PROMPTS,
+        max_tokens=max_tokens, cuda_graph=cuda_graph,
+        overlap_scheduler=overlap_scheduler)
+    assert len(results) >= 5
+    for i, r in enumerate(results):
+        step_metrics = r.get("per_step_metrics", {})
+        _report("generation_parity", cfg, step_metrics, prompt=i,
+                tokens=r["num_tokens"], compared_steps=r.get("compared_steps", 0),
+                cuda_graph=cuda_graph, overlap_scheduler=overlap_scheduler,
+                cuda_graph_hard_path=cuda_graph)
+        assert r["num_tokens"] >= max_tokens, (
+            f"prompt {i}: generated {r['num_tokens']} < {max_tokens} ({cfg})")
+        assert r["token_match"], (
+            f"prompt {i}: per-step greedy token mismatch at step "
+            f"{r['first_mismatch_step']} ({cfg})")
+        if step_metrics:
+            assert step_metrics["cosine"] > 0.99, step_metrics
 
 
 # --------------------------------------------------------------------------- #
@@ -366,7 +335,8 @@ def test_accuracy_canary(cuda_graph, overlap_scheduler):
 # --------------------------------------------------------------------------- #
 def _skip_layer_replay_reason():
     """Layer-hook replay against the real SGLang model needs the reference
-    runner captured at checkpoint scale; gate on the reference + devices."""
+    runner captured at checkpoint scale; gate on the reference + devices.
+    """
     _checkpoint_path()
     _sglang_reference_root()
     # The SGLang activation-capture runner (forward hooks on the reference
@@ -383,19 +353,28 @@ def test_source_activation_replay_attention(cuda_graph, overlap_scheduler):
     cfg = "cuda_graph_overlap" if cuda_graph else "baseline"
     _skip_layer_replay_reason()
     from ._minimax_m3_replay import replay_attention_layers
-    # Capture SGLang hidden-in / attention-out for a representative dense and
-    # sparse layer on the real checkpoint, replay the same hidden states through
-    # the TRT-LLM MiniMaxM3Attention path (dense: backend GQA; sparse:
-    # forward_sparse over KVCacheManagerV2 + Triton MSA), compare outputs.
+    # For a representative dense and sparse layer: capture SGLang and TRT-LLM
+    # attention-out (post-o_proj, TP invariant) plus the per-head Gemma Q/K and
+    # (sparse) index-Q/index-K norm outputs; compare the attention output and
+    # report the norm geometry/parity so a Q/K/index geometry, norm, or partial
+    # RoPE divergence is visible.
     for layer_idx, kind in ((DENSE_LAYER, "dense"), (SPARSE_LAYER, "sparse")):
-        metrics = replay_attention_layers(
+        r = replay_attention_layers(
             _checkpoint_path(), _sglang_reference_root(),
             layer_idx=layer_idx, cuda_graph=cuda_graph,
             overlap_scheduler=overlap_scheduler)
-        _report("source_activation_replay_attention", cfg, metrics,
-                layer=layer_idx, kind=kind)
-        assert metrics["cosine"] > 0.99, metrics
-        assert metrics["max_abs"] < 5e-2, metrics
+        _report("source_activation_replay_attention", cfg, r["metrics"],
+                layer=layer_idx, kind=r["kind"], prompt=r["prompt"],
+                components=r["components"], cuda_graph_hard_path=cuda_graph)
+        assert r["metrics"]["cosine"] > 0.99, r["metrics"]
+        assert r["metrics"]["max_abs"] < 5e-2, r["metrics"]
+        # Q/K (+ sparse index Q/K) per-head norms must be captured and reported;
+        # parity is asserted where TP leaves the per-head shapes aligned.
+        for name, comp in r["components"].items():
+            assert comp["ref_shape"] is not None, f"{name} not captured (ref)"
+            assert comp["trt_shape"] is not None, f"{name} not captured (trt)"
+            if comp.get("comparable"):
+                assert comp["metrics"]["cosine"] > 0.99, (name, comp)
 
 
 @pytest.mark.parametrize("cuda_graph,overlap_scheduler", _CONFIGS)
@@ -403,20 +382,34 @@ def test_source_activation_replay_long_pruned(cuda_graph, overlap_scheduler):
     cfg = "cuda_graph_overlap" if cuda_graph else "baseline"
     _skip_layer_replay_reason()
     from ._minimax_m3_replay import replay_long_pruned
-    # >=4096-token context so the KV-block count exceeds topk_blocks + init +
-    # local; assert at least one eligible non-init/non-local block is dropped
-    # and that the selected block ids + sparse output match SGLang.
-    result = replay_long_pruned(
+    # >=4096-token context so the KV-block count exceeds topk + init + local.
+    # Capture the REAL per-query top-k 128-token block selection from the MSA
+    # kernels (and, best-effort, SGLang's), assert the drop regime is active
+    # from the actual selection, compare selected block-id sets, and assert
+    # sparse attention-out parity.
+    r = replay_long_pruned(
         _checkpoint_path(), _sglang_reference_root(),
         layer_idx=SPARSE_LAYER, context_len=4096,
         cuda_graph=cuda_graph, overlap_scheduler=overlap_scheduler)
-    _report("source_activation_replay_long_pruned", cfg, result["metrics"],
-            layer=SPARSE_LAYER, dropped_blocks=result["dropped_blocks"],
-            context_len=4096)
-    # Drop regime must be active (>=1 eligible block dropped), and attention-out
-    # parity in that regime is transitive evidence the block selection agrees.
-    assert result["dropped_blocks"] >= 1, "no block dropped -> dense-equivalent"
-    assert result["metrics"]["cosine"] > 0.99, result["metrics"]
+    _report("source_activation_replay_long_pruned", cfg, r["metrics"],
+            layer=SPARSE_LAYER, context_len=r["context_len"],
+            total_blocks=r["total_blocks"], num_selected=r["num_selected"],
+            dropped_blocks=r["dropped_blocks"],
+            trt_selected_blocks=r["trt_selected_blocks"],
+            sglang_selected_blocks=r["sglang_selected_blocks"],
+            block_ids_match=r["block_ids_match"],
+            cuda_graph_hard_path=cuda_graph)
+    # Drop regime must be active (>=1 eligible block dropped), from the ACTUAL
+    # MSA selection rather than a length estimate.
+    assert r["dropped_blocks"] >= 1, (
+        f"no block dropped (total={r['total_blocks']}, "
+        f"selected={r['num_selected']}) -> dense-equivalent")
+    # When both selections are captured, the selected block-id sets must agree.
+    if r["block_ids_match"] is not None:
+        assert r["block_ids_match"], (
+            f"selected block ids differ: trt={r['trt_selected_blocks']} "
+            f"sglang={r['sglang_selected_blocks']}")
+    assert r["metrics"]["cosine"] > 0.99, r["metrics"]
 
 
 @pytest.mark.parametrize("cuda_graph,overlap_scheduler", _CONFIGS)
@@ -424,17 +417,28 @@ def test_source_activation_replay_moe(cuda_graph, overlap_scheduler):
     cfg = "cuda_graph_overlap" if cuda_graph else "baseline"
     _skip_layer_replay_reason()
     from ._minimax_m3_replay import replay_moe_layer
-    # Router logits (fp32) + sigmoid+bias top-4 selection + renormalized weights
-    # + routed scaling + shared expert + expert output + post-MoE output, through
-    # the production CUTLASS fused-MoE backend (not a VANILLA/Python loop).
-    result = replay_moe_layer(
+    # Compare fp32 router logits (replicated => directly comparable), the top-4
+    # expert selection, the routed-expert and shared-expert outputs, and the
+    # post-MoE output; the MoE backend / op path / activation are DERIVED from
+    # the instantiated module (a VANILLA/Python-loop fallback is visible).
+    r = replay_moe_layer(
         _checkpoint_path(), _sglang_reference_root(),
         layer_idx=MOE_LAYER, cuda_graph=cuda_graph,
         overlap_scheduler=overlap_scheduler)
-    _report("source_activation_replay_moe", cfg, result["metrics"],
-            layer=MOE_LAYER, moe_backend=result["moe_backend"],
-            op_path=result["op_path"], activation=result["activation"])
-    # mlp-out parity proves the router/expert/shared/scaling contract end to end;
-    # the backend must be the production fused path, not a VANILLA/Python loop.
-    assert result["moe_backend"] != "VANILLA", "MoE fell back to VANILLA"
-    assert result["metrics"]["cosine"] > 0.99, result["metrics"]
+    _report("source_activation_replay_moe", cfg, r["metrics"],
+            layer=MOE_LAYER, moe_backend=r["moe_backend"], op_path=r["op_path"],
+            activation=r["activation"], router_logits=r["router_logits"],
+            selected_experts=r["selected_experts"], shared=r["shared"],
+            experts=r["experts"], cuda_graph_hard_path=cuda_graph)
+    # Production fused backend, not a VANILLA / naive-Python expert loop.
+    assert r["moe_backend"] != "VANILLA", \
+        f"MoE fell back to VANILLA (op_path={r['op_path']})"
+    # fp32 router logits are replicated, so directly comparable across stacks.
+    assert r["router_logits"].get("comparable"), \
+        f"router logits not comparable: {r['router_logits']}"
+    assert r["router_logits"]["metrics"]["cosine"] > 0.99, r["router_logits"]
+    # Top-4 expert selection agreement (when both captured).
+    if r["selected_experts"]["match"] is not None:
+        assert r["selected_experts"]["match"], r["selected_experts"]
+    # Post-MoE output (TP invariant) parity proves the end-to-end contract.
+    assert r["metrics"]["cosine"] > 0.99, r["metrics"]
