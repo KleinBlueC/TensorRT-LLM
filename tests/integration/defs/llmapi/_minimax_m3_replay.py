@@ -727,7 +727,15 @@ def replay_generation_logits(ckpt: str, sglang_root: str, prompts: List[str],
             entry["token_match"] = (n_tok >= max_tokens
                                     and first_mismatch is None)
             entry["first_mismatch_step"] = first_mismatch
-            # Per-step logit parity where both sides captured logits.
+            # Per-step logit parity. Always report how many steps were actually
+            # compared and how many rows each side produced, so the caller can
+            # fail closed (require ``compared_steps >= max_tokens``) rather than
+            # silently pass when one side's per-step logits were not captured.
+            entry["trt_logit_steps"] = (int(gen.shape[0])
+                                        if isinstance(gen, torch.Tensor) else 0)
+            entry["ref_logit_steps"] = len(ref_rows[i])
+            entry["compared_steps"] = 0
+            entry["per_step_metrics"] = None
             if isinstance(gen, torch.Tensor) and ref_rows[i]:
                 m = min(gen.shape[0], len(ref_rows[i]))
                 if m > 0:

@@ -299,9 +299,12 @@ def test_generation_parity(cuda_graph, overlap_scheduler):
         overlap_scheduler=overlap_scheduler)
     assert len(results) >= 5
     for i, r in enumerate(results):
-        step_metrics = r.get("per_step_metrics", {})
+        step_metrics = r.get("per_step_metrics") or {}
+        compared = r.get("compared_steps", 0)
         _report("generation_parity", cfg, step_metrics, prompt=i,
-                tokens=r["num_tokens"], compared_steps=r.get("compared_steps", 0),
+                tokens=r["num_tokens"], compared_steps=compared,
+                trt_logit_steps=r.get("trt_logit_steps"),
+                ref_logit_steps=r.get("ref_logit_steps"),
                 cuda_graph=cuda_graph, overlap_scheduler=overlap_scheduler,
                 cuda_graph_hard_path=cuda_graph)
         assert r["num_tokens"] >= max_tokens, (
@@ -309,8 +312,16 @@ def test_generation_parity(cuda_graph, overlap_scheduler):
         assert r["token_match"], (
             f"prompt {i}: per-step greedy token mismatch at step "
             f"{r['first_mismatch_step']} ({cfg})")
-        if step_metrics:
-            assert step_metrics["cosine"] > 0.99, step_metrics
+        # Fail closed: per-step logits must be captured on BOTH sides for every
+        # step (not only asserted when a metrics dict happens to exist), so an
+        # incomplete SGLang/TRT logit capture is a failure, not a silent pass.
+        assert compared >= max_tokens, (
+            f"prompt {i}: only {compared} per-step logits compared < "
+            f"{max_tokens} (trt_steps={r.get('trt_logit_steps')}, "
+            f"ref_steps={r.get('ref_logit_steps')}) ({cfg})")
+        assert step_metrics, (
+            f"prompt {i}: per-step logit metrics missing ({cfg})")
+        assert step_metrics["cosine"] > 0.99, step_metrics
 
 
 # --------------------------------------------------------------------------- #
