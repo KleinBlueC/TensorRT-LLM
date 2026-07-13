@@ -50,9 +50,6 @@ import torch
 
 _SPARSE_LAYER_START = 3  # layers 0-2 dense, 3-59 sparse (this checkpoint)
 _BLOCK_SIZE = 128
-_TOPK_BLOCKS = 16
-_INIT_BLOCKS = 0
-_LOCAL_BLOCKS = 1
 _TP = 8
 _EP = 8
 
@@ -439,20 +436,25 @@ def replay_long_pruned(ckpt: str, sglang_root: str, layer_idx: int,
     total_blocks = (context_len + _BLOCK_SIZE - 1) // _BLOCK_SIZE
     trt_blocks = _distinct_valid_blocks(trt.get("_selected_blocks"))
     ref_blocks = _distinct_valid_blocks(ref.get("_selected_blocks"))
-    # Dropped == blocks that COULD be attended but were not selected, from the
-    # real selection. Fall back to the length bound only if the stash is absent.
-    if trt_blocks:
-        dropped = max(0, total_blocks - len(trt_blocks))
-    else:
-        retained = _TOPK_BLOCKS + _INIT_BLOCKS + _LOCAL_BLOCKS
-        dropped = max(0, total_blocks - retained)
-    block_ids_match = (None if not (trt_blocks and ref_blocks) else
-                       set(trt_blocks) == set(ref_blocks))
+    # Fail closed: the drop count and block-id agreement are derived ONLY from
+    # the real per-query top-k selection captured on each side. There is no
+    # length-estimate fallback -- if either side's selected block ids are
+    # missing, the caller asserts on ``trt_captured`` / ``sglang_captured`` and
+    # fails, rather than inferring a plausible-looking drop from the context
+    # length. ``dropped`` is 0 when TRT capture is absent (the assert fires
+    # first); ``block_ids_match`` is a strict bool only when BOTH are present.
+    trt_captured = bool(trt_blocks)
+    sglang_captured = bool(ref_blocks)
+    dropped = max(0, total_blocks - len(trt_blocks)) if trt_captured else 0
+    block_ids_match = (set(trt_blocks) == set(ref_blocks)
+                       if (trt_captured and sglang_captured) else None)
     return {
         "metrics": metrics,
         "total_blocks": int(total_blocks),
         "trt_selected_blocks": trt_blocks,
         "sglang_selected_blocks": ref_blocks,
+        "trt_captured": trt_captured,
+        "sglang_captured": sglang_captured,
         "num_selected": len(trt_blocks),
         "dropped_blocks": int(dropped),
         "block_ids_match": block_ids_match,

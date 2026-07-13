@@ -397,18 +397,28 @@ def test_source_activation_replay_long_pruned(cuda_graph, overlap_scheduler):
             dropped_blocks=r["dropped_blocks"],
             trt_selected_blocks=r["trt_selected_blocks"],
             sglang_selected_blocks=r["sglang_selected_blocks"],
+            trt_captured=r["trt_captured"],
+            sglang_captured=r["sglang_captured"],
             block_ids_match=r["block_ids_match"],
             cuda_graph_hard_path=cuda_graph)
+    # Fail closed: BOTH sides must have captured their real selected 128-token
+    # block ids -- no length-estimate fallback. A missing capture cannot prove
+    # the drop regime, so it is a failure rather than a silent pass.
+    assert r["trt_captured"], (
+        "TensorRT-LLM MSA selected 128-token block ids were not captured "
+        f"(total_blocks={r['total_blocks']}); cannot prove the drop regime")
+    assert r["sglang_captured"], (
+        "SGLang reference selected 128-token block ids were not captured; "
+        "cannot compare the selected block set")
     # Drop regime must be active (>=1 eligible block dropped), from the ACTUAL
     # MSA selection rather than a length estimate.
     assert r["dropped_blocks"] >= 1, (
         f"no block dropped (total={r['total_blocks']}, "
         f"selected={r['num_selected']}) -> dense-equivalent")
-    # When both selections are captured, the selected block-id sets must agree.
-    if r["block_ids_match"] is not None:
-        assert r["block_ids_match"], (
-            f"selected block ids differ: trt={r['trt_selected_blocks']} "
-            f"sglang={r['sglang_selected_blocks']}")
+    # Both selections captured => the selected block-id sets must agree.
+    assert r["block_ids_match"], (
+        f"selected block ids differ: trt={r['trt_selected_blocks']} "
+        f"sglang={r['sglang_selected_blocks']}")
     assert r["metrics"]["cosine"] > 0.99, r["metrics"]
 
 
