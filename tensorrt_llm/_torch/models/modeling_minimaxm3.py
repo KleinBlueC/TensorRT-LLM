@@ -48,6 +48,13 @@ from tensorrt_llm.functional import PositionEmbeddingType
 
 from ..attention_backend import AttentionMetadata
 from ..attention_backend.interface import PositionalEmbeddingParams, RopeParams
+from ..attention_backend.sparse.minimax_m3 import (
+    MiniMaxM3Params,
+    flatten_slot_ids,
+    minimax_m3_build_req_to_token,
+    minimax_m3_paged_decode,
+    minimax_m3_paged_prefill,
+)
 from ..distributed import AllReduce
 from ..model_config import ModelConfig
 from ..modules.attention import Attention
@@ -57,6 +64,7 @@ from ..modules.fused_moe import MiniMaxM2MoeRoutingMethod, create_moe
 from ..modules.gated_mlp import GatedMLP
 from ..modules.linear import Linear, TensorParallelMode
 from ..modules.rms_norm import RMSNorm
+from ..modules.rotary_embedding import RotaryEmbedding
 from ..utils import ActivationType, AuxStreamType
 from .modeling_minimaxm2 import _EScoreCorrectionBiasHolder
 from .modeling_utils import DecoderModel, DecoderModelForCausalLM, register_auto_model
@@ -368,6 +376,28 @@ class MiniMaxM3Attention(Attention):
                 "value branch (sparse_disable_index_value); an index-value "
                 "checkpoint is not yet supported."
             )
+            self.index_init_blocks = int(sac["sparse_init_block"])
+            self.index_local_blocks = int(sac["sparse_local_block"])
+            # Lowered MSA params consumed by the paged Triton kernels.
+            self.msa_params = MiniMaxM3Params(
+                index_head_dim=self.index_head_dim,
+                num_index_heads=self.num_index_heads,
+                topk_blocks=self.index_topk_blocks,
+                block_size=self.index_block_size,
+                init_blocks=self.index_init_blocks,
+                local_blocks=self.index_local_blocks,
+                disable_index_value=True,
+            )
+            # Sparse layers run the MSA path (not the fused-RoPE dense backend),
+            # so RoPE is applied explicitly here before the kernels. Partial
+            # NeoX rotary_dim is encoded in ``pos_embd_params.rope`` (only the
+            # leading rotary_dim of each 128-wide head is rotated); the same
+            # module serves the main and (equal-width) index heads.
+            self.sparse_rope = RotaryEmbedding(
+                self.pos_embd_params.rope,
+                head_dim=self.head_dim,
+                is_neox=self.pos_embd_params.is_neox,
+            )
 
     def apply_qk_norm(self, q: torch.Tensor, k: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Per-head Gemma RMS norm over ``head_dim`` for Q and K."""
@@ -388,6 +418,124 @@ class MiniMaxM3Attention(Attention):
         q, k, v = self.split_qkv(q, k, v)
         q, k = self.apply_qk_norm(q, k)
         return super().apply_rope(q, k, v, position_ids)
+
+    def _project_and_rope_sparse(self, position_ids, hidden_states):
+        """Project + per-head Gemma norm + explicit partial NeoX RoPE for MSA.
+
+        Sparse layers run the model-owned MSA path (not the fused-RoPE dense
+        backend), so RoPE is applied here. Returns kernel-layout tensors with a
+        leading ``num_tokens`` dim: ``q [T, num_heads, head_dim]``,
+        ``k``/``v [T, num_kv_heads, head_dim]``,
+        ``index_q [T, num_index_heads, index_head_dim]`` and the single-head
+        ``index_k [T, index_head_dim]``.
+        """
+        qkv = self.qkv_proj(hidden_states)
+        q, k, v = self.split_qkv(qkv)
+        q, k = self.apply_qk_norm(q, k)
+        q, k = self.sparse_rope(position_ids, [q, k])
+
+        index_q = self.index_q_proj(hidden_states)
+        index_k = self.index_k_proj(hidden_states)
+        index_q = self.index_q_norm(index_q.reshape(-1, self.index_head_dim)).reshape(index_q.shape)
+        index_k = self.index_k_norm(index_k.reshape(-1, self.index_head_dim)).reshape(index_k.shape)
+        index_q, index_k = self.sparse_rope(position_ids, [index_q, index_k])
+
+        q = q.reshape(-1, self.num_heads, self.head_dim)
+        k = k.reshape(-1, self.num_key_value_heads, self.head_dim)
+        v = v.reshape(-1, self.num_key_value_heads, self.head_dim)
+        index_q = index_q.reshape(-1, self.num_index_heads, self.index_head_dim)
+        return q, k, v, index_q, index_k
+
+    def forward_sparse(
+        self,
+        position_ids: torch.Tensor,
+        hidden_states: torch.Tensor,
+        attn_metadata: AttentionMetadata,
+    ) -> torch.Tensor:
+        """Model-owned MiniMax Sparse Attention (MSA) forward for a sparse layer.
+
+        Scatters this step's main K/V and index-K into the MiniMax-M3
+        ``KVCacheManagerV2`` main pool + K-only index side pool at each new
+        token's ``(block, offset)`` cache slot, then runs the paged Triton MSA
+        over the top-k selected 128-token blocks (prefill for context requests,
+        decode for generation requests) and applies ``o_proj``. This replaces
+        the dense attention for layers 3-59; the block selection is driven by the
+        low-dimensional index branch.
+        """
+        q, k, v, index_q, index_k = self._project_and_rope_sparse(position_ids, hidden_states)
+
+        cache = attn_metadata.kv_cache_manager
+        layer_idx = self.layer_idx
+        device = hidden_states.device
+        tpb = cache.tokens_per_block
+
+        request_ids = list(attn_metadata.request_ids)
+        num_contexts = int(attn_metadata.num_contexts)
+        num_ctx_tokens = int(attn_metadata.num_ctx_tokens)
+        num_seqs = len(request_ids)
+        num_generations = num_seqs - num_contexts
+
+        query_lens = [int(x) for x in attn_metadata.seq_lens.tolist()][:num_seqs]
+        cached_lens = [int(x) for x in attn_metadata.kv_cache_params.num_cached_tokens_per_seq][
+            :num_seqs
+        ]
+        block_ids = cache.get_batch_cache_indices(request_ids)
+        total_kv_lens = [cached_lens[r] + query_lens[r] for r in range(num_seqs)]
+
+        # Scatter this step's K/V/index-K into the paged cache at each new token's
+        # absolute position (== position_ids, the RoPE positions), so the MSA read
+        # view sees them. req_of_token maps the flattened tokens back to requests
+        # (context tokens per-request contiguous, then one token per gen request).
+        positions = [int(x) for x in position_ids.reshape(-1).tolist()][: q.shape[0]]
+        req_of_token = []
+        for r in range(num_seqs):
+            req_of_token.extend([r] * query_lens[r])
+        slots = flatten_slot_ids(block_ids, positions, req_of_token, tpb, device)
+        cache.write_main_kv(layer_idx, slots, k, v)
+        cache.write_index_k(layer_idx, slots, index_k)
+
+        req_to_token = minimax_m3_build_req_to_token(block_ids, total_kv_lens, tpb, device)
+
+        out = q.new_empty((q.shape[0], self.num_heads, self.head_dim))
+        if num_contexts > 0:
+            cu = torch.zeros(num_contexts + 1, dtype=torch.int32, device=device)
+            cu[1:] = torch.tensor(query_lens[:num_contexts], device=device).cumsum(0)
+            prefix = torch.tensor(cached_lens[:num_contexts], dtype=torch.int32, device=device)
+            slot_ids = torch.arange(num_contexts, dtype=torch.int32, device=device)
+            o_ctx, _ = minimax_m3_paged_prefill(
+                cache,
+                layer_idx,
+                q[:num_ctx_tokens],
+                index_q[:num_ctx_tokens],
+                req_to_token[:num_contexts],
+                cu,
+                prefix,
+                slot_ids,
+                self.msa_params,
+            )
+            out[:num_ctx_tokens] = o_ctx
+        if num_generations > 0:
+            seq_lens_gen = torch.tensor(
+                total_kv_lens[num_contexts:], dtype=torch.int32, device=device
+            )
+            slot_ids = torch.arange(num_generations, dtype=torch.int32, device=device)
+            max_nb = (max(total_kv_lens[num_contexts:]) + self.index_block_size - 1) // (
+                self.index_block_size
+            )
+            o_gen, _ = minimax_m3_paged_decode(
+                cache,
+                layer_idx,
+                q[num_ctx_tokens:],
+                index_q[num_ctx_tokens:],
+                req_to_token[num_contexts:],
+                seq_lens_gen,
+                slot_ids,
+                self.msa_params,
+                max_num_blocks=max_nb,
+            )
+            out[num_ctx_tokens:] = o_gen
+
+        return self.o_proj(out.reshape(-1, self.num_heads * self.head_dim))
 
 
 class MiniMaxM3DecoderLayer(DecoderLayer):
@@ -452,12 +600,22 @@ class MiniMaxM3DecoderLayer(DecoderLayer):
         else:
             hidden_states, residual = self.input_layernorm(hidden_states, residual)
 
-        hidden_states = self.self_attn(
-            position_ids=position_ids,
-            hidden_states=hidden_states,
-            attn_metadata=attn_metadata,
-            **kwargs,
-        )
+        if self.self_attn.is_sparse_attention_layer:
+            # Sparse layers (3-59): model-owned MSA over the top-k selected
+            # blocks (index branch selects, main GQA attends only those blocks).
+            hidden_states = self.self_attn.forward_sparse(
+                position_ids=position_ids,
+                hidden_states=hidden_states,
+                attn_metadata=attn_metadata,
+            )
+        else:
+            # Dense layers (0-2): plain GQA through the TRTLLM backend.
+            hidden_states = self.self_attn(
+                position_ids=position_ids,
+                hidden_states=hidden_states,
+                attn_metadata=attn_metadata,
+                **kwargs,
+            )
 
         hidden_states, residual = self.post_attention_layernorm(hidden_states, residual)
         if isinstance(self.mlp, MiniMaxM3MoE):
