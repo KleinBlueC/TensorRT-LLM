@@ -200,6 +200,30 @@ class TestMiniMaxM3Config(unittest.TestCase):
             cfg.sparse_attention_config, cfg.moe_layer_freq, num_layers, num_dense
         )
 
+    def test_minimax_m3_model_config_derives_sparse_attention_config(self):
+        """ModelConfig.from_pretrained auto-derives the MiniMax-M3 sparse config
+        so the runtime selects MiniMaxM3CacheManager (KVCacheManagerV2 + index
+        side pool) and the MiniMax-M3 attention backend for the unmodified
+        checkpoint -- mirrors the DSA auto-derivation in model_config.py."""
+        from tensorrt_llm._torch.model_config import ModelConfig
+        from tensorrt_llm.llmapi.llm_args import MiniMaxM3SparseAttentionConfig
+
+        num_layers, num_dense = 6, 3
+        raw = _make_multimodal_config(num_layers, num_dense)
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "config.json"), "w") as f:
+                json.dump(raw, f)
+            model_config = ModelConfig.from_pretrained(d, trust_remote_code=False)
+
+        sac = model_config.sparse_attention_config
+        self.assertIsInstance(sac, MiniMaxM3SparseAttentionConfig)
+        self.assertEqual(sac.algorithm, "minimax_m3")
+        self.assertEqual(sac.index_head_dim, 128)
+        self.assertEqual(sac.num_index_heads, 4)
+        self.assertEqual(sac.topk_blocks, 16)
+        self.assertEqual(sac.block_size, 128)
+        self.assertTrue(sac.disable_index_value)
+
     def test_minimax_m3_config_from_real_checkpoint(self):
         """The unmodified MiniMax-M3 checkpoint resolves to the text causal LM."""
         root = llm_models_root()

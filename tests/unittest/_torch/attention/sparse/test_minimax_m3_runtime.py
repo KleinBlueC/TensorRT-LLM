@@ -151,6 +151,49 @@ def _contiguous_prefill(q, k, v, index_q, index_k, seq_lens, params, device):
     )
 
 
+def test_cache_manager_selected_and_built_via_sparse_config():
+    """The runtime call convention (sparse_attention_config + pretrained_config,
+    no explicit index_head_dim) selects and constructs MiniMaxM3CacheManager and
+    derives the index side-pool width from the config -- the path the pyexecutor
+    uses via get_sparse_attn_kv_cache_manager()."""
+    from types import SimpleNamespace
+
+    from tensorrt_llm._torch.attention_backend.sparse.utils import get_sparse_attn_kv_cache_manager
+    from tensorrt_llm.llmapi.llm_args import MiniMaxM3SparseAttentionConfig
+
+    sparse_cfg = MiniMaxM3SparseAttentionConfig(index_head_dim=INDEX_DIM)
+    # Runtime selects the manager class purely from the config's algorithm.
+    assert get_sparse_attn_kv_cache_manager(sparse_cfg) is MiniMaxM3CacheManager
+
+    kv_cache_config = KvCacheConfig(max_tokens=4096, enable_block_reuse=False)
+    mapping = Mapping(world_size=1, tp_size=1, rank=0, pp_size=1)
+    manager = MiniMaxM3CacheManager(
+        kv_cache_config,
+        CacheType.SELF,
+        num_layers=1,
+        num_kv_heads=NUM_KV_HEADS,
+        head_dim=HEAD_DIM,
+        tokens_per_block=BLOCK_SIZE,
+        max_seq_len=1024,
+        max_batch_size=2,
+        mapping=mapping,
+        dtype=DataType.BF16,
+        vocab_size=32000,
+        # No explicit index_head_dim: derive it from the sparse config, exactly
+        # as pyexecutor/_util.py::_create_kv_cache_manager passes it.
+        sparse_attention_config=sparse_cfg,
+        pretrained_config=SimpleNamespace(),
+    )
+    try:
+        assert manager.index_head_dim == INDEX_DIM
+        buf = manager.get_buffers(0)
+        num_blocks = buf.shape[0]
+        index_pool = manager.get_index_k_buffers(0)
+        assert index_pool.shape == (num_blocks * manager.tokens_per_block, 1, INDEX_DIM)
+    finally:
+        manager.shutdown()
+
+
 def test_cache_manager_index_pool_shape():
     """The K-only index side pool is sized to the primary pool's block count."""
     manager = _make_manager(num_layers=2, max_seq_len=1024, max_batch_size=2, max_tokens=4096)

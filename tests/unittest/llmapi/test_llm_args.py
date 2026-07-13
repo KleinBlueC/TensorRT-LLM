@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import is_dataclass
 from enum import Enum
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Annotated, Any, ClassVar, Literal, get_args, get_origin
 
 import pydantic_core
@@ -39,9 +40,11 @@ from tensorrt_llm.llmapi.llm_args import (BaseLlmArgs, CacheTransceiverConfig,
                                           ExecutorMemoryType,
                                           ExtendedRuntimePerfKnobConfig,
                                           KvCacheConfig,
-                                          LookaheadDecodingConfig, MoeConfig,
-                                          MTPDecodingConfig, PeftCacheConfig,
-                                          PybindMirror, RayPlacementConfig,
+                                          LookaheadDecodingConfig,
+                                          MiniMaxM3SparseAttentionConfig,
+                                          MoeConfig, MTPDecodingConfig,
+                                          PeftCacheConfig, PybindMirror,
+                                          RayPlacementConfig,
                                           SkipSoftmaxAttentionConfig,
                                           SleepConfig, SpeculativeConfig,
                                           StrictBaseModel, TorchCompileConfig,
@@ -2677,3 +2680,105 @@ sparse_attention_config:
 
         assert params.threshold_scale_factor_prefill == pytest.approx(
             100.0 * math.exp(5.0 * 0.5))
+
+
+class TestMiniMaxM3SparseAttentionConfig:
+    """The MiniMax-M3 sparse config is a member of the public
+    SparseAttentionConfig union, parses from python/YAML, derives from a
+    checkpoint schedule, and lowers into MiniMaxM3Params."""
+
+    # A minimal MiniMax-M3-style nested sparse_attention_config: dense layers
+    # 0-2, sparse 3+ (the 60-layer schedule collapsed to a short one).
+    NESTED = {
+        "sparse_attention_freq": [0, 0, 0, 1, 1],
+        "sparse_disable_index_value": [0, 0, 0, 1, 1],
+        "sparse_index_dim": 128,
+        "sparse_num_index_heads": 4,
+        "sparse_topk_blocks": 16,
+        "sparse_block_size": 128,
+        "sparse_init_block": 0,
+        "sparse_local_block": 1,
+        "sparse_score_type": "max",
+    }
+
+    def test_python_api_parses_minimax_m3_config(self):
+        args = TorchLlmArgs(
+            model="/tmp/dummy_model",
+            sparse_attention_config={
+                "algorithm": "minimax_m3",
+                "index_head_dim": 128,
+                "num_index_heads": 4,
+                "topk_blocks": 16,
+                "block_size": 128,
+            },
+        )
+        config = args.sparse_attention_config
+        assert isinstance(config, MiniMaxM3SparseAttentionConfig)
+        assert config.algorithm == "minimax_m3"
+        assert config.index_head_dim == 128
+        assert config.topk_blocks == 16
+        assert config.disable_index_value is True
+
+    def test_yaml_api_parses_minimax_m3_config(self):
+        config_dict = yaml.safe_load("""
+sparse_attention_config:
+  algorithm: minimax_m3
+  index_head_dim: 128
+  topk_blocks: 8
+  block_size: 128
+""")
+        args = TorchLlmArgs(model="/tmp/dummy_model", **config_dict)
+        config = args.sparse_attention_config
+        assert isinstance(config, MiniMaxM3SparseAttentionConfig)
+        assert config.topk_blocks == 8
+
+    def test_from_pretrained_config_derives_from_nested_dict(self):
+        cfg = SimpleNamespace(sparse_attention_config=self.NESTED)
+        config = MiniMaxM3SparseAttentionConfig.from_pretrained_config(cfg)
+        assert isinstance(config, MiniMaxM3SparseAttentionConfig)
+        assert config.index_head_dim == 128
+        assert config.num_index_heads == 4
+        assert config.topk_blocks == 16
+        assert config.block_size == 128
+        assert config.init_blocks == 0
+        assert config.local_blocks == 1
+        assert config.score_type == "max"
+        # per-layer disable list -> single K-only flag
+        assert config.disable_index_value is True
+
+    def test_from_pretrained_config_dense_model_returns_none(self):
+        cfg = SimpleNamespace(sparse_attention_config=None)
+        assert MiniMaxM3SparseAttentionConfig.from_pretrained_config(
+            cfg) is None
+
+    def test_to_sparse_params_lowers_to_minimax_m3_params(self):
+        from tensorrt_llm._torch.attention_backend.sparse.minimax_m3 import \
+            MiniMaxM3Params
+        config = MiniMaxM3SparseAttentionConfig.from_pretrained_config(
+            SimpleNamespace(sparse_attention_config=self.NESTED))
+        params = config.to_sparse_params()
+        assert isinstance(params, MiniMaxM3Params)
+        assert params.algorithm == "minimax_m3"
+        assert params.index_head_dim == 128
+        assert params.num_index_heads == 4
+        assert params.topk_blocks == 16
+        assert params.block_size == 128
+        assert params.disable_index_value is True
+        # MSA selects whole KV blocks: index block granularity == block_size.
+        assert params.indices_block_size == 128
+
+    def test_to_sparse_metadata_params_is_none(self):
+        # MiniMax-M3 MSA is model-owned; no engine-level sparse metadata.
+        config = MiniMaxM3SparseAttentionConfig()
+        assert config.to_sparse_metadata_params() is None
+
+    def test_registered_in_sparse_backend_factories(self):
+        from tensorrt_llm._torch.attention_backend.sparse.minimax_m3 import (
+            MiniMaxM3CacheManager, MiniMaxM3TrtllmAttention)
+        from tensorrt_llm._torch.attention_backend.sparse.utils import (
+            get_sparse_attn_kv_cache_manager,
+            get_trtllm_sparse_attn_attention_backend)
+        config = MiniMaxM3SparseAttentionConfig()
+        assert get_sparse_attn_kv_cache_manager(config) is MiniMaxM3CacheManager
+        assert get_trtllm_sparse_attn_attention_backend(
+            config) is MiniMaxM3TrtllmAttention
