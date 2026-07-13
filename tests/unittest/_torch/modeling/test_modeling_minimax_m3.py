@@ -494,5 +494,119 @@ class TestMiniMaxM3WeightAccounting(unittest.TestCase):
             )
 
 
+class TestMiniMaxM3WeightLoading(unittest.TestCase):
+    """Module-level weight loading from the real HF checkpoint key names.
+
+    ``TestMiniMaxM3WeightAccounting`` proves every *checkpoint* key is an
+    expected text key, but not that the model's *module tree* actually consumes
+    those keys: the released checkpoint stores the MoE FFN under
+    ``block_sparse_moe.*`` while the decoder layer names the module ``mlp`` (the
+    same attribute the dense layers use for their gated MLP). A real load must
+    therefore reconcile that name difference, or the routed experts / gate /
+    correction-bias silently keep their random init and the model is wrong.
+
+    This constructs the reduced model and loads a synthetic state dict keyed
+    exactly as the released checkpoint (``language_model.model.layers.N.
+    block_sparse_moe.*``, separate ``q/k/v_proj``, ``index_*`` on sparse layers,
+    dense ``mlp.*`` on the leading layers), then asserts the routed MoE gate and
+    ``e_score_correction_bias`` actually landed in the module. It fails loudly if
+    the checkpoint's MoE weights do not reach the ``mlp`` MoE module -- which is
+    exactly the gap the static key-set test cannot see.
+    """
+
+    @unittest.skipUnless(
+        torch.cuda.is_available(), "constructing the MiniMax-M3 model requires CUDA"
+    )
+    def test_load_weights_from_hf_checkpoint_key_names(self):
+        from tensorrt_llm._torch.models.modeling_auto import AutoModelForCausalLM
+        from tensorrt_llm._torch.models.modeling_minimaxm3 import MiniMaxM3MoE
+
+        num_layers, num_dense, num_experts = 5, 3, 8
+        model_config = _reduced_model_config(num_layers, num_dense, num_experts)
+        cfg = model_config.pretrained_config
+        model = AutoModelForCausalLM.from_config(model_config)
+
+        sac = cfg.sparse_attention_config
+        H = cfg.hidden_size
+        head_dim = cfg.head_dim
+        q_dim = cfg.num_attention_heads * head_dim
+        kv_dim = cfg.num_key_value_heads * head_dim
+        idx_dim = sac["sparse_index_dim"]
+        idx_q_dim = sac["sparse_num_index_heads"] * idx_dim
+        dense_i = cfg.dense_intermediate_size
+        moe_i = cfg.intermediate_size
+        shared_i = cfg.shared_intermediate_size
+        vocab = cfg.vocab_size
+        sparse_freq = sac["sparse_attention_freq"]
+        moe_freq = cfg.moe_layer_freq
+
+        def rand(*shape, dtype=torch.bfloat16):
+            # Small non-zero values keyed with a recognizable scale so a loaded
+            # weight is trivially distinguishable from the module's random init.
+            return (torch.randn(*shape, dtype=torch.float32) * 0.02).to(dtype)
+
+        prefix = "language_model."
+        sd: dict[str, torch.Tensor] = {}
+        sd[prefix + "model.embed_tokens.weight"] = rand(vocab, H)
+        sd[prefix + "lm_head.weight"] = rand(vocab, H)
+        sd[prefix + "model.norm.weight"] = rand(H)
+
+        gate_ref: dict[int, torch.Tensor] = {}
+        bias_ref: dict[int, torch.Tensor] = {}
+        for layer in range(num_layers):
+            base = prefix + f"model.layers.{layer}."
+            sd[base + "input_layernorm.weight"] = rand(H)
+            sd[base + "post_attention_layernorm.weight"] = rand(H)
+            sd[base + "self_attn.q_proj.weight"] = rand(q_dim, H)
+            sd[base + "self_attn.k_proj.weight"] = rand(kv_dim, H)
+            sd[base + "self_attn.v_proj.weight"] = rand(kv_dim, H)
+            sd[base + "self_attn.o_proj.weight"] = rand(H, q_dim)
+            sd[base + "self_attn.q_norm.weight"] = rand(head_dim)
+            sd[base + "self_attn.k_norm.weight"] = rand(head_dim)
+            if sparse_freq[layer]:
+                sd[base + "self_attn.index_q_proj.weight"] = rand(idx_q_dim, H)
+                sd[base + "self_attn.index_k_proj.weight"] = rand(idx_dim, H)
+                sd[base + "self_attn.index_q_norm.weight"] = rand(idx_dim)
+                sd[base + "self_attn.index_k_norm.weight"] = rand(idx_dim)
+            if moe_freq[layer]:
+                m = base + "block_sparse_moe."
+                gate = rand(num_experts, H, dtype=torch.float32)
+                sd[m + "gate.weight"] = gate
+                gate_ref[layer] = gate
+                bias = (torch.randn(num_experts, dtype=torch.float32) * 0.1)
+                sd[m + "e_score_correction_bias"] = bias
+                bias_ref[layer] = bias
+                for e in range(num_experts):
+                    sd[m + f"experts.{e}.w1.weight"] = rand(moe_i, H)
+                    sd[m + f"experts.{e}.w3.weight"] = rand(moe_i, H)
+                    sd[m + f"experts.{e}.w2.weight"] = rand(H, moe_i)
+                sd[m + "shared_experts.gate_proj.weight"] = rand(shared_i, H)
+                sd[m + "shared_experts.up_proj.weight"] = rand(shared_i, H)
+                sd[m + "shared_experts.down_proj.weight"] = rand(H, shared_i)
+            else:
+                sd[base + "mlp.gate_proj.weight"] = rand(dense_i, H)
+                sd[base + "mlp.up_proj.weight"] = rand(dense_i, H)
+                sd[base + "mlp.down_proj.weight"] = rand(H, dense_i)
+
+        # Must not raise: every module in the tree has to find its weights,
+        # including the MoE FFN stored under the block_sparse_moe.* prefix.
+        model.load_weights(sd)
+
+        # The routed MoE gate + correction bias must have landed in the `mlp`
+        # MoE module -- proof the block_sparse_moe.* checkpoint subtree reached
+        # it. With tp=1 the loaded weight equals the checkpoint weight; a missing
+        # remap leaves the module at its (different) random init and this fails.
+        self.assertTrue(gate_ref, "reduced config must have >=1 MoE layer")
+        for layer, gate in gate_ref.items():
+            moe = model.model.layers[layer].mlp
+            self.assertIsInstance(moe, MiniMaxM3MoE)
+            got = moe.gate.weight.detach().cpu().float()
+            torch.testing.assert_close(got, gate.float(), rtol=1e-3, atol=1e-3)
+            holder = moe.e_score_correction_bias.e_score_correction_bias
+            torch.testing.assert_close(
+                holder.detach().cpu().float(), bias_ref[layer], rtol=1e-3, atol=1e-3
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
