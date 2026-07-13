@@ -808,6 +808,91 @@ class SkipSoftmaxAttentionConfig(BaseSparseAttentionConfig):
         return SkipSoftmaxParams(scheduler=scheduler)
 
 
+class MiniMaxM3SparseAttentionConfig(BaseSparseAttentionConfig):
+    """Configuration for MiniMax-M3 sparse attention (MSA).
+
+    MiniMax-M3 trailing layers run the main GQA attention only over the top-k
+    128-token KV blocks selected by a low-dimensional K-only "index" branch.
+    Presence of this config on the model config routes the runtime to the
+    MiniMax-M3 ``KVCacheManagerV2`` subclass (main K/V pool + a K-only index
+    side pool); the index projections and the Triton block-selection are owned
+    by the MiniMax-M3 model/attention modules, so this config lowers only into
+    the per-backend ``MiniMaxM3Params`` (no engine-level sparse metadata).
+    Fields mirror the checkpoint's nested ``sparse_attention_config``.
+    """
+    algorithm: Literal["minimax_m3"] = Field(default="minimax_m3")
+    index_head_dim: int = Field(default=128,
+                                description="Width of the index Q/K vectors.")
+    num_index_heads: int = Field(
+        default=4,
+        description="Number of index-query heads (== num KV heads for the "
+        "released checkpoint, so no top-k index reduction is needed).")
+    topk_blocks: int = Field(
+        default=16, description="Number of KV blocks selected per query.")
+    block_size: int = Field(
+        default=128, description="Number of tokens per selectable KV block.")
+    init_blocks: int = Field(default=0,
+                             description="Leading KV blocks always retained.")
+    local_blocks: int = Field(default=1,
+                              description="Trailing KV blocks always retained.")
+    score_type: Literal["max"] = Field(
+        default="max", description="Block score reduction across block tokens.")
+    disable_index_value: bool = Field(
+        default=True,
+        description="K-only index branch: select blocks but add no index "
+        "value/output (sparse_disable_index_value on the checkpoint).")
+
+    @classmethod
+    def from_pretrained_config(
+            cls,
+            pretrained_config) -> Optional["MiniMaxM3SparseAttentionConfig"]:
+        """Derive the config from a MiniMax-M3 checkpoint's nested schedule.
+
+        Returns ``None`` when the (normalized text) config carries no
+        ``sparse_attention_config`` (a purely dense model). ``pretrained_config``
+        may be a ``PretrainedConfig``/namespace or a plain dict.
+        """
+        if isinstance(pretrained_config, dict):
+            sac = pretrained_config.get("sparse_attention_config")
+        else:
+            sac = getattr(pretrained_config, "sparse_attention_config", None)
+        if not sac:
+            return None
+        get = sac.get if isinstance(
+            sac, dict) else (lambda k, d=None: getattr(sac, k, d))
+        disable = get("sparse_disable_index_value")
+        # Per-layer list on the checkpoint; the released checkpoint disables the
+        # index value on every sparse layer, so collapse to a single flag.
+        disable_flag = bool(any(disable)) if isinstance(
+            disable, (list, tuple)) else bool(disable)
+        return cls(
+            index_head_dim=int(get("sparse_index_dim", 128)),
+            num_index_heads=int(get("sparse_num_index_heads", 4)),
+            topk_blocks=int(get("sparse_topk_blocks", 16)),
+            block_size=int(get("sparse_block_size", 128)),
+            init_blocks=int(get("sparse_init_block", 0)),
+            local_blocks=int(get("sparse_local_block", 1)),
+            score_type=str(get("sparse_score_type", "max")),
+            disable_index_value=disable_flag,
+        )
+
+    def supports_backend(self, backend: str) -> bool:
+        return backend == "pytorch"
+
+    def to_sparse_params(self, **kwargs):
+        from tensorrt_llm._torch.attention_backend.sparse.minimax_m3 import \
+            MiniMaxM3Params
+        return MiniMaxM3Params(
+            index_head_dim=self.index_head_dim,
+            num_index_heads=self.num_index_heads,
+            topk_blocks=self.topk_blocks,
+            block_size=self.block_size,
+            init_blocks=self.init_blocks,
+            local_blocks=self.local_blocks,
+            disable_index_value=self.disable_index_value,
+        )
+
+
 class MoeLoadBalancerConfig(StrictBaseModel):
     """Pydantic configuration model for the Mixture of Experts (MoE) load balancer.
 
@@ -2830,6 +2915,7 @@ SparseAttentionConfig: TypeAlias = Annotated[
         RocketSparseAttentionConfig,
         DeepSeekSparseAttentionConfig,
         SkipSoftmaxAttentionConfig,
+        MiniMaxM3SparseAttentionConfig,
     ],
     Field(discriminator="algorithm"),
 ]
