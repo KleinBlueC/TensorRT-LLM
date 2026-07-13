@@ -100,9 +100,7 @@ def _block_ids_for(manager, request_ids, seq_lens):
     for req_id, length in zip(request_ids, seq_lens):
         nblocks = (length + tpb - 1) // tpb
         ids = [b for b in raw[request_ids.index(req_id)] if b >= 0][:nblocks]
-        assert len(ids) == nblocks, (
-            f"request {req_id}: got {len(ids)} valid blocks, need {nblocks}"
-        )
+        assert len(ids) == nblocks, f"request {req_id}: got {len(ids)} valid blocks, need {nblocks}"
         out.append(ids)
     return out
 
@@ -125,25 +123,37 @@ def _contiguous_prefill(q, k, v, index_q, index_k, seq_lens, params, device):
     for r, length in enumerate(seq_lens):
         base = r * max_len
         sl = slice(off, off + length)
-        k_cache[base:base + length] = k[sl]
-        v_cache[base:base + length] = v[sl]
-        index_k_cache[base:base + length, 0] = index_k[sl]
-        req_to_token[r, :length] = torch.arange(base, base + length, device=device, dtype=torch.int32)
+        k_cache[base : base + length] = k[sl]
+        v_cache[base : base + length] = v[sl]
+        index_k_cache[base : base + length, 0] = index_k[sl]
+        req_to_token[r, :length] = torch.arange(
+            base, base + length, device=device, dtype=torch.int32
+        )
         off += length
     cu_seqlens = torch.zeros(num_seqs + 1, dtype=torch.int32, device=device)
     cu_seqlens[1:] = torch.tensor(seq_lens, device=device).cumsum(0)
     prefix_lens = torch.zeros(num_seqs, dtype=torch.int32, device=device)
     slot_ids = torch.arange(num_seqs, dtype=torch.int32, device=device)
     return minimax_m3_sparse_attention_prefill(
-        q, k_cache, v_cache, index_q, index_k_cache, req_to_token, cu_seqlens,
-        prefix_lens, slot_ids, block_size=params.block_size, topk=params.topk_blocks,
-        init_blocks=params.init_blocks, local_blocks=params.local_blocks)
+        q,
+        k_cache,
+        v_cache,
+        index_q,
+        index_k_cache,
+        req_to_token,
+        cu_seqlens,
+        prefix_lens,
+        slot_ids,
+        block_size=params.block_size,
+        topk=params.topk_blocks,
+        init_blocks=params.init_blocks,
+        local_blocks=params.local_blocks,
+    )
 
 
 def test_cache_manager_index_pool_shape():
     """The K-only index side pool is sized to the primary pool's block count."""
-    manager = _make_manager(num_layers=2, max_seq_len=1024, max_batch_size=2,
-                            max_tokens=4096)
+    manager = _make_manager(num_layers=2, max_seq_len=1024, max_batch_size=2, max_tokens=4096)
     try:
         buf = manager.get_buffers(0)  # [num_blocks, kv_factor, tpb, H, D]
         num_blocks = buf.shape[0]
@@ -159,23 +169,24 @@ def test_cache_manager_index_pool_shape():
 def test_index_k_write_read_roundtrip():
     """Index-K scattered at block-table slots reads back exactly at those slots."""
     device = torch.device("cuda")
-    manager = _make_manager(num_layers=1, max_seq_len=1024, max_batch_size=2,
-                            max_tokens=4096)
+    manager = _make_manager(num_layers=1, max_seq_len=1024, max_batch_size=2, max_tokens=4096)
     try:
         request_ids = [0, 1]
         seq_lens = [300, 200]  # spans >1 block each (tpb=128)
-        manager.add_dummy_requests(request_ids, token_nums=seq_lens, is_gen=False,
-                                  prepare_resource=True)
+        manager.add_dummy_requests(
+            request_ids, token_nums=seq_lens, is_gen=False, prepare_resource=True
+        )
         block_ids = _block_ids_for(manager, request_ids, seq_lens)
 
-        positions, req_of_token, values = [], [], []
+        positions, req_of_token = [], []
         for r, length in enumerate(seq_lens):
             for p in range(length):
                 positions.append(p)
                 req_of_token.append(r)
         index_k = torch.randn(len(positions), INDEX_DIM, dtype=torch.bfloat16, device=device)
-        slots = flatten_slot_ids(block_ids, positions, req_of_token,
-                                 manager.tokens_per_block, device)
+        slots = flatten_slot_ids(
+            block_ids, positions, req_of_token, manager.tokens_per_block, device
+        )
         manager.write_index_k(0, slots, index_k)
 
         pool = manager.get_index_k_buffers(0)
@@ -199,31 +210,36 @@ def test_paged_prefill_matches_contiguous(seq_lens):
     index_k = torch.randn(total, INDEX_DIM, dtype=torch.bfloat16, device=device)
     params = _params()
 
-    manager = _make_manager(num_layers=1, max_seq_len=1024, max_batch_size=len(seq_lens),
-                            max_tokens=4096)
+    manager = _make_manager(
+        num_layers=1, max_seq_len=1024, max_batch_size=len(seq_lens), max_tokens=4096
+    )
     try:
         request_ids = list(range(len(seq_lens)))
-        manager.add_dummy_requests(request_ids, token_nums=list(seq_lens), is_gen=False,
-                                  prepare_resource=True)
+        manager.add_dummy_requests(
+            request_ids, token_nums=list(seq_lens), is_gen=False, prepare_resource=True
+        )
         block_ids = _block_ids_for(manager, request_ids, seq_lens)
 
         positions, req_of_token = [], []
         for r, length in enumerate(seq_lens):
             positions.extend(range(length))
             req_of_token.extend([r] * length)
-        slots = flatten_slot_ids(block_ids, positions, req_of_token,
-                                 manager.tokens_per_block, device)
+        slots = flatten_slot_ids(
+            block_ids, positions, req_of_token, manager.tokens_per_block, device
+        )
         manager.write_main_kv(0, slots, k, v)
         manager.write_index_k(0, slots, index_k)
 
-        req_to_token = minimax_m3_build_req_to_token(block_ids, seq_lens,
-                                                     manager.tokens_per_block, device)
+        req_to_token = minimax_m3_build_req_to_token(
+            block_ids, seq_lens, manager.tokens_per_block, device
+        )
         cu_seqlens = torch.zeros(len(seq_lens) + 1, dtype=torch.int32, device=device)
         cu_seqlens[1:] = torch.tensor(seq_lens, device=device).cumsum(0)
         prefix_lens = torch.zeros(len(seq_lens), dtype=torch.int32, device=device)
         slot_ids = torch.arange(len(seq_lens), dtype=torch.int32, device=device)
         paged_o, paged_topk = minimax_m3_paged_prefill(
-            manager, 0, q, index_q, req_to_token, cu_seqlens, prefix_lens, slot_ids, params)
+            manager, 0, q, index_q, req_to_token, cu_seqlens, prefix_lens, slot_ids, params
+        )
 
         ref_o, _ = _contiguous_prefill(q, k, v, index_q, index_k, list(seq_lens), params, device)
         torch.testing.assert_close(paged_o, ref_o, atol=2e-2, rtol=2e-2)
@@ -256,34 +272,48 @@ def test_paged_decode_matches_contiguous_and_cuda_graph():
     index_k = torch.randn(total, INDEX_DIM, dtype=torch.bfloat16, device=device)
     # One decode query + index-query per request.
     q = torch.randn(len(seq_lens), NUM_Q_HEADS, HEAD_DIM, dtype=torch.bfloat16, device=device)
-    index_q = torch.randn(len(seq_lens), NUM_INDEX_HEADS, INDEX_DIM, dtype=torch.bfloat16, device=device)
+    index_q = torch.randn(
+        len(seq_lens), NUM_INDEX_HEADS, INDEX_DIM, dtype=torch.bfloat16, device=device
+    )
 
-    manager = _make_manager(num_layers=1, max_seq_len=1024, max_batch_size=len(seq_lens),
-                            max_tokens=4096)
+    manager = _make_manager(
+        num_layers=1, max_seq_len=1024, max_batch_size=len(seq_lens), max_tokens=4096
+    )
     try:
         request_ids = list(range(len(seq_lens)))
-        manager.add_dummy_requests(request_ids, token_nums=list(seq_lens), is_gen=True,
-                                  prepare_resource=True)
+        manager.add_dummy_requests(
+            request_ids, token_nums=list(seq_lens), is_gen=True, prepare_resource=True
+        )
         block_ids = _block_ids_for(manager, request_ids, seq_lens)
 
         positions, req_of_token = [], []
         for r, length in enumerate(seq_lens):
             positions.extend(range(length))
             req_of_token.extend([r] * length)
-        slots = flatten_slot_ids(block_ids, positions, req_of_token,
-                                 manager.tokens_per_block, device)
+        slots = flatten_slot_ids(
+            block_ids, positions, req_of_token, manager.tokens_per_block, device
+        )
         manager.write_main_kv(0, slots, k, v)
         manager.write_index_k(0, slots, index_k)
 
-        req_to_token = minimax_m3_build_req_to_token(block_ids, seq_lens,
-                                                     manager.tokens_per_block, device)
+        req_to_token = minimax_m3_build_req_to_token(
+            block_ids, seq_lens, manager.tokens_per_block, device
+        )
         seq_lens_t = torch.tensor(seq_lens, dtype=torch.int32, device=device)
         slot_ids = torch.arange(len(seq_lens), dtype=torch.int32, device=device)
         max_num_blocks = (max(seq_lens) + BLOCK_SIZE - 1) // BLOCK_SIZE
 
         paged_o, _ = minimax_m3_paged_decode(
-            manager, 0, q, index_q, req_to_token, seq_lens_t, slot_ids, params,
-            max_num_blocks=max_num_blocks)
+            manager,
+            0,
+            q,
+            index_q,
+            req_to_token,
+            seq_lens_t,
+            slot_ids,
+            params,
+            max_num_blocks=max_num_blocks,
+        )
 
         # Contiguous reference decode.
         num_seqs = len(seq_lens)
@@ -295,16 +325,26 @@ def test_paged_decode_matches_contiguous_and_cuda_graph():
         off = 0
         for r, length in enumerate(seq_lens):
             base = r * max_len
-            k_c[base:base + length] = k[off:off + length]
-            v_c[base:base + length] = v[off:off + length]
-            ik_c[base:base + length, 0] = index_k[off:off + length]
+            k_c[base : base + length] = k[off : off + length]
+            v_c[base : base + length] = v[off : off + length]
+            ik_c[base : base + length, 0] = index_k[off : off + length]
             r2t_c[r, :length] = torch.arange(base, base + length, device=device, dtype=torch.int32)
             off += length
         ref_o, _ = minimax_m3_sparse_attention_decode(
-            q, k_c, v_c, index_q, ik_c, r2t_c, seq_lens_t, slot_ids,
-            block_size=params.block_size, topk=params.topk_blocks,
-            init_blocks=params.init_blocks, local_blocks=params.local_blocks,
-            max_num_blocks=max_num_blocks)
+            q,
+            k_c,
+            v_c,
+            index_q,
+            ik_c,
+            r2t_c,
+            seq_lens_t,
+            slot_ids,
+            block_size=params.block_size,
+            topk=params.topk_blocks,
+            init_blocks=params.init_blocks,
+            local_blocks=params.local_blocks,
+            max_num_blocks=max_num_blocks,
+        )
         torch.testing.assert_close(paged_o, ref_o, atol=2e-2, rtol=2e-2)
 
         # CUDA-graph hard path: capture/replay the paged decode kernel dispatch.
@@ -314,10 +354,20 @@ def test_paged_decode_matches_contiguous_and_cuda_graph():
 
         def _run():
             o, _ = minimax_m3_sparse_attention_decode(
-                q, k_cache, v_cache, index_q, index_k_cache, req_to_token, seq_lens_t,
-                slot_ids, block_size=params.block_size, topk=params.topk_blocks,
-                init_blocks=params.init_blocks, local_blocks=params.local_blocks,
-                max_num_blocks=max_num_blocks)
+                q,
+                k_cache,
+                v_cache,
+                index_q,
+                index_k_cache,
+                req_to_token,
+                seq_lens_t,
+                slot_ids,
+                block_size=params.block_size,
+                topk=params.topk_blocks,
+                init_blocks=params.init_blocks,
+                local_blocks=params.local_blocks,
+                max_num_blocks=max_num_blocks,
+            )
             graph_out.copy_(o)
 
         s = torch.cuda.Stream()
