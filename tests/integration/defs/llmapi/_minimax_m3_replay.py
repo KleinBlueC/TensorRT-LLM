@@ -236,6 +236,7 @@ def _greedy_sampling(max_tokens: int):
 # --------------------------------------------------------------------------- #
 def _capture_sglang_modules(ckpt, sglang_root, layer_idx, attrs, prompt,
                             enable_topk: bool = False,
+                            extract_moe_bias: bool = False,
                             max_new_tokens: int = 1) -> Dict:
     engine = _sglang_engine(ckpt, sglang_root)
     model = _find_torch_module(engine)
@@ -254,6 +255,9 @@ def _capture_sglang_modules(ckpt, sglang_root, layer_idx, attrs, prompt,
     sel_handle = None
     if enable_topk:
         sel_handle = _hook_sglang_selection(model, layer_idx, sel_cap)
+    # The MoE correction bias is a *parameter*, not a forward output, so snapshot
+    # it while the model is alive (the engine is torn down before we return).
+    bias = _snapshot_correction_bias(model, layer_idx) if extract_moe_bias else None
     try:
         engine.generate([prompt], sampling_params={
             "temperature": 0.0, "top_k": 1, "max_new_tokens": max_new_tokens})
@@ -266,7 +270,29 @@ def _capture_sglang_modules(ckpt, sglang_root, layer_idx, attrs, prompt,
     out = {a: (c.out if c is not None else None) for a, c in caps.items()}
     if enable_topk:
         out["_selected_blocks"] = sel_cap["idx"]
+    if extract_moe_bias:
+        out["_correction_bias"] = bias
     return out
+
+
+def _snapshot_correction_bias(model: torch.nn.Module,
+                              layer_idx: int) -> Optional[torch.Tensor]:
+    """Snapshot the MoE ``e_score_correction_bias`` for a layer as an fp32 CPU
+    tensor. Unwraps the TensorRT-LLM ``_EScoreCorrectionBiasHolder`` (whose inner
+    parameter shares the name) and reads the SGLang ``nn.Parameter`` directly;
+    returns ``None`` (reported, never faked) when the layer has no bias."""
+    try:
+        bias = _resolve_layer_module(model, layer_idx, "mlp.e_score_correction_bias")
+    except AssertionError:
+        return None
+    inner = getattr(bias, "e_score_correction_bias", None)  # TRT-LLM holder
+    if isinstance(inner, torch.Tensor):
+        bias = inner
+    if isinstance(bias, torch.nn.Parameter):
+        bias = bias.data
+    if isinstance(bias, torch.Tensor):
+        return bias.detach().to(torch.float32).reshape(-1).cpu()
+    return None
 
 
 def _hook_sglang_selection(model, layer_idx, sink) -> Optional[object]:
@@ -466,13 +492,37 @@ def _describe_trt_moe(model, layer_idx: int) -> Dict[str, str]:
     }
 
 
-def _topk_experts(router_logits: Optional[torch.Tensor],
-                  k: int = 4) -> Optional[List[int]]:
-    if router_logits is None:
+def _route_minimax(router_logits: Optional[torch.Tensor],
+                   correction_bias: Optional[torch.Tensor],
+                   k: int = 4) -> Optional[Dict]:
+    """MiniMax-M3 routing for the first token, matching
+    :class:`MiniMaxM2MoeRoutingMethod`: ``scores = sigmoid(logits)`` (fp32);
+    top-``k`` selection on ``scores + e_score_correction_bias``; the routing
+    *weights* are the **un-biased** ``scores`` of the selected experts,
+    **renormalized** to sum to 1 (routed-scaling is applied on the output, not
+    the weights, so it does not change selection or normalized weights).
+
+    Requires the correction bias -- omitting it can flip boundary experts, so a
+    missing bias returns ``None`` (the caller fails closed) rather than silently
+    degrading to a sigmoid-only top-k.
+    """
+    if router_logits is None or correction_bias is None:
         return None
     scores = torch.sigmoid(router_logits.to(torch.float32))
     row = scores.reshape(-1, scores.shape[-1])[0]
-    return sorted(int(x) for x in torch.topk(row, k=k).indices.tolist())
+    bias = correction_bias.reshape(-1).to(row.dtype)
+    if bias.shape != row.shape:
+        return None
+    sel = torch.topk(row + bias, k=k).indices
+    weights = row[sel]
+    weights = weights / (weights.sum() + 1e-20)
+    order = torch.argsort(sel)
+    experts = [int(x) for x in sel[order].tolist()]
+    return {
+        "experts": experts,
+        "weights": {e: float(w)
+                    for e, w in zip(experts, weights[order].tolist())},
+    }
 
 
 def replay_moe_layer(ckpt: str, sglang_root: str, layer_idx: int,
@@ -486,7 +536,7 @@ def replay_moe_layer(ckpt: str, sglang_root: str, layer_idx: int,
     """
     prompt = "The capital of France is"
     ref = _capture_sglang_modules(ckpt, sglang_root, layer_idx, _MOE_ATTRS,
-                                  prompt)
+                                  prompt, extract_moe_bias=True)
     trt_model = None
 
     from tensorrt_llm import LLM  # noqa: F401
@@ -505,6 +555,7 @@ def replay_moe_layer(ckpt: str, sglang_root: str, layer_idx: int,
     try:
         llm.generate([prompt], _greedy_sampling(1))
         desc = _describe_trt_moe(trt_model, layer_idx)
+        trt_bias = _snapshot_correction_bias(trt_model, layer_idx)
     finally:
         for h in handles:
             h.remove()
@@ -513,15 +564,27 @@ def replay_moe_layer(ckpt: str, sglang_root: str, layer_idx: int,
 
     if ref.get("mlp") is None or trt.get("mlp") is None:
         raise AssertionError("MoE-output capture missing on one side")
+    # MiniMax routing (sigmoid+bias top-4, renormalized un-biased weights) on
+    # each side's captured router logits + its own correction bias.
+    trt_route = _route_minimax(trt.get("mlp.gate"), trt_bias)
+    ref_route = _route_minimax(ref.get("mlp.gate"), ref.get("_correction_bias"))
     result = {
         "metrics": _cmp(ref["mlp"], trt["mlp"]),  # post-MoE (TP invariant)
         "router_logits": _geom_cmp(ref.get("mlp.gate"), trt.get("mlp.gate")),
         "experts": _geom_cmp(ref.get("mlp.experts"), trt.get("mlp.experts")),
         "shared": _geom_cmp(ref.get("mlp.shared_experts"),
                             trt.get("mlp.shared_experts")),
+        "correction_bias_captured": {
+            "trt": trt_bias is not None,
+            "sglang": ref.get("_correction_bias") is not None,
+        },
         "selected_experts": {
-            "trt": _topk_experts(trt.get("mlp.gate")),
-            "sglang": _topk_experts(ref.get("mlp.gate")),
+            "trt": None if trt_route is None else trt_route["experts"],
+            "sglang": None if ref_route is None else ref_route["experts"],
+        },
+        "routing_weights": {
+            "trt": None if trt_route is None else trt_route["weights"],
+            "sglang": None if ref_route is None else ref_route["weights"],
         },
         "layer": layer_idx,
         **desc,
@@ -530,6 +593,15 @@ def replay_moe_layer(ckpt: str, sglang_root: str, layer_idx: int,
     result["selected_experts"]["match"] = (
         None if se["trt"] is None or se["sglang"] is None else
         se["trt"] == se["sglang"])
+    # Max abs difference of the renormalized routing weight per selected expert
+    # (only when both selections agree, so the per-expert weights are aligned).
+    rw = result["routing_weights"]
+    if (se.get("match") and rw["trt"] is not None and rw["sglang"] is not None):
+        rw["max_abs"] = max(
+            (abs(rw["trt"][e] - rw["sglang"][e]) for e in rw["trt"]),
+            default=0.0)
+    else:
+        rw["max_abs"] = None
     return result
 
 

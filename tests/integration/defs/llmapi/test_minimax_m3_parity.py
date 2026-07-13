@@ -428,7 +428,9 @@ def test_source_activation_replay_moe(cuda_graph, overlap_scheduler):
     _report("source_activation_replay_moe", cfg, r["metrics"],
             layer=MOE_LAYER, moe_backend=r["moe_backend"], op_path=r["op_path"],
             activation=r["activation"], router_logits=r["router_logits"],
-            selected_experts=r["selected_experts"], shared=r["shared"],
+            correction_bias_captured=r["correction_bias_captured"],
+            selected_experts=r["selected_experts"],
+            routing_weights=r["routing_weights"], shared=r["shared"],
             experts=r["experts"], cuda_graph_hard_path=cuda_graph)
     # Production fused backend, not a VANILLA / naive-Python expert loop.
     assert r["moe_backend"] != "VANILLA", \
@@ -437,8 +439,21 @@ def test_source_activation_replay_moe(cuda_graph, overlap_scheduler):
     assert r["router_logits"].get("comparable"), \
         f"router logits not comparable: {r['router_logits']}"
     assert r["router_logits"]["metrics"]["cosine"] > 0.99, r["router_logits"]
-    # Top-4 expert selection agreement (when both captured).
-    if r["selected_experts"]["match"] is not None:
-        assert r["selected_experts"]["match"], r["selected_experts"]
+    # Fail closed: the MiniMax top-4 selection uses sigmoid + e_score_correction
+    # _bias (omitting the bias can flip boundary experts), so the bias MUST be
+    # captured on both sides and the bias-corrected selections MUST agree.
+    assert r["correction_bias_captured"]["trt"], \
+        "TensorRT-LLM e_score_correction_bias was not captured"
+    assert r["correction_bias_captured"]["sglang"], \
+        "SGLang e_score_correction_bias was not captured"
+    assert r["selected_experts"]["match"] is not None, \
+        f"top-4 selection not computed on both sides: {r['selected_experts']}"
+    assert r["selected_experts"]["match"], (
+        f"bias-corrected top-4 selection differs: {r['selected_experts']}")
+    # Renormalized un-biased routing weights of the selected experts must match.
+    assert r["routing_weights"]["max_abs"] is not None, \
+        f"routing weights not comparable: {r['routing_weights']}"
+    assert r["routing_weights"]["max_abs"] < 1e-2, (
+        f"renormalized routing weights differ: {r['routing_weights']}")
     # Post-MoE output (TP invariant) parity proves the end-to-end contract.
     assert r["metrics"]["cosine"] > 0.99, r["metrics"]
