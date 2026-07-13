@@ -327,18 +327,52 @@ def test_generation_parity(cuda_graph, overlap_scheduler):
 # --------------------------------------------------------------------------- #
 # crit10: accuracy_canary -- deterministic GSM8K slice through both paths.      #
 # --------------------------------------------------------------------------- #
+_CANARY_QUESTIONS = int(os.environ.get("MINIMAX_M3_CANARY_QUESTIONS", "20"))
+_CANARY_SHOTS = 5
+_CANARY_MAX_TOKENS = 256
+# Catastrophic-regression bound on the small slice (the tight 2-point gate is
+# the full trtllm-eval benchmark, crit11); a broken TRT path diverges far more.
+_CANARY_MAX_DELTA = float(os.environ.get("MINIMAX_M3_CANARY_MAX_DELTA", "0.15"))
+
+
 @pytest.mark.parametrize("cuda_graph,overlap_scheduler", _CONFIGS)
 def test_accuracy_canary(cuda_graph, overlap_scheduler):
     cfg = "cuda_graph_overlap" if cuda_graph else "baseline"
-    # Cheap deterministic regression gate on a small GSM8K subset, run before
-    # the full trtllm-eval benchmark (the accuracy gate lives in
-    # accuracy/test_llm_api_pytorch.py::TestMiniMaxM3).
-    from ..accuracy.accuracy_core import GSM8K
-    with _trtllm_engine(cuda_graph, overlap_scheduler) as (llm, ids):
-        task = GSM8K(MODEL_NAME)
-        # A small deterministic slice keeps this a canary, not the full gate.
-        task.evaluate(llm, extra_evaluator_kwargs={"num_samples": 20})
-        _report("accuracy_canary", cfg, {}, subset=20, **ids)
+    _skip_layer_replay_reason()  # needs the SGLang reference stood up
+    from ._minimax_m3_replay import replay_accuracy_canary
+    # Deterministic small GSM8K slice through BOTH the SGLang reference and
+    # TensorRT-LLM under the same greedy config (crit10). Runs before the full
+    # trtllm-eval benchmark (accuracy/test_llm_api_pytorch.py::TestMiniMaxM3);
+    # SGLang runs first and releases its GPUs before the TRT engine is built.
+    artifact_dir = os.environ.get("MINIMAX_M3_ARTIFACT_DIR", os.getcwd())
+    export_path = os.path.join(artifact_dir, f"minimax_m3_canary_{cfg}.json")
+    r = replay_accuracy_canary(
+        _checkpoint_path(), _sglang_reference_root(), str(llm_models_root()),
+        num_questions=_CANARY_QUESTIONS, num_shots=_CANARY_SHOTS,
+        max_tokens=_CANARY_MAX_TOKENS, cuda_graph=cuda_graph,
+        overlap_scheduler=overlap_scheduler, export_path=export_path)
+    _report("accuracy_canary", cfg,
+            {"trt_score": r["trt_score"], "sglang_score": r["sglang_score"]},
+            questions=r["num_questions"], num_shots=r["num_shots"],
+            export_path=r.get("export_path"), cuda_graph=cuda_graph,
+            overlap_scheduler=overlap_scheduler,
+            cuda_graph_hard_path=r["cuda_graph_hard_path"])
+    # Exported prompt artifacts must exist (prompt ids/text, generated tokens,
+    # scores) -- their absence is a crit10 failure signal.
+    assert r.get("export_path") and os.path.isfile(r["export_path"]), \
+        f"canary artifacts not exported (err={r.get('export_error')})"
+    assert len(r["records"]) == r["num_questions"] >= 1
+    assert all("trt_tokens" in rec and "trt_text" in rec and
+               "sglang_text" in rec for rec in r["records"])
+    # Enabled config must record the CUDA-graph hard path.
+    if cuda_graph:
+        assert r["cuda_graph_hard_path"]
+    # Catastrophic-regression gate: the TensorRT-LLM slice score must track the
+    # SGLang reference within the canary bound.
+    delta = abs(r["trt_score"] - r["sglang_score"])
+    assert delta <= _CANARY_MAX_DELTA, (
+        f"catastrophic GSM8K canary delta {delta:.3f} > {_CANARY_MAX_DELTA} "
+        f"(trt={r['trt_score']:.3f} sglang={r['sglang_score']:.3f}, {cfg})")
 
 
 # --------------------------------------------------------------------------- #

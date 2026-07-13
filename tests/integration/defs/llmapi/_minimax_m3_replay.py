@@ -42,9 +42,12 @@ output, post-all-reduce MoE output, the replicated fp32 router logits, and the
 final vocab logits — which are directly comparable across both stacks.
 """
 
+import ast
+import json
 import os
+import re
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -747,3 +750,158 @@ def replay_generation_logits(ckpt: str, sglang_root: str, prompts: List[str],
     finally:
         llm.shutdown()
     return out
+
+
+# --------------------------------------------------------------------------- #
+# crit10: accuracy_canary -- deterministic GSM8K slice through BOTH engines.    #
+# --------------------------------------------------------------------------- #
+# Few-shot GSM8K prompting + answer scoring mirroring the named SGLang reference
+# (``sglang.test.few_shot_gsm8k``) so the canary uses the SAME decoding/test
+# config for both engines: ``"Question: " + q + "\nAnswer:"``, ``num_shots``
+# in-context examples, greedy decoding, last-number extraction.
+_GSM8K_STOP = ["Question", "Assistant:", "<|separator|>"]
+
+
+def _gsm8k_answer_value(answer_str: str):
+    """Last integer in a string (SGLang ``get_answer_value``); ``None`` if none."""
+    answer_str = (answer_str or "").replace(",", "")
+    numbers = re.findall(r"\d+", answer_str)
+    if not numbers:
+        return None
+    try:
+        return ast.literal_eval(numbers[-1])
+    except (SyntaxError, ValueError):
+        return None
+
+
+def _gsm8k_lines(models_root: str) -> List[Dict]:
+    """GSM8K test split as ``[{"question","answer"}, ...]``.
+
+    Prefers a staged jsonl (``$MINIMAX_M3_GSM8K_JSONL``) so the canary reads the
+    exact file the SGLang reference job used; otherwise loads the same
+    ``datasets/openai/gsm8k`` test parquet the full accuracy gate uses.
+    """
+    jsonl = os.environ.get("MINIMAX_M3_GSM8K_JSONL")
+    if jsonl and os.path.isfile(jsonl):
+        with open(jsonl) as f:
+            return [json.loads(line) for line in f if line.strip()]
+    parquet = os.path.join(str(models_root), "datasets", "openai", "gsm8k",
+                           "main", "test-00000-of-00001.parquet")
+    if not os.path.isfile(parquet):
+        raise AssertionError(
+            "GSM8K test data not found: set $MINIMAX_M3_GSM8K_JSONL or provide "
+            f"{parquet}")
+    import pandas as pd  # available in the container (datasets/transformers)
+    df = pd.read_parquet(parquet)
+    return [{"question": str(q), "answer": str(a)}
+            for q, a in zip(df["question"], df["answer"])]
+
+
+def _gsm8k_slice(models_root: str, num_questions: int,
+                 num_shots: int) -> Tuple[str, List[Dict]]:
+    """(few-shot preamble, [{id, question_text, prompt, gold}, ...])."""
+    lines = _gsm8k_lines(models_root)
+    assert len(lines) >= max(num_questions, num_shots), \
+        f"GSM8K slice needs >= {max(num_questions, num_shots)} rows"
+    preamble = "".join(
+        f"Question: {lines[i]['question']}\nAnswer: {lines[i]['answer']}\n\n"
+        for i in range(num_shots))
+    items = []
+    for i in range(num_questions):
+        gold = _gsm8k_answer_value(lines[i]["answer"])
+        items.append({
+            "id": i,
+            "question_text": lines[i]["question"],
+            "prompt": f"Question: {lines[i]['question']}\nAnswer:",
+            "gold": gold,
+        })
+    return preamble, items
+
+
+def _sglang_generate_texts(ckpt, sglang_root, prompts, max_tokens) -> List[str]:
+    engine = _sglang_engine(ckpt, sglang_root)
+    try:
+        outs = engine.generate(prompts, sampling_params={
+            "temperature": 0.0, "top_k": 1, "max_new_tokens": max_tokens,
+            "stop": _GSM8K_STOP})
+        outs_list = outs if isinstance(outs, list) else [outs]
+        texts = [o.get("text", "") if isinstance(o, dict) else str(o)
+                 for o in outs_list]
+    finally:
+        engine.shutdown()
+    return texts
+
+
+def _trt_generate_texts(ckpt, prompts, max_tokens, cuda_graph,
+                        overlap_scheduler):
+    from tensorrt_llm import SamplingParams
+    llm = _trtllm_llm(ckpt, cuda_graph, overlap_scheduler)
+    try:
+        sp = SamplingParams(max_tokens=max_tokens, temperature=0.0, top_k=1,
+                            stop=_GSM8K_STOP)
+        outs = llm.generate(prompts, sp)
+        texts = [o.outputs[0].text for o in outs]
+        tokens = [[int(t) for t in o.outputs[0].token_ids] for o in outs]
+    finally:
+        llm.shutdown()
+    return texts, tokens
+
+
+def replay_accuracy_canary(ckpt: str, sglang_root: str, models_root: str,
+                           num_questions: int, num_shots: int, max_tokens: int,
+                           cuda_graph: bool, overlap_scheduler: bool,
+                           export_path: str) -> Dict:
+    """Deterministic GSM8K slice through BOTH the SGLang reference and
+    TensorRT-LLM under the same greedy config; records per-prompt ids/text,
+    generated tokens, and per-side correctness, plus the config/hard-path, and
+    exports them to ``export_path`` (crit10). SGLang runs first and releases its
+    8 GPUs before the TensorRT-LLM engine is built, so a single 8-GPU
+    allocation suffices.
+    """
+    preamble, items = _gsm8k_slice(models_root, num_questions, num_shots)
+    prompts = [preamble + it["prompt"] for it in items]
+
+    sglang_texts = _sglang_generate_texts(ckpt, sglang_root, prompts, max_tokens)
+    trt_texts, trt_tokens = _trt_generate_texts(
+        ckpt, prompts, max_tokens, cuda_graph, overlap_scheduler)
+
+    records, sg_correct, tr_correct = [], 0, 0
+    for i, it in enumerate(items):
+        sg_val = _gsm8k_answer_value(sglang_texts[i])
+        tr_val = _gsm8k_answer_value(trt_texts[i])
+        sg_ok = int(sg_val is not None and sg_val == it["gold"])
+        tr_ok = int(tr_val is not None and tr_val == it["gold"])
+        sg_correct += sg_ok
+        tr_correct += tr_ok
+        records.append({
+            "id": it["id"],
+            "question": it["question_text"],
+            "gold": it["gold"],
+            "sglang_text": sglang_texts[i],
+            "sglang_answer": sg_val,
+            "sglang_correct": sg_ok,
+            "trt_text": trt_texts[i],
+            "trt_tokens": trt_tokens[i],
+            "trt_answer": tr_val,
+            "trt_correct": tr_ok,
+        })
+    n = len(items)
+    result = {
+        "num_questions": n,
+        "num_shots": num_shots,
+        "max_tokens": max_tokens,
+        "cuda_graph": cuda_graph,
+        "overlap_scheduler": overlap_scheduler,
+        "cuda_graph_hard_path": bool(cuda_graph),
+        "sglang_score": sg_correct / n if n else 0.0,
+        "trt_score": tr_correct / n if n else 0.0,
+        "records": records,
+    }
+    try:
+        os.makedirs(os.path.dirname(export_path) or ".", exist_ok=True)
+        with open(export_path, "w") as f:
+            json.dump(result, f, indent=2)
+        result["export_path"] = export_path
+    except OSError as exc:  # pragma: no cover - artifact write is best-effort
+        result["export_error"] = repr(exc)
+    return result
