@@ -718,15 +718,27 @@ class MiniMaxM3SparseForCausalLM(DecoderModelForCausalLM[MiniMaxM3Model, Pretrai
 
         All text weights are stored under a ``language_model.`` prefix; the
         vision tower and multimodal projector are explicitly excluded (text-only
-        bring-up). Once the prefix is stripped and non-text keys dropped, the
-        remaining keys match this module tree exactly, so the generic loader
-        handles the QKV / gate-up fusion, the MoE experts, the shared expert and
-        the ``e_score_correction_bias`` holder without any per-key remapping.
+        bring-up). The one name difference from this module tree is the MoE FFN:
+        the released checkpoint stores it under ``block_sparse_moe.`` (like
+        MiniMax-M2), but this model names that submodule ``mlp`` -- the same
+        attribute the leading dense layers use for their gated MLP -- so the
+        decoder ``forward`` and the (module-name-driven) generic loader see one
+        uniform ``mlp`` FFN per layer. Renaming ``block_sparse_moe.`` -> ``mlp.``
+        routes the checkpoint's gate / experts / shared expert /
+        ``e_score_correction_bias`` into that module; dense layers carry no
+        ``block_sparse_moe`` key, so the rename is unambiguous. After that the
+        keys match the module tree and the generic loader handles the QKV /
+        gate-up fusion and the MoE weights without further remapping.
         """
         text_weights = {}
         for name, weight in weights.items():
             if name.startswith(_LANGUAGE_MODEL_PREFIX):
-                text_weights[name[len(_LANGUAGE_MODEL_PREFIX) :]] = weight
+                key = name[len(_LANGUAGE_MODEL_PREFIX) :]
+                # HF stores the sparse-layer MoE FFN under ``block_sparse_moe.``;
+                # this model names it ``mlp`` (uniform with the dense layers), so
+                # rename the prefix onto the module the loader will visit.
+                key = key.replace(".block_sparse_moe.", ".mlp.")
+                text_weights[key] = weight
             elif name.startswith(_NON_TEXT_PREFIXES):
                 # Vision / projector weights: deferred (text-only bring-up).
                 continue
