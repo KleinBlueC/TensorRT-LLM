@@ -20,7 +20,9 @@ from tensorrt_llm._utils import (get_sm_version, is_sm_100f,
 from tensorrt_llm.bindings import LayerType as LayerTypeCpp
 from tensorrt_llm.functional import AllReduceStrategy
 from tensorrt_llm.llmapi.llm_args import (DeepSeekSparseAttentionConfig,
-                                          KvCacheConfig, MoeLoadBalancerConfig)
+                                          KvCacheConfig,
+                                          MiniMaxM3SparseAttentionConfig,
+                                          MoeLoadBalancerConfig)
 from tensorrt_llm.logger import logger
 from tensorrt_llm.mapping import Mapping
 from tensorrt_llm.models.modeling_utils import QuantConfig
@@ -636,6 +638,18 @@ class ModelConfig(Generic[TConfig]):
                             indexer_rope_interleave=indexer_rope_interleave,
                             enable_heuristic_topk=enable_heuristic_topk,
                             indexer_k_dtype=indexer_k_dtype)
+                elif pretrained_config.architectures[
+                        0] == "MiniMaxM3SparseForCausalLM":
+                    # MiniMax-M3 derives its sparse config from the checkpoint's
+                    # nested ``sparse_attention_config`` schedule (unless the
+                    # user supplied one). Presence of the config routes the
+                    # runtime to ``MiniMaxM3CacheManager`` (KVCacheManagerV2 +
+                    # K-only index side pool); block-selection is model-owned.
+                    if not kwargs.get('sparse_attention_config'):
+                        derived = MiniMaxM3SparseAttentionConfig.from_pretrained_config(
+                            pretrained_config)
+                        if derived is not None:
+                            kwargs['sparse_attention_config'] = derived
             else:
                 raise ValueError(
                     "checkpoint_dir is None. Cannot load model config without a valid checkpoint directory."
