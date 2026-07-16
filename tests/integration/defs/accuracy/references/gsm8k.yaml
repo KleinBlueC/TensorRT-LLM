@@ -519,3 +519,12 @@ stepfun-ai/Step-3.7-Flash:
     kv_cache_quant_algo: FP8
     spec_dec_algo: MTP
     accuracy: 88
+# ChatGLM3-6B (FP16). GSM8K exact_match (flexible-extract), full test set (1319),
+# greedy, no chat template. Real measured score 52.96, from a Slurm-container run
+# (GB200) of the accuracy_core harness on the TensorRT-LLM PyTorch backend (TRTLLM
+# attention + KVCacheManagerV2, cuda_graph=false baseline); the cuda_graph=true
+# config measured 53.03 (within noise). HF/source parity is covered by the
+# unit forward-parity test plus
+# test_llm_api_pytorch.py::TestChatGLM3_6B::test_generation_parity.
+THUDM/chatglm3-6b:
+  - accuracy: 52.96

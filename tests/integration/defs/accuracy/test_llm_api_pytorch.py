@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import gc
 import json
 import os
 import sys
@@ -1003,6 +1004,231 @@ class TestLlama3_1_8BInstruct(LlmapiAccuracyTestHarness):
             task.evaluate(llm,
                           sampling_params=sampling_params,
                           extra_acc_spec="beam_width=2")
+
+
+# ChatGLM3-6B (THUDM/chatglm3-6b) source-parity helpers. The checkpoint ships a
+# 2023 remote modeling_chatglm.py; it is the parity reference for TestChatGLM3_6B.
+_CHATGLM3_GEN_PROMPTS = [
+    "Once upon a time, in a small village at the foot of a tall mountain, there lived",
+    "The history of the internet began in the late 1960s, when a small group of",
+    "To bake a simple loaf of bread at home, you will first need to gather the",
+    "Photosynthesis is the biological process by which green plants and some other",
+    "Every morning before sunrise, the old fisherman rowed his wooden boat out past the",
+]
+
+
+def _chatglm3_load_bin_state_dict(ckpt):
+    # chatglm3-6b's shipped safetensors set is missing a shard, so the .bin set
+    # is the complete weight format.
+    import glob
+    shards = sorted(glob.glob(os.path.join(ckpt, "pytorch_model-*.bin")))
+    assert shards, f"No pytorch_model-*.bin shards under {ckpt}"
+    state_dict = {}
+    for shard in shards:
+        state_dict.update(
+            torch.load(shard, map_location="cpu", weights_only=True))
+    return state_dict
+
+
+def _chatglm3_build_hf(ckpt):
+    # Build the remote architecture from config + load the complete .bin weights:
+    # transformers 5.5.x from_pretrained finalization references
+    # all_tied_weights_keys, absent on this 2023 remote model class. The legacy
+    # generation defaults it reads at construction moved to GenerationConfig in
+    # transformers>=5, so backfill them (correctness-neutral under greedy).
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+    cfg = AutoConfig.from_pretrained(ckpt, trust_remote_code=True)
+    for name, value in {
+            "max_length": getattr(cfg, "seq_length", 8192),
+            "max_new_tokens": None,
+            "min_length": 0,
+            "use_cache": True,
+            "do_sample": False,
+            "num_beams": 1,
+            "output_attentions": False,
+            "output_hidden_states": False,
+            "return_dict": True,
+            "is_encoder_decoder": False,
+            "problem_type": None,
+    }.items():
+        if not hasattr(cfg, name):
+            setattr(cfg, name, value)
+
+    tok = AutoTokenizer.from_pretrained(ckpt, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_config(cfg, trust_remote_code=True)
+    missing, unexpected = model.load_state_dict(
+        _chatglm3_load_bin_state_dict(ckpt), strict=False)
+    assert not missing, f"HF source model missing weights: {sorted(missing)[:8]}"
+    assert set(unexpected) <= {"transformer.rotary_pos_emb.inv_freq"}, (
+        f"unexpected source keys: {sorted(unexpected)[:8]}")
+    return model.to(torch.float16).cuda().eval(), tok
+
+
+@torch.inference_mode()
+def _chatglm3_hf_greedy_tokens(model, input_ids, n_new):
+    # Deterministic greedy decode via forward() + the model's legacy tuple KV
+    # cache (transformers>=5 generate()/DynamicCache is incompatible with this
+    # 2023 remote model). Always emits exactly n_new tokens (no EOS stop) to
+    # match the TRT side's ignore_eos=True, so per-step token equality is well
+    # defined.
+    device = input_ids.device
+    ctx_len = input_ids.shape[1]
+    position_ids = torch.arange(ctx_len, dtype=torch.long,
+                                device=device).unsqueeze(0)
+    out = model(input_ids=input_ids,
+                position_ids=position_ids,
+                use_cache=True,
+                return_dict=True)
+    past = out.past_key_values
+    logits = out.logits[:, -1, :]
+    tokens = []
+    for step in range(n_new):
+        next_tok = int(logits.argmax(dim=-1).item())
+        tokens.append(next_tok)
+        if step == n_new - 1:
+            break
+        cur = torch.tensor([[next_tok]], dtype=torch.long, device=device)
+        pos = torch.tensor([[ctx_len + step]], dtype=torch.long, device=device)
+        out = model(input_ids=cur,
+                    position_ids=pos,
+                    past_key_values=past,
+                    use_cache=True,
+                    return_dict=True)
+        past = out.past_key_values
+        logits = out.logits[:, -1, :]
+    return tokens
+
+
+def _chatglm3_assert_no_fallback(llm, expect_cuda_graph):
+    # Prove the run used the TRTLLM attention backend + KVCacheManagerV2 (and,
+    # when enabled, a real CUDA-graph capture) rather than silently falling back.
+    # Reachable only via the in-process single-process worker.
+    from tensorrt_llm._torch.attention_backend.utils import get_attention_backend
+    from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2
+    from tensorrt_llm._torch.pyexecutor.resource_manager import ResourceManagerType
+
+    engine = getattr(getattr(llm, "_executor", None), "engine", None)
+    model_engine = getattr(engine, "model_engine", None)
+    assert model_engine is not None, (
+        "in-process model_engine not reachable; expected "
+        "TLLM_WORKER_USE_SINGLE_PROCESS=1 to force a single-process worker")
+    # model_engine.attn_backend is the backend *class* (get_attention_backend
+    # returns Type[AttentionBackend]), so compare identity, not type().
+    assert model_engine.attn_backend is get_attention_backend("TRTLLM"), (
+        f"attention backend fell back to {model_engine.attn_backend}")
+    kv = engine.resource_manager.resource_managers.get(
+        ResourceManagerType.KV_CACHE_MANAGER)
+    assert isinstance(kv, KVCacheManagerV2), (
+        f"KV cache manager fell back to {type(kv)}")
+    runner = model_engine.cuda_graph_runner
+    if expect_cuda_graph:
+        assert runner is not None and runner.enabled and len(
+            getattr(runner, "graphs", {})) > 0, (
+                "enabled config captured 0 CUDA graphs (silent eager fallback)")
+    else:
+        assert runner is None or not runner.enabled, (
+            "baseline config unexpectedly enabled CUDA graph")
+
+
+class TestChatGLM3_6B(LlmapiAccuracyTestHarness):
+    """ChatGLM3-6B dense text model (fp16) on the PyTorch backend.
+
+    Both the (cuda_graph=false, overlap=false) baseline and the
+    (cuda_graph=true, overlap=true) enabled config run on the TRTLLM attention
+    backend + KVCacheManagerV2, exercised through generation parity vs the HF
+    source model and the GSM8K accuracy gate.
+    """
+    MODEL_NAME = "THUDM/chatglm3-6b"
+    MODEL_PATH = f"{llm_models_root()}/chatglm3-6b"
+
+    def _build_llm(self, cuda_graph, overlap_scheduler, max_seq_len,
+                   max_batch_size):
+        return LLM(
+            self.MODEL_PATH,
+            trust_remote_code=True,
+            attn_backend="TRTLLM",
+            disable_overlap_scheduler=not overlap_scheduler,
+            cuda_graph_config=(CudaGraphConfig(max_batch_size=max_batch_size,
+                                               enable_padding=True)
+                               if cuda_graph else None),
+            kv_cache_config=KvCacheConfig(free_gpu_memory_fraction=0.5,
+                                          use_kv_cache_manager_v2=True),
+            max_batch_size=max_batch_size,
+            max_seq_len=max_seq_len,
+        )
+
+    @parametrize_with_ids("cuda_graph,overlap_scheduler", [(False, False),
+                                                           (True, True)])
+    def test_generation_parity(self, cuda_graph, overlap_scheduler,
+                               monkeypatch):
+        """Token-by-token greedy parity vs the HF source model.
+
+        Runs 5 fixed prompts x 32 tokens, on the TRTLLM backend +
+        KVCacheManagerV2. Fails on any fallback away from those, or (enabled)
+        from a real CUDA-graph capture.
+        """
+        n_new = 32
+        # In-process worker so the backend / KV manager / cuda-graph runner are
+        # reachable for the no-fallback assertion.
+        monkeypatch.setenv("TLLM_WORKER_USE_SINGLE_PROCESS", "1")
+
+        # HF reference tokens first, then free the HF model before the LLM
+        # allocates (keeps peak memory to one 6B model at a time).
+        hf_model, tok = _chatglm3_build_hf(self.MODEL_PATH)
+        hf_tokens = {}
+        try:
+            for prompt in _CHATGLM3_GEN_PROMPTS:
+                ids = tok(prompt, return_tensors="pt").input_ids.cuda()
+                hf_tokens[prompt] = _chatglm3_hf_greedy_tokens(
+                    hf_model, ids, n_new)
+        finally:
+            del hf_model
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        llm = self._build_llm(cuda_graph,
+                              overlap_scheduler,
+                              max_seq_len=2048,
+                              max_batch_size=1)
+        try:
+            sampling_params = SamplingParams(max_tokens=n_new,
+                                             temperature=0.0,
+                                             top_k=1,
+                                             ignore_eos=True)
+            for prompt in _CHATGLM3_GEN_PROMPTS:
+                out = llm.generate([prompt], sampling_params=sampling_params)
+                trt_tokens = list(out[0].outputs[0].token_ids)
+                assert len(trt_tokens) >= n_new, (
+                    f"TRT produced {len(trt_tokens)} < {n_new} tokens for "
+                    f"{prompt!r} (ignore_eos not honored?)")
+                mismatch = next((j for j in range(n_new)
+                                 if hf_tokens[prompt][j] != trt_tokens[j]), None)
+                assert mismatch is None, (
+                    f"token divergence at step {mismatch} for {prompt!r}: "
+                    f"hf={hf_tokens[prompt][:n_new]} trt={trt_tokens[:n_new]}")
+            _chatglm3_assert_no_fallback(llm, expect_cuda_graph=cuda_graph)
+        finally:
+            llm.shutdown()
+
+    @parametrize_with_ids("cuda_graph,overlap_scheduler", [(False, False),
+                                                           (True, True)])
+    def test_gsm8k(self, cuda_graph, overlap_scheduler, monkeypatch):
+        """GSM8K accuracy gate via the shared accuracy_core harness.
+
+        Runs the references/gsm8k.yaml gate on the TRTLLM backend +
+        KVCacheManagerV2, for both the eager and CUDA-graph configs.
+        """
+        # TP1 in-process worker: the default MpiPoolSession MPI_Comm_spawn path
+        # deadlocks under a single-task `srun` allocation (Slurm PMIx), so force
+        # the single-process executor (same as test_generation_parity).
+        monkeypatch.setenv("TLLM_WORKER_USE_SINGLE_PROCESS", "1")
+        with self._build_llm(cuda_graph,
+                             overlap_scheduler,
+                             max_seq_len=8192,
+                             max_batch_size=32) as llm:
+            task = GSM8K(self.MODEL_NAME)
+            task.evaluate(llm)
 
 
 class TestLlama3_2_3B(LlmapiAccuracyTestHarness):

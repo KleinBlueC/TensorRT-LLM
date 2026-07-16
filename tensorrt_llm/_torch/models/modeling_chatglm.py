@@ -1,32 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """ChatGLM3-6B (THUDM/chatglm3-6b) for the TensorRT-LLM PyTorch (``_torch``) flow.
 
-Semantic source of truth: the HuggingFace remote-code model
-``modeling_chatglm.py`` shipped with the checkpoint. The ChatGLM3 decoder is a
-standard pre-norm transformer with a few family-specific contracts that this
-file wires onto existing TensorRT-LLM ``_torch`` modules:
+The ChatGLM3 decoder is a standard pre-norm transformer wired onto existing
+``_torch`` modules, with a few family-specific contracts:
 
-* ``tensor_geometry`` -- fused QKV projection ``[Q: 32*128, K: 2*128, V: 2*128]``
-  (multi-query attention, 2 KV groups) with a QKV bias but no output-projection
-  bias. Maps directly onto ``Attention``'s fused ``qkv_proj``.
-* ``positional_encoding`` -- interleaved (GPT-J style) RoPE applied to only the
-  first 64 of each 128-dim head (``partial_rotary_factor = 0.5``), base 10000.
-  Expressed as ``PositionEmbeddingType.rope_gptj`` with ``is_neox=False``.
-* ``schedule_or_mask`` -- plain causal attention; scale is ``1/sqrt(head_dim)``.
-  ChatGLM's ``apply_query_key_layer_scaling`` coefficient cancels out in both
-  the SDPA and the non-SDPA reference paths, so no extra per-layer QK scale is
-  applied (``q_scaling`` is left at its default of 1.0).
-* ``projection_topology`` -- SwiGLU MLP: ``dense_h_to_4h`` emits ``[gate, up]``
-  and the block computes ``silu(gate) * up``. This matches ``GatedMLP``'s fused
-  ``gate_up_proj`` layout exactly (gate = first half, up = second half).
-* ``output_semantics`` -- final RMSNorm before an untied output projection.
+* fused QKV projection ``[Q: 32*128 | K: 2*128 | V: 2*128]`` (multi-query
+  attention, 2 KV heads) with a QKV bias but no output-projection bias, mapping
+  onto ``Attention.qkv_proj``;
+* interleaved (GPT-J) RoPE over the first 64 of each 128-dim head
+  (``partial_rotary_factor=0.5``, base 10000): ``rope_gptj`` + ``is_neox=False``;
+* SwiGLU MLP whose ``dense_h_to_4h`` emits ``[gate | up]``, mapping onto
+  ``GatedMLP``;
+* final RMSNorm before an untied output projection.
 
-The checkpoint uses non-standard HF config field names
-(``num_layers``/``multi_query_group_num``/``ffn_hidden_size``/
-``padded_vocab_size``/``seq_length``/``layernorm_epsilon``/``kv_channels``).
-:func:`normalize_chatglm_config` mirrors these onto the canonical names that the
-attention module, MLP, RMSNorm, ``RopeParams.from_config`` and the
-``ModelConfig`` -> C++ ``ModelConfig`` conversion (which sizes the KV cache)
-expect. Dispatch keys off ``config.architectures[0] == "ChatGLMModel"``.
+Attention uses the default ``1/sqrt(head_dim)`` scale: ChatGLM's
+``apply_query_key_layer_scaling`` coefficient cancels out, so ``q_scaling`` is
+left at 1.0. The checkpoint uses non-standard HF config field names, which
+:func:`normalize_chatglm_config` mirrors onto the canonical names the
+attention/MLP/RMSNorm/RoPE and KV-cache-sizing paths read. Dispatch keys off
+``config.architectures[0] == "ChatGLMModel"``.
 """
 
 from typing import Dict, Optional
@@ -51,19 +56,15 @@ from .modeling_utils import DecoderModel, DecoderModelForCausalLM, register_auto
 
 
 def normalize_chatglm_config(config: PretrainedConfig) -> PretrainedConfig:
-    """Mirror ChatGLM's HF config field names onto the canonical names used by
-    the TensorRT-LLM ``_torch`` stack. Mutates ``config`` in place (idempotent)
-    and returns it.
-
-    This does not change any checkpoint value; it only exposes the same values
-    under the names ``Attention`` / ``GatedMLP`` / ``RMSNorm`` /
-    ``RopeParams.from_config`` / ``ModelConfig.get_bindings_model_config`` read.
+    """Mirror ChatGLM's HF config field names onto the canonical ``_torch`` names,
+    in place and idempotently. No checkpoint value changes -- the same values are
+    just exposed under the names the attention/MLP/RMSNorm/RoPE/KV-sizing paths read.
     """
-    # dtype: chatglm3-6b ships fp16 weights; guarantee a real torch.dtype so the
-    # ``ModelConfig.torch_dtype`` property does not silently fall back to bf16.
+    # chatglm3-6b ships fp16; pin a real torch.dtype so ModelConfig.torch_dtype
+    # does not fall back to bf16.
     dtype = getattr(config, "torch_dtype", None)
     if isinstance(dtype, str):
-        dtype = getattr(torch, dtype)
+        dtype = getattr(torch, dtype.removeprefix("torch."))
     if not isinstance(dtype, torch.dtype):
         dtype = torch.float16
     config.torch_dtype = dtype
@@ -80,15 +81,26 @@ def normalize_chatglm_config(config: PretrainedConfig) -> PretrainedConfig:
     config.max_position_embeddings = config.seq_length
     config.rms_norm_eps = config.layernorm_epsilon
 
-    # Positional encoding: interleaved GPT-J RoPE over the first
-    # kv_channels/2 == 64 dims of each 128-dim head, base 10000. ``rope_ratio``
-    # is 1 for the base chatglm3-6b checkpoint (present only on the long-context
-    # variants), but is honored here for robustness.
+    # Interleaved GPT-J RoPE over the first kv_channels/2 == 64 dims per head.
+    # rope_ratio is 1 on base chatglm3-6b (set only on long-context variants).
     config.partial_rotary_factor = 0.5
     config.rope_theta = 10000.0 * float(getattr(config, "rope_ratio", 1.0))
 
-    # Untied output projection (checkpoint has a separate transformer.output_layer).
+    # Untied output projection (separate transformer.output_layer).
     config.tie_word_embeddings = False
+    return config
+
+
+def _prepare_chatglm_model_config(
+    model_config: ModelConfig[PretrainedConfig],
+) -> PretrainedConfig:
+    config = normalize_chatglm_config(model_config.pretrained_config)
+    extra_attrs = getattr(model_config, "extra_attrs", None)
+    if isinstance(extra_attrs, dict):
+        # ``model_loader.py`` snapshots this before model construction. ChatGLM3
+        # stores only ``torch_dtype`` in config.json, so refresh it after
+        # normalization to avoid keeping a stale class-level allreduce dtype.
+        extra_attrs["allreduce_dtype"] = config.torch_dtype
     return config
 
 
@@ -113,17 +125,17 @@ class ChatGLMAttention(Attention):
             num_key_value_heads=config.num_key_value_heads,
             max_position_embeddings=config.max_position_embeddings,
             # HF: query_key_value bias = add_bias_linear or add_qkv_bias.
-            bias=bool(config.add_bias_linear or config.add_qkv_bias),
+            bias=bool(
+                getattr(config, "add_bias_linear", False) or getattr(config, "add_qkv_bias", False)
+            ),
             pos_embd_params=pos_embd_params,
-            # Apply RoPE in the module (verified equivalent to the source for
-            # partial interleaved RoPE) rather than fusing it into the backend
-            # kernel; keeps the frequency/pairing contract explicit and is
-            # CUDA-graph safe.
+            # Apply RoPE in the module rather than fusing it into the backend
+            # kernel: keeps the partial-interleaved contract explicit, CUDA-graph safe.
             rope_fusion=False,
             layer_idx=layer_idx,
             dtype=config.torch_dtype,
             # HF: self_attention.dense bias = add_bias_linear (False).
-            dense_bias=bool(config.add_bias_linear),
+            dense_bias=bool(getattr(config, "add_bias_linear", False)),
             config=model_config,
             head_dim=config.head_dim,
         )
@@ -147,7 +159,7 @@ class ChatGLMDecoderLayer(DecoderLayer):
         self.mlp = GatedMLP(
             hidden_size=config.hidden_size,
             intermediate_size=config.intermediate_size,
-            bias=bool(config.add_bias_linear),
+            bias=bool(getattr(config, "add_bias_linear", False)),
             dtype=config.torch_dtype,
             config=model_config,
         )
@@ -256,12 +268,12 @@ class ChatGLMForCausalLM(DecoderModelForCausalLM[ChatGLMModel, PretrainedConfig]
     """
 
     def __init__(self, model_config: ModelConfig[PretrainedConfig]):
-        normalize_chatglm_config(model_config.pretrained_config)
+        config = _prepare_chatglm_model_config(model_config)
         super().__init__(
             ChatGLMModel(model_config),
             config=model_config,
-            hidden_size=model_config.pretrained_config.hidden_size,
-            vocab_size=model_config.pretrained_config.vocab_size,
+            hidden_size=config.hidden_size,
+            vocab_size=config.vocab_size,
         )
 
     def load_weights(self, weights: Dict, **kwargs):

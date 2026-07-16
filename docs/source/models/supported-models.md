@@ -7,6 +7,7 @@ The following is a table of supported models for the PyTorch backend:
 | ------------------------------------ | ---------------------------------- | -------------------------------------------- |
 | `AfmoeForCausalLM`                   | Arcee Foundation MoE (Trinity)     | `arcee-ai/Trinity-Mini`                      |
 | `BertForSequenceClassification`      | BERT-based                         | `textattack/bert-base-uncased-yelp-polarity` |
+| `ChatGLMForCausalLM`                 | ChatGLM3                           | `THUDM/chatglm3-6b`                          |
 | `Cohere2ForCausalLM`                 | Command A                          | `CohereLabs/c4ai-command-a-03-2025`          |
 | `DeciLMForCausalLM`                  | Nemotron                           | `nvidia/Llama-3_1-Nemotron-51B-Instruct`     |
 | `DeepSeekV2ForCausalLM` [^5]         | DeepSeek V2                        | `deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct` |
@@ -79,6 +80,7 @@ Note: Support for other models may vary. Features marked "N/A" are not applicabl
 | `Gemma4UnifiedForConditionalGeneration` | Untested          | Untested   | Untested                   | No                    | Yes             | No  | No               | No                | No     | Yes           | Untested         | No             | Yes                      | Untested              | Untested        |
 | `Step3p7ForConditionalGeneration`| Yes               | Yes        | Yes                        | Untested              | Untested        | Yes | No               | No                | No     | Yes           | Untested         | Untested       | Yes                      | Untested              | Untested        |
 | `MiniMaxM3SparseForConditionalGeneration` [^12] | Yes               | Yes        | Yes                        | Untested              | Untested        | No  | No               | No                | No     | Yes           | Untested         | No             | N/A                      | Untested              | Untested        |
+| `ChatGLMForCausalLM` [^14]       | Yes               | Yes        | Untested                   | Untested              | Untested        | No  | No               | No                | No     | Yes           | Untested         | Untested       | N/A                      | Untested              | Untested        |
 
 [^1]: Chunked Prefill for MLA can only be enabled on SM100/SM103.
 [^2]: KV cache reuse for MLA can only be enabled on SM90/SM100/SM103 and in BF16/FP8 KV cache dtype.
@@ -92,6 +94,7 @@ Note: Support for other models may vary. Features marked "N/A" are not applicabl
 [^11]: DeepSeek-V4 is only supported on Blackwell GPUs (`SM100+`). See the [DeepSeek-V4 example README](../../../examples/models/core/deepseek_v4/README.md) for setup and parallelism.
 [^12]: Supports text, image, and video inputs over the block-sparse attention path. The published MXFP8 checkpoint is dequantized on load so the runtime sees an effectively BF16 model. The text decoder is also usable standalone (text-only) via the `MiniMaxM3SparseForCausalLM` architecture. KV cache reuse and MTP are not supported on the sparse-attention path in this release.
 [^13]: The Cosmos 3 family also supports visual generation through the VisualGen API. See [Visual Generation Models](#visual-generation-models).
+[^14]: ChatGLM3-6B is a dense FP16 text bring-up, validated for the overlap-scheduler and CUDA-graph configurations under greedy decoding (generation parity vs the HF source model plus the GSM8K accuracy gate). Features marked Untested are not yet exercised for this model.
 
 # Multimodal Feature Support Matrix (PyTorch Backend)
 
