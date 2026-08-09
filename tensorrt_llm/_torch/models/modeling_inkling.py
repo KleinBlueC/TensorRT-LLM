@@ -82,6 +82,7 @@ from tensorrt_llm._torch.modules.rms_norm import RMSNorm
 
 # Protocol only, to avoid an import cycle back through pyexecutor.
 from tensorrt_llm._utils import prefer_pinned
+from tensorrt_llm.logger import logger
 
 from ...inputs import (
     ContentFormat,
@@ -1640,6 +1641,60 @@ class InklingForCausalLM(DecoderModelForCausalLM[InklingModel, InklingTextConfig
             hidden_states, self.lm_head, attn_metadata, return_context_logits
         )
 
+    def load_weights(self, weights: dict, weight_mapper=None):
+        """Load the trunk, then the draft chain if one was built.
+
+        The text-only path goes through here; the multimodal subclass overrides
+        load_weights for the towers and calls _load_mtp_weights itself. Without
+        this override the base implementation runs and the draft blocks stay at
+        their initial values -- speculative decoding would then produce garbage
+        drafts that the target rejects, i.e. a silent speed regression rather
+        than an error.
+        """
+        super().load_weights(weights, weight_mapper=weight_mapper)
+        self._load_mtp_weights(weights, weight_mapper)
+
+    def _load_mtp_weights(self, weights: dict, weight_mapper) -> None:
+        """Load ``model.mtp.*`` into the draft chain, if one was built.
+
+        Only the depths that exist are loaded: the runtime caps the chain at
+        ``min(max_draft_len, checkpoint depths)``, so a server asking for 3
+        draft tokens builds 3 blocks out of the checkpoint's 8. Loading all 8
+        into 3 modules would fail; skipping the extras is correct, and they are
+        reported so a silent shortfall is visible.
+        """
+        mtp_layers = getattr(getattr(self, "draft_model", None), "mtp_layers", None)
+        if not mtp_layers:
+            return
+        mtp_weights = filter_weights("model.mtp", weights)
+        if not mtp_weights:
+            logger.warning(
+                "MTP chain built but the checkpoint carries no model.mtp.* weights; "
+                "the draft blocks stay at their initial values."
+            )
+            return
+        built = len(mtp_layers)
+        for depth, block in enumerate(mtp_layers):
+            depth_weights = filter_weights(f"layers.{depth}", mtp_weights)
+            if not depth_weights:
+                logger.warning(f"MTP depth {depth} has no checkpoint weights")
+                continue
+            # The block is an ordinary nn.Module tree with no load_weights of
+            # its own; its parameter names already match the checkpoint's
+            # (embed_norm / hidden_norm / input_proj / transformer_block.*),
+            # so a strict load is both sufficient and the stricter check --
+            # a rename on either side fails here instead of silently leaving
+            # a draft block at its initial values.
+            block.load_state_dict(depth_weights, strict=True)
+        available = {
+            int(k.split("layers.")[1].split(".")[0]) for k in mtp_weights if k.startswith("layers.")
+        }
+        if len(available) > built:
+            logger.info(
+                f"MTP: built {built} of the checkpoint's {len(available)} draft depths "
+                f"(capped by max_draft_len); the remainder are not loaded."
+            )
+
 
 def _encode_inkling_image_embeds(
     visual: InklingVisionModel, multimodal_params: list
@@ -1968,6 +2023,7 @@ class InklingForConditionalGeneration(InklingForCausalLM):
         text_weights = filter_weights("model.llm", weights)
         text_weights = weight_mapper.preprocess_weights(text_weights)
         super().load_weights(text_weights, weight_mapper=weight_mapper)
+        self._load_mtp_weights(weights, weight_mapper)
 
 
 def _text_sub_model_config(

@@ -141,3 +141,70 @@ def test_inkling_is_registered_in_the_mtp_dispatch_table():
 
     src = inspect.getsource(spec.MTPForCausalLM.__init__)
     assert "inkling_mm_model" in src and "InklingMTPBlock" in src
+
+
+# --- loading the draft weights ---------------------------------------------
+
+
+def test_load_branch_is_a_no_op_without_a_chain():
+    """No draft chain means nothing to load, and no error.
+
+    The overwhelmingly common case is a server with speculative decoding off:
+    the checkpoint still carries 160 MTP tensors and they must simply be
+    ignored, not raise.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
+    assert 'getattr(getattr(self, "draft_model", None), "mtp_layers", None)' in src
+    assert "if not mtp_layers:" in src and "return" in src
+
+
+def test_only_the_built_depths_are_loaded():
+    """The runtime caps the chain at min(max_draft_len, checkpoint depths).
+
+    A server asking for 3 draft tokens builds 3 blocks out of the checkpoint's
+    8. Iterating the checkpoint's depths instead of the built ones would index
+    past the ModuleList; iterating the built ones is correct, and the shortfall
+    is reported so it is visible rather than silent.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
+    assert "for depth, block in enumerate(mtp_layers)" in src
+    assert "len(available) > built" in src
+
+
+def test_depth_weights_are_loaded_strictly():
+    """A strict load turns a rename into a failure instead of a silent miss.
+
+    The block's parameter names already match the checkpoint's, so strict=True
+    costs nothing and catches the case where one side is renamed and the draft
+    blocks would otherwise stay at their initial values -- wrong numbers, no
+    crash.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
+    assert "strict=True" in src
+
+
+def test_both_load_paths_reach_the_draft_chain():
+    """Text-only and multimodal both have to load the draft weights.
+
+    The draft chain hangs off the causal-LM, but only the multimodal subclass
+    overrides load_weights. Without an override on the base class the text-only
+    path runs the inherited loader and the draft blocks keep their initial
+    values -- speculative decoding then drafts garbage that the target rejects
+    every time, which is a silent throughput regression, not an error.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import (
+        InklingForCausalLM,
+        InklingForConditionalGeneration,
+    )
+
+    for cls in (InklingForCausalLM, InklingForConditionalGeneration):
+        assert "load_weights" in vars(cls), f"{cls.__name__} does not override load_weights"
+        assert "_load_mtp_weights" in inspect.getsource(vars(cls)["load_weights"]), (
+            f"{cls.__name__}.load_weights never loads the draft chain"
+        )
