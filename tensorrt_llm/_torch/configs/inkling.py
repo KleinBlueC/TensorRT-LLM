@@ -321,6 +321,13 @@ class InklingConfig(PretrainedConfig):
             extent = getattr(self.mtp_config, "local_extent", None)
             if extent is not None:
                 self.text_config.mtp_local_extent = extent
+            # The framework's MTPForCausalLM reads the chain depth as
+            # ``pretrained_config.num_nextn_predict_layers``; Inkling declares it
+            # on mtp_config, so mirror it under the name the framework looks for
+            # rather than special-casing Inkling inside the framework.
+            depths = getattr(self.mtp_config, "num_nextn_predict_layers", None)
+            if depths is not None:
+                self.text_config.num_nextn_predict_layers = int(depths)
 
     @staticmethod
     def _as_config(value):

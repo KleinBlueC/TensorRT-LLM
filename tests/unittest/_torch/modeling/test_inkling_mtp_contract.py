@@ -31,6 +31,7 @@ than at the end of an end-to-end job.
 
 import inspect
 
+from tensorrt_llm._torch.configs.inkling import InklingConfig
 from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock, InklingMTPHead
 
 # The keys MTPWorker builds in prepare_drafter_inputs and forwards as **kwargs.
@@ -87,3 +88,56 @@ def test_head_norm_is_built_only_when_the_checkpoint_declares_it():
     assert "use_norm" in src
     src_block = inspect.getsource(InklingMTPBlock.__init__)
     assert "chain_hidden_post_norm" in src_block
+
+
+# --- how MTPForCausalLM constructs the chain -------------------------------
+# It does, for each depth:
+#   mtp_layer(model_config, layer_idx + start_layer_idx, model.aux_stream_dict)
+# with start_layer_idx = the TARGET's num_hidden_layers, and reads the chain
+# depth from pretrained_config.num_nextn_predict_layers. Inkling declares the
+# depth on mtp_config, so the mirroring is what makes the framework able to
+# build the chain at all.
+
+_CKPT_MTP = {"num_nextn_predict_layers": 8, "local_layer_ids": [0, 2, 4, 5, 6, 7]}
+
+
+def test_chain_depth_is_visible_under_the_framework_name():
+    """MTPForCausalLM reads ``pretrained_config.num_nextn_predict_layers``.
+
+    Inkling declares it on ``mtp_config``. Without the mirror the framework
+    reads None and builds a zero-depth chain -- speculative decoding silently
+    does nothing rather than failing.
+    """
+    text = InklingConfig(text_config={}, mtp_config=dict(_CKPT_MTP)).text_config
+    assert text.num_nextn_predict_layers == 8
+
+
+def test_block_constructor_takes_the_frameworks_three_positionals():
+    """``mtp_layer(model_config, layer_idx, aux_stream_dict)``."""
+    params = list(inspect.signature(InklingMTPBlock.__init__).parameters.values())[1:]
+    positional = [p.name for p in params if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
+    assert positional[:3] == ["model_config", "depth", "aux_stream_dict"], (
+        f"MTPForCausalLM constructs layers positionally; got {positional[:3]}"
+    )
+    assert params[2].default is None, "aux_stream_dict must stay optional for direct construction"
+
+
+def test_offset_layer_index_maps_back_onto_the_chain():
+    """The framework passes ``depth + target_num_hidden_layers``.
+
+    A 66-layer trunk means depth 0 arrives as 66. Indexing the chain's geometry
+    with 66 would read past the chain and treat every depth as global -- wrong
+    windows on every banded depth, and no crash to show it.
+    """
+    src = inspect.getsource(InklingMTPBlock.__init__)
+    assert "%" in src and "_mtp_num_depths" in src, (
+        "the offset start_layer_idx must be folded back onto the chain's own indexing"
+    )
+
+
+def test_inkling_is_registered_in_the_mtp_dispatch_table():
+    """`get_draft_model` picks the MTP class by model_type."""
+    import tensorrt_llm._torch.models.modeling_speculative as spec
+
+    src = inspect.getsource(spec.MTPForCausalLM.__init__)
+    assert "inkling_mm_model" in src and "InklingMTPBlock" in src

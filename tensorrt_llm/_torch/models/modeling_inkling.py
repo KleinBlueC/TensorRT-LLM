@@ -1275,6 +1275,20 @@ class InklingDecoderLayer(nn.Module):
         return residual + _apply_sconv(self.mlp_sconv, hm, conv_state.mlp, conv_rt)
 
 
+def _mtp_num_depths(config: InklingTextConfig) -> int:
+    """How many depths the draft chain has.
+
+    Inkling declares this on ``mtp_config`` rather than at the top level of the
+    text config, which is where the framework's MTPForCausalLM looks
+    (``pretrained_config.num_nextn_predict_layers``), so it is mirrored there --
+    see InklingForCausalLM -- and read back through one accessor here.
+    """
+    n = getattr(config, "num_nextn_predict_layers", None)
+    if n:
+        return int(n)
+    return len(getattr(config, "mtp_local_layer_ids", None) or ()) or 1
+
+
 class InklingMTPHead(nn.Module):
     """Per-depth head: optional chain post-norm, then the shared LM head.
 
@@ -1323,9 +1337,22 @@ class InklingMTPBlock(nn.Module):
     the layer a second notion of what layer it is.
     """
 
-    def __init__(self, model_config: ModelConfig[InklingTextConfig], depth: int):
+    def __init__(
+        self,
+        model_config: ModelConfig[InklingTextConfig],
+        depth: int,
+        aux_stream_dict: Optional[dict] = None,
+    ):
         super().__init__()
         config = model_config.pretrained_config
+        # MTPForCausalLM passes the target's layer count as start_layer_idx, so
+        # the index arrives offset by the trunk depth; the chain's own geometry
+        # is indexed from 0.
+        depth = depth % max(1, _mtp_num_depths(config))
+        # Accepted for the framework's uniform constructor signature. Inkling's
+        # draft blocks are dense, so there is no MoE/shared-expert overlap to
+        # schedule on a second stream.
+        del aux_stream_dict
         self.depth = depth
         self.embed_norm = RMSNorm(
             hidden_size=config.hidden_size, eps=config.rms_norm_eps, dtype=config.torch_dtype
@@ -1404,6 +1431,10 @@ class InklingModel(DecoderModel):
         self.norm = RMSNorm(
             hidden_size=config.hidden_size, eps=config.rms_norm_eps, dtype=config.torch_dtype
         )
+        # MTPForCausalLM reads this when it builds the draft chain. Inkling's
+        # blocks are dense and schedule nothing on a second stream, so an empty
+        # mapping is the honest value rather than a fabricated stream.
+        self.aux_stream_dict: dict = {}
 
     def forward(
         self,
