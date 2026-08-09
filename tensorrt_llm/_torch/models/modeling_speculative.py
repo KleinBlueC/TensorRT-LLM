@@ -1896,7 +1896,9 @@ class MTPForCausalLM(nn.Module):
             case "qwen3_next" | "qwen3_5_text" | "qwen3_5_moe_text":
                 from .modeling_qwen3_next import Qwen3NextMTP
                 mtp_layer = Qwen3NextMTP
-            case "inkling" | "inkling_mm_model":
+            # The text tower reports "inkling_text"; the multimodal wrapper
+            # "inkling_mm_model". Both reach here -- the draft chain is the same.
+            case "inkling" | "inkling_text" | "inkling_mm_model":
                 from .modeling_inkling import InklingMTPBlock
                 mtp_layer = InklingMTPBlock
             case "step3p7" | "step3p5":

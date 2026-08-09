@@ -58,9 +58,9 @@ from tensorrt_llm._torch.attention_backend.inkling import (
 )
 from tensorrt_llm._torch.distributed import AllReduce, AllReduceStrategy
 from tensorrt_llm._torch.model_config import ModelConfig
+from tensorrt_llm._torch.models.modeling_speculative import SpecDecOneEngineForCausalLM
 from tensorrt_llm._torch.models.modeling_utils import (
     DecoderModel,
-    DecoderModelForCausalLM,
     filter_weights,
     register_auto_model,
 )
@@ -1749,21 +1749,35 @@ class InklingModel(DecoderModel):
         return self.norm(hidden_states)
 
 
-class InklingForCausalLM(DecoderModelForCausalLM[InklingModel, InklingTextConfig]):
+class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextConfig]):
     """Text CausalLM: muP logit scaling + unpadded-vocab slice.
 
     ``embed`` and ``unembed`` are separate checkpoint tensors (never tied). The
     ``LMHead`` is built at the unpadded vocab size so its forward slices off the
     padding automatically; hidden states are divided by
     ``logits_mup_width_multiplier`` before the head (accuracy-critical).
+
+    The base is ``SpecDecOneEngineForCausalLM`` rather than the plain
+    ``DecoderModelForCausalLM`` because one-engine speculative decoding is not
+    something a model opts into piecemeal: that base is what builds the draft
+    model, creates the spec worker, and -- the part that actually bit -- routes
+    the forward through the worker so logits are taken at
+    ``spec_metadata.gather_ids`` instead of over every token. Without it the
+    trunk returns a flat [tokens, vocab] where the sampler expects one entry per
+    verified position, which surfaces as an IndexError in HandleLogits naming
+    neither speculation nor Inkling. With no ``spec_config`` the base is
+    behaviourally the plain decoder it replaces.
     """
 
     def __init__(self, model_config: ModelConfig[InklingTextConfig]):
         config = model_config.pretrained_config
         self.mup_multiplier = float(config.logits_mup_width_multiplier)
+        # ``model_config`` positionally: the one-engine base takes it as
+        # ``model_config`` (it needs the spec_config off it) and forwards it to
+        # the decoder base as ``config``.
         super().__init__(
             InklingModel(model_config),
-            config=model_config,
+            model_config,
             hidden_size=config.hidden_size,
             vocab_size=config.unpadded_vocab_size,
         )
@@ -1928,6 +1942,8 @@ class InklingForCausalLM(DecoderModelForCausalLM[InklingModel, InklingTextConfig
         inputs_embeds: Optional[torch.Tensor] = None,
         return_context_logits: bool = False,
         inputs_embeds_prenormed: bool = False,
+        spec_metadata=None,
+        resource_manager=None,
         **kwargs,
     ) -> torch.Tensor:
         # The short-conv state pool is owned by InklingHybridCacheManager and
@@ -1940,9 +1956,30 @@ class InklingForCausalLM(DecoderModelForCausalLM[InklingModel, InklingTextConfig
             inputs_embeds=inputs_embeds,
             inputs_embeds_prenormed=inputs_embeds_prenormed,
         )
-        hidden_states = hidden_states / self.mup_multiplier
+        # muP: accuracy-critical, and it applies to the lm_head input only. The
+        # draft chain is handed the UNDIVIDED hidden states below, matching the
+        # SGLang reference, because the division belongs to the head rather than
+        # to the residual stream the chain continues.
+        head_input = hidden_states / self.mup_multiplier
+        if self.spec_worker is not None:
+            logits = self.logits_processor.forward(
+                head_input[spec_metadata.gather_ids],
+                self.lm_head,
+                attn_metadata,
+                True,
+            )
+            return self.spec_worker(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                hidden_states=hidden_states,
+                logits=logits,
+                attn_metadata=attn_metadata,
+                spec_metadata=spec_metadata,
+                draft_model=self.draft_model,
+                resource_manager=resource_manager,
+            )
         return self.logits_processor.forward(
-            hidden_states, self.lm_head, attn_metadata, return_context_logits
+            head_input, self.lm_head, attn_metadata, return_context_logits
         )
 
     def load_weights(self, weights: dict, weight_mapper=None):

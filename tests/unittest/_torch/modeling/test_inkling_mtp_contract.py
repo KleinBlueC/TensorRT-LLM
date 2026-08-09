@@ -140,7 +140,11 @@ def test_inkling_is_registered_in_the_mtp_dispatch_table():
     import tensorrt_llm._torch.models.modeling_speculative as spec
 
     src = inspect.getsource(spec.MTPForCausalLM.__init__)
-    assert "inkling_mm_model" in src and "InklingMTPBlock" in src
+    assert "InklingMTPBlock" in src
+    # Both model_types reach it: the text tower reports "inkling_text" and the
+    # multimodal wrapper "inkling_mm_model". Registering only one leaves the
+    # other raising "Model type ... not supported for MTP" after model load.
+    assert "inkling_text" in src and "inkling_mm_model" in src
 
 
 # --- the draft chain's KV cache manager ------------------------------------
@@ -234,3 +238,56 @@ def test_both_load_paths_reach_the_draft_chain():
         assert "_load_mtp_weights" in inspect.getsource(vars(cls)["load_weights"]), (
             f"{cls.__name__}.load_weights never loads the draft chain"
         )
+
+
+# --- one-engine speculative plumbing ---------------------------------------
+# The draft chain, its KV cache and the verify-step kernels are all necessary
+# and none of them is what makes the framework RUN speculative decoding. That
+# is the base class: it builds the draft model, creates the spec worker, and
+# routes the forward through it.
+
+
+def test_causal_lm_is_a_one_engine_spec_model():
+    """Otherwise nothing builds the draft model or the spec worker.
+
+    Bolting a draft chain onto a plain DecoderModelForCausalLM produces a model
+    that loads, allocates a draft KV cache, and then returns flat logits the
+    speculative sampler cannot index -- an IndexError in HandleLogits naming
+    neither speculation nor Inkling.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+    from tensorrt_llm._torch.models.modeling_speculative import SpecDecOneEngineForCausalLM
+
+    assert issubclass(InklingForCausalLM, SpecDecOneEngineForCausalLM)
+
+
+def test_logits_are_taken_at_the_gather_ids_when_speculating():
+    """A verify step needs one logit row per verified position, not per token.
+
+    ``spec_metadata.gather_ids`` is what selects them; passing the full hidden
+    states hands the sampler a batch of the wrong length.
+    """
+    src = inspect.getsource(
+        __import__(
+            "tensorrt_llm._torch.models.modeling_inkling", fromlist=["x"]
+        ).InklingForCausalLM.forward
+    )
+    assert "spec_metadata.gather_ids" in src
+    assert "self.spec_worker" in src
+
+
+def test_the_draft_chain_gets_the_undivided_hidden_states():
+    """muP divides the lm_head input, not the residual stream.
+
+    The chain continues the trunk's stream, so dividing before handing it over
+    would scale every draft block's input by 1/mup -- wrong numbers, no error,
+    and a drafter that simply proposes badly. SGLang passes the undivided
+    hidden states for the same reason.
+    """
+    src = inspect.getsource(
+        __import__(
+            "tensorrt_llm._torch.models.modeling_inkling", fromlist=["x"]
+        ).InklingForCausalLM.forward
+    )
+    assert "head_input = hidden_states / self.mup_multiplier" in src
+    assert "hidden_states=hidden_states," in src
