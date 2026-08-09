@@ -1275,6 +1275,66 @@ class InklingDecoderLayer(nn.Module):
         return residual + _apply_sconv(self.mlp_sconv, hm, conv_state.mlp, conv_rt)
 
 
+class InklingMTPBlock(nn.Module):
+    """One depth of the next-N draft chain.
+
+    Structure follows SGLang's ``InklingMTPLayer``: the previous depth's hidden
+    state and this depth's token embedding are each normalized, concatenated and
+    projected back to hidden width, then run through what is otherwise an
+    ordinary decoder layer.
+
+    The decoder layer is reused unchanged. It asks its config which layers are
+    dense and which are banded, so ``mtp_block_config`` hands it a config where
+    those ordinary questions return the draft answers -- rather than teaching
+    the layer a second notion of what layer it is.
+    """
+
+    def __init__(self, model_config: ModelConfig[InklingTextConfig], depth: int):
+        super().__init__()
+        config = model_config.pretrained_config
+        self.depth = depth
+        self.embed_norm = RMSNorm(
+            hidden_size=config.hidden_size, eps=config.rms_norm_eps, dtype=config.torch_dtype
+        )
+        self.hidden_norm = RMSNorm(
+            hidden_size=config.hidden_size, eps=config.rms_norm_eps, dtype=config.torch_dtype
+        )
+        # Concatenation of two hidden-width tensors, projected back to hidden.
+        self.input_proj = Linear(
+            config.hidden_size * 2,
+            config.hidden_size,
+            bias=False,
+            dtype=config.torch_dtype,
+            quant_config=model_config.get_quant_config(),
+        )
+        block_model_config = copy.copy(model_config)
+        block_model_config.pretrained_config = config.mtp_block_config(depth)
+        self.transformer_block = InklingDecoderLayer(block_model_config, depth)
+
+    def forward(
+        self,
+        position_ids: torch.IntTensor,
+        inputs_embeds: torch.Tensor,
+        hidden_states: torch.Tensor,
+        attn_metadata: AttentionMetadata,
+        **kwargs,
+    ) -> torch.Tensor:
+        """Fold the previous depth's hidden state into this depth's embedding.
+
+        ``inputs_embeds`` is the embedding of the token this depth predicts
+        from; ``hidden_states`` is what the previous depth (or the trunk) left.
+        """
+        combined = torch.cat(
+            (self.hidden_norm(hidden_states), self.embed_norm(inputs_embeds)), dim=-1
+        )
+        return self.transformer_block(
+            position_ids=position_ids,
+            hidden_states=self.input_proj(combined),
+            attn_metadata=attn_metadata,
+            **kwargs,
+        )
+
+
 class InklingModel(DecoderModel):
     """The Inkling text decoder stack. ``embed_norm`` folds onto the token
     embeddings before the layers (``use_embed_norm``)."""

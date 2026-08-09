@@ -225,6 +225,35 @@ class InklingTextConfig(PretrainedConfig):
     def mtp_depth_head_dim(self, depth: int) -> int:
         return self.mtp_swa_head_dim if self.is_mtp_local_depth(depth) else self.head_dim
 
+    def mtp_block_config(self, depth: int) -> "InklingTextConfig":
+        """A derived config that makes ``InklingDecoderLayer`` build an MTP block.
+
+        The draft block is structurally a DENSE trunk layer whose attention
+        geometry comes from the MTP chain, not the trunk. Rather than teach the
+        decoder layer about MTP -- which would put a second notion of "which
+        layer am I" inside it -- hand it a config where the ordinary questions
+        it already asks give the draft answers:
+
+        * ``is_dense_layer(depth)`` is forced True, because every MTP block uses
+          the dense MLP (SGLang forces this, and both checkpoints agree: one
+          global_scale per depth, no expert tensors);
+        * ``is_local_layer(depth)`` follows the CHAIN's banded depths;
+        * the window and SWA head geometry come from the chain's overrides.
+        """
+        import copy
+
+        cfg = copy.copy(self)
+        # Everything below dense_mlp_idx is dense, so depth+1 makes this depth
+        # dense whatever its index.
+        cfg.dense_mlp_idx = depth + 1
+        cfg.local_layer_ids = list(self.mtp_local_layer_ids or [])
+        if self.is_mtp_local_depth(depth):
+            cfg.sliding_window_size = self.mtp_depth_window(depth)
+            cfg.swa_num_attention_heads = self.mtp_depth_num_heads(depth)
+            cfg.swa_num_key_value_heads = self.mtp_depth_num_kv_heads(depth)
+            cfg.swa_head_dim = self.mtp_depth_head_dim(depth)
+        return cfg
+
     def num_kv_heads_per_layer(self) -> list[int]:
         """Per-layer KV-head counts for the hybrid attention geometry.
 
