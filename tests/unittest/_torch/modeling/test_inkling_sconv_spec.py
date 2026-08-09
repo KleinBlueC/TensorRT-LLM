@@ -268,3 +268,84 @@ def test_capture_is_only_allocated_when_speculating():
 
     src = inspect.getsource(InklingConvStateCache.__init__)
     assert "verify_steps" in src and "if self.verify_steps < 2" in src
+
+
+# --- verify-step attention -------------------------------------------------
+# The decode path serves one query token per request. A verify step presents
+# 1 + max_draft_len, which is what produced the illegal memory access: it wrote
+# one KV entry per request and read a page table sized for one new position.
+
+
+def test_verify_attention_is_not_routed_through_the_context_path():
+    """Routing a verify step at the prefill kernel would drop the prefix.
+
+    ``inkling_prefill_attention`` attends only within the tokens handed to it,
+    which is complete for a fresh prefill (Inkling keeps block reuse off) and
+    silently wrong here -- the drafted tokens would see none of the cached
+    conversation and still produce fluent text. Cheapest-looking route, worst
+    failure mode, so it is worth pinning that it was not taken.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    src = inspect.getsource(InklingAttention._run_verify)
+    # The docstring explains why the prefill kernel is wrong here, so check the
+    # body rather than the whole source.
+    quote = '"' * 3
+    body = src[src.index(quote, src.index(quote) + 3) + 3 :]
+    assert "inkling_prefill_attention" not in body
+    assert "inkling_decode_attention" in body
+
+
+def test_verify_walks_positions_in_order_so_causality_is_structural():
+    """Position t must see the prefix plus 0..t, and nothing later.
+
+    Ordering provides that rather than a mask: each step writes its KV before
+    attending, and the seq_len it passes is num_cached + t + 1. A loop that
+    wrote all KV up front would let position 0 attend to drafted tokens that,
+    at that point in the sequence, do not exist.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    src = inspect.getsource(InklingAttention._run_verify)
+    write_at = src.index("write_kv_cache_hnd")
+    attend_at = src.index("inkling_decode_attention")
+    assert write_at < attend_at, "each position's KV must be written before it attends"
+    assert "int(num_cached[i]) + t + 1" in src
+
+
+def test_verify_output_is_reassembled_in_packed_order():
+    """The batch is request-major, so per-step results interleave back.
+
+    Returning the steps concatenated instead would hand every downstream module
+    a batch whose rows belong to the wrong requests -- a permutation, not a
+    crash.
+    """
+    num_gen, steps, hidden = 3, 4, 5
+    packed = torch.arange(num_gen * steps * hidden, dtype=torch.float32).reshape(
+        num_gen * steps, hidden
+    )
+    view = packed.view(num_gen, steps, hidden)
+    # Request-major: request i's step t is row i*steps + t.
+    for i in range(num_gen):
+        for t in range(steps):
+            assert torch.equal(view[i, t], packed[i * steps + t])
+    # ...and the reshape back is the identity, which is what _run_verify relies on.
+    assert torch.equal(view.reshape(num_gen * steps, hidden), packed)
+
+
+def test_capture_under_cuda_graph_is_refused_with_a_reason():
+    """The verify path is eager; capturing it would be silently wrong.
+
+    Better to say so at the point of use than to let a captured graph replay
+    stale per-step writes.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    src = inspect.getsource(InklingAttention._run_verify)
+    assert "is_cuda_graph" in src and "RuntimeError" in src

@@ -439,8 +439,8 @@ class MTPWorker(SpecWorkerBase):
         # otherwise continue from a history it never produced, with nothing
         # wrong in any shape to show it.
         kv_cache_manager = getattr(attn_metadata, "kv_cache_manager", None)
-        commit_state = getattr(kv_cache_manager, "commit_conv_state_after_verify",
-                               None)
+        commit_state = getattr(kv_cache_manager,
+                               "commit_conv_state_after_verify", None)
         if commit_state is not None:
             commit_state(num_accepted_tokens)
 

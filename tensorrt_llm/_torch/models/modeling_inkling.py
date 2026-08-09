@@ -1014,6 +1014,102 @@ class InklingAttention(QKNormRoPEAttention):
             q, k, v, cu, max_seqlen, self.sm_scale, rel_logits, self.rel_extent, self.window_left
         )
 
+    def _run_verify(
+        self,
+        q,
+        k,
+        v,
+        rel_logits,
+        num_cached,
+        request_ids,
+        mgr,
+        cache_layer,
+        k_cache,
+        v_cache,
+        page_size,
+        attn_metadata,
+        steps,
+    ):
+        """Generation attention for a speculative verify step.
+
+        A verify step presents ``steps = 1 + max_draft_len`` query tokens per
+        request instead of one. The decode path cannot serve that -- it writes a
+        single KV entry per request and reads a page table sized for one new
+        position -- which is the out-of-bounds access this replaces.
+
+        Nor can the context path, which is why this is not simply routed there:
+        ``inkling_prefill_attention`` attends only within the tokens it is
+        given. That is complete for a fresh prefill (Inkling keeps block reuse
+        off, so contexts start empty) and would silently drop the entire cached
+        prefix here -- the worst available outcome, since it is exactly the kind
+        of wrong that still produces fluent text.
+
+        So the drafted run is walked one position at a time, each step writing
+        its KV and then attending over cache-so-far. Causality within the run
+        comes out of the ordering rather than a mask: position t attends to the
+        prefix plus positions 0..t, which is what a linear draft chain means.
+        The cost is ``steps`` decode launches over a growing cache; a fused
+        verify kernel would read the cache once instead, and is the obvious
+        optimisation once this is known to be right.
+        """
+        if getattr(attn_metadata, "is_cuda_graph", False):
+            raise RuntimeError(
+                "Inkling speculative verify attention runs eagerly (it walks "
+                "the drafted positions one at a time) and cannot be captured. "
+                "Disable CUDA graphs when using speculative decoding with "
+                "Inkling, or wait for the fused verify kernel."
+            )
+        num_gen = len(request_ids)
+        block_ids = mgr.get_batch_cache_indices(request_ids, cache_layer)
+        max_pages = max(len(b) for b in block_ids)
+        page_table = build_page_table(block_ids, max_pages, q.device)
+        # [num_gen, steps, ...]: the packed batch is request-major, so a request's
+        # drafted tokens are contiguous and this view is free.
+        qv = q.view(num_gen, steps, *q.shape[1:])
+        kv_ = k.view(num_gen, steps, *k.shape[1:])
+        vv = v.view(num_gen, steps, *v.shape[1:])
+        rv = rel_logits.view(num_gen, steps, *rel_logits.shape[1:])
+        out = None
+        for t in range(steps):
+            for i in range(num_gen):
+                write_kv_cache_hnd(
+                    k_cache,
+                    v_cache,
+                    kv_[i, t : t + 1].contiguous(),
+                    vv[i, t : t + 1].contiguous(),
+                    block_ids[i],
+                    int(num_cached[i]) + t,
+                    page_size,
+                )
+            seq_lens = torch.tensor(
+                [int(num_cached[i]) + t + 1 for i in range(num_gen)],
+                dtype=torch.int32,
+                device=q.device,
+            )
+            # The per-step slices are strided views of the packed batch; the
+            # Triton kernels assert contiguity (and the fused-qkv v slice has
+            # bitten this backend before).
+            step_out = inkling_decode_attention(
+                qv[:, t].contiguous(),
+                k_cache,
+                v_cache,
+                seq_lens,
+                page_table,
+                page_size,
+                self.sm_scale,
+                rv[:, t].contiguous(),
+                self.rel_extent,
+                self.window_left,
+            )
+            if out is None:
+                out = torch.empty(
+                    (num_gen, steps, *step_out.shape[1:]),
+                    dtype=step_out.dtype,
+                    device=step_out.device,
+                )
+            out[:, t] = step_out
+        return out.reshape(num_gen * steps, *out.shape[2:])
+
     def _run_generation(
         self,
         q,
@@ -1030,6 +1126,24 @@ class InklingAttention(QKNormRoPEAttention):
         attn_metadata,
     ):
         device = q.device
+        num_gen = len(request_ids)
+        steps = q.shape[0] // num_gen if num_gen else 1
+        if steps > 1:
+            return self._run_verify(
+                q,
+                k,
+                v,
+                rel_logits,
+                num_cached,
+                request_ids,
+                mgr,
+                cache_layer,
+                k_cache,
+                v_cache,
+                page_size,
+                attn_metadata,
+                steps,
+            )
         # --- Runtime CUDA-graph-safe path. ---------------------------------
         # ``InklingAttentionMetadata.prepare()`` published this batch's decode
         # metadata into stable GPU buffers, so the captured forward does zero

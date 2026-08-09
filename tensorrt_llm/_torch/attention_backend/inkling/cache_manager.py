@@ -108,7 +108,7 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         if rt is None or rt.gen_indices is None or rt.gen_tokens_per_seq < 2:
             return
         rows = rt.gen_indices.to(torch.int64)
-        self._conv_cache.commit_after_verify(num_accepted[-rows.shape[0]:], rows)
+        self._conv_cache.commit_after_verify(num_accepted[-rows.shape[0] :], rows)
 
     def free_conv_state(self, request_ids) -> None:
         self._conv_cache.free(list(request_ids))
