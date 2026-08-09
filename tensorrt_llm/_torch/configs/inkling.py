@@ -238,7 +238,7 @@ class InklingTextConfig(PretrainedConfig):
         """
         return [self.mtp_depth_num_kv_heads(d) for d in range(num_depths)]
 
-    def mtp_block_config(self, depth: int) -> "InklingTextConfig":
+    def mtp_block_config(self, depth: int, layer_idx: int | None = None) -> "InklingTextConfig":
         """A derived config that makes ``InklingDecoderLayer`` build an MTP block.
 
         The draft block is structurally a DENSE trunk layer whose attention
@@ -256,10 +256,18 @@ class InklingTextConfig(PretrainedConfig):
         import copy
 
         cfg = copy.copy(self)
-        # Everything below dense_mlp_idx is dense, so depth+1 makes this depth
+        # The decoder layer is built with, and queries this config by, its own
+        # layer index. That is the CHAIN depth for geometry but the GLOBAL index
+        # (trunk layers + depth) for KV-cache addressing, because the draft
+        # manager keys its layer offsets globally. So the config is written to
+        # answer for whichever index the layer will actually use.
+        idx = depth if layer_idx is None else layer_idx
+        # Everything below dense_mlp_idx is dense, so idx+1 makes this layer
         # dense whatever its index.
-        cfg.dense_mlp_idx = depth + 1
-        cfg.local_layer_ids = list(self.mtp_local_layer_ids or [])
+        cfg.dense_mlp_idx = idx + 1
+        # Only this one index is ever queried on this config, so the chain's
+        # banded list collapses to "is this layer banded".
+        cfg.local_layer_ids = [idx] if self.is_mtp_local_depth(depth) else []
         if self.is_mtp_local_depth(depth):
             cfg.sliding_window_size = self.mtp_depth_window(depth)
             cfg.swa_num_attention_heads = self.mtp_depth_num_heads(depth)

@@ -175,3 +175,38 @@ def test_chain_swa_geometry_can_differ_from_the_trunk():
     assert block.layer_num_heads(0) == 32
     assert block.layer_num_kv_heads(0) == 4
     assert block.layer_head_dim(0) == 256
+
+
+# --- the two indices a draft block lives under -----------------------------
+# Geometry is indexed by CHAIN depth (0..7); the KV cache is keyed by GLOBAL
+# layer index (trunk layers + depth), because the draft manager's layer offsets
+# are global. Folding one into the other is a KeyError in the first draft
+# forward, several minutes into a multi-GPU run.
+
+
+def test_block_config_answers_for_the_global_index():
+    """Built with the global index, the config must still say dense and banded."""
+    text = _text()
+    trunk = text.num_hidden_layers
+    for depth in range(8):
+        cfg = text.mtp_block_config(depth, trunk + depth)
+        assert cfg.is_dense_layer(trunk + depth) is True
+        assert cfg.is_local_layer(trunk + depth) is text.is_mtp_local_depth(depth)
+
+
+def test_global_index_geometry_matches_the_chain_depth_geometry():
+    """Same block, two indices, identical answers.
+
+    The window and head counts come from the chain depth; only the index the
+    layer is addressed by changes. If these ever diverge, a banded depth would
+    be built with the wrong window and its rel_logits_proj -- trained at the
+    head's window -- would be applied at the wrong extent, with no crash.
+    """
+    text = _text()
+    trunk = text.num_hidden_layers
+    for depth in range(8):
+        by_depth = text.mtp_block_config(depth)
+        by_global = text.mtp_block_config(depth, trunk + depth)
+        assert by_global.layer_window(trunk + depth) == by_depth.layer_window(depth)
+        assert by_global.layer_num_heads(trunk + depth) == by_depth.layer_num_heads(depth)
+        assert by_global.layer_num_kv_heads(trunk + depth) == by_depth.layer_num_kv_heads(depth)

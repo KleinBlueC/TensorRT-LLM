@@ -186,7 +186,7 @@ def test_load_branch_is_a_no_op_without_a_chain():
     from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
 
     src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
-    assert 'getattr(getattr(self, "draft_model", None), "mtp_layers", None)' in src
+    assert 'getattr(draft_model, "mtp_layers", None)' in src
     assert "if not mtp_layers:" in src and "return" in src
 
 
@@ -194,29 +194,53 @@ def test_only_the_built_depths_are_loaded():
     """The runtime caps the chain at min(max_draft_len, checkpoint depths).
 
     A server asking for 3 draft tokens builds 3 blocks out of the checkpoint's
-    8. Iterating the checkpoint's depths instead of the built ones would index
-    past the ModuleList; iterating the built ones is correct, and the shortfall
-    is reported so it is visible rather than silent.
+    8, so the extra depths must be filtered out and the shortfall reported --
+    otherwise "capped by max_draft_len" looks like a loading bug later.
     """
     from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
 
     src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
-    assert "for depth, block in enumerate(mtp_layers)" in src
+    assert "< built" in src
     assert "len(available) > built" in src
 
 
-def test_depth_weights_are_loaded_strictly():
-    """A strict load turns a rename into a failure instead of a silent miss.
+def test_draft_weights_go_through_the_generic_loader():
+    """``load_state_dict`` cannot load this checkpoint, in either direction.
 
-    The block's parameter names already match the checkpoint's, so strict=True
-    costs nothing and catches the case where one side is renamed and the draft
-    blocks would otherwise stay at their initial values -- wrong numbers, no
-    crash.
+    The checkpoint carries raw per-projection names (wq_du/wk_dv/wv_dv,
+    w13_dn) and full-width tensors; the block has fused qkv_proj/gate_up_proj,
+    NVFP4 scale tensors and TP-sharded widths. Fusion, scales and sharding are
+    the loader's work. With strict=True that mismatch is at least loud; with
+    strict off it would load nothing and leave a drafter proposing noise, which
+    shows up only as disappointing throughput.
     """
     from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
 
     src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
-    assert "strict=True" in src
+    assert "_load_weights_impl" in src
+    # The docstring explains why load_state_dict is wrong here, so check the
+    # body past it rather than the whole source.
+    quote = '"' * 3
+    body = src[src.index(quote, src.index(quote) + 3) + 3 :]
+    assert "load_state_dict" not in body
+
+
+def test_the_mapper_renames_the_draft_chain_like_the_trunk():
+    """The chain's decoder tail needs the trunk's renames, not a copy of them.
+
+    ``wq_du`` etc. must arrive as separate q/k/v for the loader to fuse, and
+    the gate/up-INTERLEAVED w13_dn has to be split before anything sees it --
+    concatenating instead of de-interleaving is the classic silent version of
+    this bug.
+    """
+    from tensorrt_llm._torch.models.checkpoints.hf.inkling_weight_mapper import (
+        InklingHfWeightMapper,
+    )
+
+    src = inspect.getsource(InklingHfWeightMapper._map_mtp)
+    assert "_LAYER_RENAMES" in src
+    assert "_split_interleaved_gate_up" in src
+    assert "mtp_layers." in src
 
 
 def test_both_load_paths_reach_the_draft_chain():
@@ -291,3 +315,21 @@ def test_the_draft_chain_gets_the_undivided_hidden_states():
     )
     assert "head_input = hidden_states / self.mup_multiplier" in src
     assert "hidden_states=hidden_states," in src
+
+
+def test_the_draft_input_is_cast_to_the_projection_dtype():
+    """RMSNorm can emit fp32; the NVFP4 quantize op refuses it.
+
+    ``fp4_quantize only supports input tensor with dtypes fp16/bf16/e4m3`` is
+    what that looks like from inside the first draft forward. The trunk casts at
+    the same boundary; the draft block has to as well.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock
+
+    src = inspect.getsource(InklingMTPBlock.forward)
+    # The cast target is a real parameter built at the compute dtype. The
+    # quantized Linear's weight (packed storage), the config's torch_dtype
+    # (declared, not actual) and the incoming hidden states (whatever the spec
+    # worker hands over) were each tried on the cluster and each left fp32 in
+    # place somewhere downstream.
+    assert "combined.to(self.embed_norm.weight.dtype)" in src

@@ -1620,12 +1620,20 @@ class InklingMTPBlock(nn.Module):
         # MTPForCausalLM passes the target's layer count as start_layer_idx, so
         # the index arrives offset by the trunk depth; the chain's own geometry
         # is indexed from 0.
+        # The offset index is the GLOBAL layer index, which is what the draft KV
+        # cache manager keys its layer offsets by; the chain's own geometry is
+        # indexed from 0. Both are needed, so keep both rather than folding one
+        # away: passing the chain depth as the layer index asks the draft
+        # manager for layer 2 when the buffers live at trunk+2, a KeyError deep
+        # in the first draft forward.
+        global_layer_idx = depth
         depth = depth % max(1, _mtp_num_depths(config))
         # Accepted for the framework's uniform constructor signature. Inkling's
         # draft blocks are dense, so there is no MoE/shared-expert overlap to
         # schedule on a second stream.
         del aux_stream_dict
         self.depth = depth
+        self.dtype = config.torch_dtype
         self.embed_norm = RMSNorm(
             hidden_size=config.hidden_size, eps=config.rms_norm_eps, dtype=config.torch_dtype
         )
@@ -1641,8 +1649,8 @@ class InklingMTPBlock(nn.Module):
             quant_config=model_config.get_quant_config(),
         )
         block_model_config = copy.copy(model_config)
-        block_model_config.pretrained_config = config.mtp_block_config(depth)
-        self.transformer_block = InklingDecoderLayer(block_model_config, depth)
+        block_model_config.pretrained_config = config.mtp_block_config(depth, global_layer_idx)
+        self.transformer_block = InklingDecoderLayer(block_model_config, global_layer_idx)
         # MTPWorker calls shared_head(hidden, lm_head, attn_metadata) per depth.
         # ``chain_hidden_post_norm`` is False in both shipped checkpoints, which
         # ships no chain_norm weight -- so the norm is built only when the
@@ -1671,6 +1679,16 @@ class InklingMTPBlock(nn.Module):
         combined = torch.cat(
             (self.hidden_norm(hidden_states), self.embed_norm(inputs_embeds)), dim=-1
         )
+        # RMSNorm can emit fp32 while the NVFP4 quantize op accepts only
+        # fp16/bf16/e4m3 and refuses fp32 outright, so this boundary needs a
+        # cast to the compute dtype. Three candidates were tried on the cluster
+        # and only the last is that dtype: ``input_proj.weight.dtype`` is a
+        # quantized Linear's PACKED storage type; ``config.torch_dtype`` is what
+        # the config declares rather than what the model runs in; and the
+        # incoming ``hidden_states`` are whatever the spec worker hands over,
+        # which is not guaranteed either. The norm's own weight is a real
+        # parameter of the model, built at the compute dtype.
+        combined = combined.to(self.embed_norm.weight.dtype)
         return self.transformer_block(
             position_ids=position_ids,
             hidden_states=self.input_proj(combined),
@@ -1996,40 +2014,49 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
         self._load_mtp_weights(weights, weight_mapper)
 
     def _load_mtp_weights(self, weights: dict, weight_mapper) -> None:
-        """Load ``model.mtp.*`` into the draft chain, if one was built.
+        """Load the draft chain, if one was built, through the generic loader.
 
         Only the depths that exist are loaded: the runtime caps the chain at
         ``min(max_draft_len, checkpoint depths)``, so a server asking for 3
         draft tokens builds 3 blocks out of the checkpoint's 8. Loading all 8
         into 3 modules would fail; skipping the extras is correct, and they are
         reported so a silent shortfall is visible.
+
+        ``load_state_dict`` cannot do this job. The checkpoint carries the raw
+        per-projection names and full-width tensors while the block has fused
+        ``qkv_proj``/``gate_up_proj``, NVFP4 scale tensors and TP-sharded
+        widths; fusion, scales and sharding are all the loader's work. The
+        weight mapper has already renamed the chain to ``mtp_layers.<d>....``,
+        so the same ``_load_weights_impl`` that loads the trunk applies here.
         """
-        mtp_layers = getattr(getattr(self, "draft_model", None), "mtp_layers", None)
+        from tensorrt_llm._torch.models.modeling_utils import _load_weights_impl
+
+        draft_model = getattr(self, "draft_model", None)
+        mtp_layers = getattr(draft_model, "mtp_layers", None)
         if not mtp_layers:
             return
-        mtp_weights = filter_weights("model.mtp", weights)
-        if not mtp_weights:
+        built = len(mtp_layers)
+        available = {
+            int(k.split("mtp_layers.")[1].split(".")[0])
+            for k in weights
+            if k.startswith("mtp_layers.")
+        }
+        if not available:
             logger.warning(
-                "MTP chain built but the checkpoint carries no model.mtp.* weights; "
+                "MTP chain built but the checkpoint carries no draft weights; "
                 "the draft blocks stay at their initial values."
             )
             return
-        built = len(mtp_layers)
-        for depth, block in enumerate(mtp_layers):
-            depth_weights = filter_weights(f"layers.{depth}", mtp_weights)
-            if not depth_weights:
-                logger.warning(f"MTP depth {depth} has no checkpoint weights")
-                continue
-            # The block is an ordinary nn.Module tree with no load_weights of
-            # its own; its parameter names already match the checkpoint's
-            # (embed_norm / hidden_norm / input_proj / transformer_block.*),
-            # so a strict load is both sufficient and the stricter check --
-            # a rename on either side fails here instead of silently leaving
-            # a draft block at its initial values.
-            block.load_state_dict(depth_weights, strict=True)
-        available = {
-            int(k.split("layers.")[1].split(".")[0]) for k in mtp_weights if k.startswith("layers.")
+        # Hand the loader only the depths that were built: it walks the module
+        # tree, so extra depths would simply go unclaimed, but reporting the
+        # shortfall is what keeps "capped by max_draft_len" from looking like a
+        # loading bug later.
+        depth_weights = {
+            k: v
+            for k, v in weights.items()
+            if k.startswith("mtp_layers.") and int(k.split("mtp_layers.")[1].split(".")[0]) < built
         }
+        _load_weights_impl(draft_model, depth_weights)
         if len(available) > built:
             logger.info(
                 f"MTP: built {built} of the checkpoint's {len(available)} draft depths "

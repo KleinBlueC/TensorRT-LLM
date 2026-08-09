@@ -256,6 +256,9 @@ _LAYER_RENAMES = {
 
 _EXPERT_RE = re.compile(r"layers\.(\d+)\.mlp\.experts\.(w13_weight|w2_weight)(\.\w+)?$")
 _DENSE_W13_RE = re.compile(r"layers\.(\d+)\.mlp\.w13_dn\.weight$")
+# ``model.mtp.layers.<depth>.<tail>``: the draft chain. The tail below
+# ``transformer_block.`` is an ordinary decoder layer and takes the same renames.
+_MTP_RE = re.compile(r"^model\.mtp\.layers\.(\d+)\.(.*)$")
 
 
 def _split_interleaved_gate_up(t: torch.Tensor, dim: int) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -354,6 +357,11 @@ class InklingHfWeightMapper(HfWeightMapper):
             # interleave is undone by the strided split in
             # ``InklingSharedExperts.forward``.
 
+            mtp_match = _MTP_RE.match(name)
+            if mtp_match is not None:
+                self._map_mtp(mtp_match, tensor, new_weights)
+                continue
+
             m = re.match(r"layers\.(\d+)\.(.*)$", name)
             if m is not None:
                 layer_idx, tail = m.group(1), m.group(2)
@@ -364,6 +372,36 @@ class InklingHfWeightMapper(HfWeightMapper):
             # Unknown key: keep as-is so any mismatch surfaces loudly at load.
             new_weights[name] = tensor
         return new_weights
+
+    def _map_mtp(self, match, tensor, new_weights: dict) -> None:
+        """Rename one draft-chain tensor into the module tree the block builds.
+
+        Emitted relative to the draft model (``mtp_layers.<depth>....``) because
+        that is what the generic loader walks. The block's own submodules --
+        ``embed_norm``, ``hidden_norm``, ``input_proj``, ``transformer_block`` --
+        already carry the checkpoint's names, so only the decoder tail needs the
+        same treatment the trunk gets: ``wq_du``/``wk_dv``/``wv_dv`` land as
+        separate q/k/v that the loader fuses into ``qkv_proj``, and the
+        gate/up-interleaved ``w13_dn`` is split first.
+
+        Doing this here rather than in the model is the point: fusion, NVFP4
+        scales and TP sharding are the loader's job, and a ``load_state_dict``
+        that bypasses it can only fail (or, with strict off, quietly load
+        nothing).
+        """
+        depth, tail = match.group(1), match.group(2)
+        prefix = f"mtp_layers.{depth}"
+        if tail.startswith("transformer_block."):
+            inner = tail[len("transformer_block.") :]
+            if inner == "mlp.w13_dn.weight":
+                gate, up = _split_interleaved_gate_up(tensor, dim=0)
+                new_weights[f"{prefix}.transformer_block.mlp.gate_proj.weight"] = gate
+                new_weights[f"{prefix}.transformer_block.mlp.up_proj.weight"] = up
+                return
+            inner = _LAYER_RENAMES.get(inner, inner)
+            new_weights[f"{prefix}.transformer_block.{inner}"] = tensor
+            return
+        new_weights[f"{prefix}.{tail}"] = tensor
 
     def _map_expert(
         self,
