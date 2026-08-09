@@ -1275,6 +1275,40 @@ class InklingDecoderLayer(nn.Module):
         return residual + _apply_sconv(self.mlp_sconv, hm, conv_state.mlp, conv_rt)
 
 
+class InklingMTPHead(nn.Module):
+    """Per-depth head: optional chain post-norm, then the shared LM head.
+
+    Mirrors ``DeepseekV3MTPHead``. The norm exists only when the checkpoint
+    declares ``chain_hidden_post_norm`` -- both shipped Inkling releases set it
+    False and ship no ``chain_norm`` tensor, so building it unconditionally
+    would create a parameter the loader then has to explain away.
+    """
+
+    def __init__(self, model_config: ModelConfig[InklingTextConfig], use_norm: bool):
+        super().__init__()
+        config = model_config.pretrained_config
+        self.norm = (
+            RMSNorm(
+                hidden_size=config.hidden_size,
+                eps=config.rms_norm_eps,
+                dtype=config.torch_dtype,
+            )
+            if use_norm
+            else None
+        )
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        lm_head: nn.Module,
+        attn_metadata: AttentionMetadata,
+        **kwargs,
+    ) -> torch.Tensor:
+        if self.norm is not None:
+            hidden_states = self.norm(hidden_states)
+        return lm_head(hidden_states)
+
+
 class InklingMTPBlock(nn.Module):
     """One depth of the next-N draft chain.
 
@@ -1310,20 +1344,31 @@ class InklingMTPBlock(nn.Module):
         block_model_config = copy.copy(model_config)
         block_model_config.pretrained_config = config.mtp_block_config(depth)
         self.transformer_block = InklingDecoderLayer(block_model_config, depth)
+        # MTPWorker calls shared_head(hidden, lm_head, attn_metadata) per depth.
+        # ``chain_hidden_post_norm`` is False in both shipped checkpoints, which
+        # ships no chain_norm weight -- so the norm is built only when the
+        # checkpoint declares it, and the head is otherwise a straight LM-head
+        # application.
+        self.shared_head = InklingMTPHead(
+            model_config, use_norm=bool(getattr(config, "chain_hidden_post_norm", False))
+        )
 
     def forward(
         self,
+        input_ids: torch.IntTensor,
         position_ids: torch.IntTensor,
-        inputs_embeds: torch.Tensor,
         hidden_states: torch.Tensor,
+        embed_tokens: Embedding,
         attn_metadata: AttentionMetadata,
         **kwargs,
     ) -> torch.Tensor:
         """Fold the previous depth's hidden state into this depth's embedding.
 
-        ``inputs_embeds`` is the embedding of the token this depth predicts
-        from; ``hidden_states`` is what the previous depth (or the trunk) left.
+        The signature is the one MTPWorker calls with -- it passes the target
+        model's ``embed_tokens`` in and the rest as ``**draft_inputs`` -- so the
+        embedding lookup happens here rather than in the caller.
         """
+        inputs_embeds = embed_tokens(input_ids)
         combined = torch.cat(
             (self.hidden_norm(hidden_states), self.embed_norm(inputs_embeds)), dim=-1
         )
