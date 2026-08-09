@@ -162,10 +162,11 @@ def test_draft_kv_head_list_is_indexed_globally_not_by_depth():
 
     src = inspect.getsource(_util._create_kv_cache_manager)
     assert "mtp_num_kv_heads_per_layer" in src, (
-        "the draft manager must be sized from the chain's geometry")
+        "the draft manager must be sized from the chain's geometry"
+    )
     assert "num_key_value_heads +\n" in src or "num_key_value_heads + chain" in src, (
-        "the chain's entries must be appended so their global indices line up "
-        "with layer_mask")
+        "the chain's entries must be appended so their global indices line up with layer_mask"
+    )
 
 
 # --- loading the draft weights ---------------------------------------------

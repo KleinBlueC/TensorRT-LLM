@@ -276,6 +276,14 @@ class InklingConvRuntime:
     gen_indices: Optional[torch.Tensor]  # int32 pool slots, generation requests
     query_start_loc: Optional[torch.Tensor]  # int32 [n_ctx+1] varlen offsets
     has_initial_state: Optional[torch.Tensor]  # bool [n_ctx]
+    # Tokens per generation request. 1 for ordinary decode; under speculative
+    # decoding the target verifies 1 + max_draft_len tokens per request in one
+    # step, and the one-token assumption below stops holding.
+    gen_tokens_per_seq: int = 1
+    # Varlen offsets/flags for a multi-token generation step, built only when
+    # gen_tokens_per_seq > 1.
+    gen_query_start_loc: Optional[torch.Tensor] = None
+    gen_has_initial_state: Optional[torch.Tensor] = None
 
     @classmethod
     def build(cls, attn_metadata, cache: InklingConvStateCache) -> "InklingConvRuntime":
@@ -308,12 +316,42 @@ class InklingConvRuntime:
             # Inkling defaults ``enable_block_reuse`` off; supporting reuse would
             # need this set per request plus the preceding activations restored.
             has_initial_state = torch.zeros(num_contexts, dtype=torch.bool, device=device)
+
+        # Speculative decoding verifies several tokens per generation request in
+        # one step. The per-request token count is uniform (1 + max_draft_len),
+        # so it divides out of the generation seq_lens.
+        num_gen = len(slots) - num_contexts
+        gen_tokens_per_seq = 1
+        gen_query_start_loc = gen_has_initial_state = None
+        if num_gen > 0:
+            gen_lens = seq_lens[num_contexts : len(slots)]
+            gen_tokens_per_seq = max(1, int(gen_lens[0]))
+            if gen_tokens_per_seq > 1:
+                if any(int(sl) != gen_tokens_per_seq for sl in gen_lens):
+                    raise ValueError(
+                        "Inkling short-conv expects a uniform token count per "
+                        f"generation request; got {gen_lens}."
+                    )
+                cu = torch.arange(
+                    0,
+                    (num_gen + 1) * gen_tokens_per_seq,
+                    gen_tokens_per_seq,
+                    dtype=torch.int32,
+                    device=device,
+                )
+                gen_query_start_loc = cu
+                # Unlike a fresh prefill, a generation request always has a
+                # prior conv window in the pool: these tokens continue a stream.
+                gen_has_initial_state = torch.ones(num_gen, dtype=torch.bool, device=device)
         return cls(
             num_ctx_tokens=num_ctx_tokens,
             ctx_indices=ctx_indices,
             gen_indices=gen_indices,
             query_start_loc=query_start_loc,
             has_initial_state=has_initial_state,
+            gen_tokens_per_seq=gen_tokens_per_seq,
+            gen_query_start_loc=gen_query_start_loc,
+            gen_has_initial_state=gen_has_initial_state,
         )
 
 
@@ -348,11 +386,31 @@ def _apply_sconv(
             )
         )
     if x.shape[0] > nctx:
-        parts.append(
-            sconv.forward(
-                x[nctx:], conv_state=pool_buf, cache_indices=rt.gen_indices, is_decode=True
+        if rt.gen_tokens_per_seq > 1:
+            # Speculative decoding: several tokens per generation request in one
+            # step. ``causal_conv1d_update`` is a single-token kernel -- it
+            # requires one cache index per ROW, so it rejects this outright --
+            # and even reshaped it would apply the same initial state to every
+            # drafted token instead of advancing through them. The varlen path
+            # walks the run in order, which is what continuing a stream means;
+            # ``has_initial_state`` is True here rather than False as in prefill,
+            # because these tokens continue a window already in the pool.
+            parts.append(
+                sconv.forward(
+                    x[nctx:],
+                    conv_state=pool_buf,
+                    cache_indices=rt.gen_indices,
+                    query_start_loc=rt.gen_query_start_loc,
+                    has_initial_state=rt.gen_has_initial_state,
+                    is_decode=False,
+                )
             )
-        )
+        else:
+            parts.append(
+                sconv.forward(
+                    x[nctx:], conv_state=pool_buf, cache_indices=rt.gen_indices, is_decode=True
+                )
+            )
     return parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
 
 
@@ -1496,7 +1554,43 @@ class InklingForCausalLM(DecoderModelForCausalLM[InklingModel, InklingTextConfig
         )
         self._assert_inkling_attn_backend(model_config)
         self._assert_inkling_moe_parallel(model_config)
+        self._assert_inkling_spec_conv_state(model_config)
         self._apply_allreduce_strategy()
+
+    @staticmethod
+    def _assert_inkling_spec_conv_state(model_config) -> None:
+        """Refuse speculative decoding until the conv state can be rolled back.
+
+        The short-conv state is a sliding window of past INPUTS, mutated in
+        place. Speculative decoding advances it over every drafted token and
+        then accepts only a prefix, so on any partial acceptance the window is
+        left holding tokens the model never emitted. Every subsequent token is
+        then conditioned on them.
+
+        Nothing about that fails: no shape is wrong, no kernel complains, the
+        server answers normally and the answers are quietly worse. The KV cache
+        is safe by construction here -- it is indexed by position, so rejected
+        entries are simply overwritten -- which makes the conv the one piece of
+        state that needs an explicit commit, and the one a smoke test would
+        never catch.
+
+        SGLang commits the per-step window at each request's last accepted step
+        (``update_conv_state_after_mtp_verify``). Until the equivalent is wired
+        here, refusing is the only honest option: a run that crashes costs an
+        hour, a run that is silently wrong costs whatever is built on it.
+        """
+        spec_config = getattr(model_config, "spec_config", None)
+        if spec_config is None:
+            return
+        raise NotImplementedError(
+            "Speculative decoding (MTP) is not yet supported for Inkling: the "
+            "short-conv state advances over drafted tokens and has no rollback "
+            "on partial acceptance, which would silently corrupt generation "
+            "rather than fail. The draft chain, its KV cache and the multi-token "
+            "conv forward are in place; what remains is committing the conv "
+            "window at each request's last accepted step. Run without "
+            "speculative_config until then."
+        )
 
     @staticmethod
     def _assert_inkling_attn_backend(model_config) -> None:
