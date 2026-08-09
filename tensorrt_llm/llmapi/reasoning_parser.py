@@ -22,6 +22,15 @@ from typing import Any, Optional, Type
 
 from tensorrt_llm import logger
 
+from .inkling_tokens import INKLING_CONTENT_TEXT as _INKLING_CONTENT_TEXT
+from .inkling_tokens import \
+    INKLING_CONTENT_THINKING as _INKLING_CONTENT_THINKING
+from .inkling_tokens import INKLING_CONTROL_TOKENS as _INKLING_CONTROL_TOKENS
+from .inkling_tokens import INKLING_MAX_CONTROL_LEN as _INKLING_MAX_CONTROL_LEN
+from .inkling_tokens import INKLING_MESSAGE_MODEL as _INKLING_MESSAGE_MODEL
+from .inkling_tokens import \
+    INKLING_TOOL_CONTENT_TOKENS as _INKLING_TOOL_CONTENT_TOKENS
+
 
 @dataclass
 class ReasoningParserResult:
@@ -338,6 +347,7 @@ class MiniMaxM3ReasoningParser(DeepSeekR1Parser):
 
 
 MODEL_TYPE_TO_REASONING_PARSER: dict[str, str] = {
+    "inkling_mm_model": "inkling",
     "qwen3": "qwen3",
     "qwen3_moe": "qwen3",
     "qwen3_5": "qwen3",
@@ -690,45 +700,16 @@ class Gemma4ReasoningParser(BaseReasoningParser):
 # SGLang's ``InklingDetector`` (``--reasoning-parser inkling``) so trtllm-serve
 # returns the same thinking-stripped ``message.content``. The control-token
 # alphabet is copied verbatim from SGLang's ``INKLING_CONTROL_TOKENS``.
-_INKLING_MESSAGE_MODEL = "<|message_model|>"
-_INKLING_CONTENT_TEXT = "<|content_text|>"
-_INKLING_CONTENT_THINKING = "<|content_thinking|>"
-_INKLING_INVOKE_TOOL_JSON = "<|content_invoke_tool_json|>"
-_INKLING_INVOKE_TOOL_TEXT = "<|content_invoke_tool_text|>"
-_INKLING_INVOKE_TOOL = "<|content_invoke_tool|>"
+# The token alphabet lives in one module so the tool parser cannot drift from
+# this one; a token missing from either list silently leaks framing into
+# user-visible output.
 _INKLING_CONTENT_KINDS = {
     _INKLING_CONTENT_THINKING: "reasoning",
     _INKLING_CONTENT_TEXT: "content",
 }
-_INKLING_TOOL_CONTENT_TOKENS = frozenset({
-    _INKLING_INVOKE_TOOL_JSON,
-    _INKLING_INVOKE_TOOL_TEXT,
-    _INKLING_INVOKE_TOOL,
-})
-_INKLING_CONTROL_TOKENS = frozenset({
-    "<|endoftext|>",
-    "<|message_user|>",
-    _INKLING_MESSAGE_MODEL,
-    "<|message_system|>",
-    "<|message_tool|>",
-    _INKLING_CONTENT_TEXT,
-    "<|content_image|>",
-    "<|content_model_end_sampling|>",
-    _INKLING_CONTENT_THINKING,
-    "<|content_audio_input|>",
-    "<|content_tool_error|>",
-    "<|content_xml|>",
-    "<|end_message|>",
-    "<|audio_end|>",
-    _INKLING_INVOKE_TOOL_JSON,
-    _INKLING_INVOKE_TOOL_TEXT,
-    _INKLING_INVOKE_TOOL,
-    "<|model_trigger_generation|>",
-})
 _INKLING_CONTROL_RE = re.compile("|".join(
     re.escape(t)
     for t in sorted(_INKLING_CONTROL_TOKENS, key=len, reverse=True)))
-_INKLING_MAX_CONTROL_LEN = max(len(t) for t in _INKLING_CONTROL_TOKENS)
 
 
 @register_reasoning_parser("inkling")
