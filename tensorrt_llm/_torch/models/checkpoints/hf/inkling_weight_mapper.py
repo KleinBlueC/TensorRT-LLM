@@ -121,6 +121,34 @@ def _experts_are_nvfp4(layer_idx: int, exclude_modules: Set[str], quantized: boo
     return f"model.llm.layers.{layer_idx}.mlp.experts" not in exclude_modules
 
 
+# Per-depth MTP keys, relative to ``model.mtp.layers.N.``. The draft block is
+# structurally a DENSE trunk layer -- same attention/norm keys, same dense-MLP
+# keys, verified against both shipped checkpoints -- plus three tensors that
+# fold the previous depth's hidden state into this one's embedding.
+_MTP_PREFIX_KEYS: Tuple[str, ...] = (
+    "embed_norm.weight",
+    "hidden_norm.weight",
+    "input_proj.weight",
+)
+
+
+def inkling_expected_mtp_keys(config: InklingTextConfig, num_depths: int) -> Set[str]:
+    """Exact set of ``model.mtp.*`` keys the draft chain consumes."""
+    keys: Set[str] = set()
+    for d in range(num_depths):
+        pfx = f"model.mtp.layers.{d}."
+        for k in _MTP_PREFIX_KEYS:
+            keys.add(pfx + k)
+        block = pfx + "transformer_block."
+        for k in _ATTN_AND_NORM_KEYS:
+            keys.add(block + k)
+        # Always dense: SGLang forces the dense MLP for every MTP depth, and
+        # the checkpoints agree (one global_scale per depth, no expert tensors).
+        for k in _DENSE_MLP_KEYS:
+            keys.add(block + k)
+    return keys
+
+
 def inkling_expected_text_keys(
     config: InklingTextConfig, exclude_modules: Set[str], quantized: bool = True
 ) -> Set[str]:
