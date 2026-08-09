@@ -68,19 +68,47 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         # +1 row for the CUDA-graph padding / dummy-request slot (the mamba
         # pattern): a padded decode batch admits up to max_batch_size real
         # requests plus a shared dummy row.
+        # Under speculative decoding the target verifies 1 + max_draft_len
+        # tokens per request in one step, and the conv windows have to be
+        # rolled back to whatever prefix is accepted. The capture buffers that
+        # makes possible are sized here, up front, because the first verify step
+        # can land inside a captured CUDA graph.
+        spec_config = kwargs.get("spec_config")
+        verify_steps = 1
+        if spec_config is not None:
+            verify_steps = int(getattr(spec_config, "max_draft_len", 0) or 0) + 1
         self._conv_cache = InklingConvStateCache(
             pretrained_config,
             attn_tp_size,
             max_batch_size + 1,
             torch.device("cuda", torch.cuda.current_device()),
             conv_dtype,
+            verify_steps=verify_steps,
         )
+        self._last_conv_rt = None
 
     # ---- model-facing -----------------------------------------------------
     def prepare_conv_runtime(self, attn_metadata):
         from ...models.modeling_inkling import InklingConvRuntime
 
-        return self._conv_cache, InklingConvRuntime.build(attn_metadata, self._conv_cache)
+        rt = InklingConvRuntime.build(attn_metadata, self._conv_cache)
+        # Retained for the post-verify conv commit, which runs from the spec
+        # worker after the forward context has exited and so cannot rebuild it.
+        self._last_conv_rt = rt
+        return self._conv_cache, rt
+
+    def commit_conv_state_after_verify(self, num_accepted) -> None:
+        """Roll the conv windows back to each request's last accepted token.
+
+        The pool rows come from the runtime built for the verify step, so this
+        commits against the same rows the forward advanced -- not whatever the
+        next batch happens to occupy.
+        """
+        rt = self._last_conv_rt
+        if rt is None or rt.gen_indices is None or rt.gen_tokens_per_seq < 2:
+            return
+        rows = rt.gen_indices.to(torch.int64)
+        self._conv_cache.commit_after_verify(num_accepted[-rows.shape[0]:], rows)
 
     def free_conv_state(self, request_ids) -> None:
         self._conv_cache.free(list(request_ids))

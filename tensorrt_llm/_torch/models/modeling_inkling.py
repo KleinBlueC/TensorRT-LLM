@@ -111,6 +111,48 @@ from .modeling_multimodal_utils import (
 InklingConvState = namedtuple("InklingConvState", ["k", "v", "attn", "mlp"])
 
 
+class _ConvVerifyCapture:
+    """What a speculative verify step must remember to undo itself.
+
+    A short conv carries a window of its last ``kwin`` INPUTS, mutated in place.
+    A verify step runs the conv over every drafted token, so it leaves the
+    window advanced past the tokens the target went on to reject.
+
+    The window after ``k`` tokens is a pure function of the window before the
+    step and the inputs consumed, ``last kwin of (init ++ x[:k])``, so capturing
+    those two is enough to reconstruct the accepted state for any ``k``. That is
+    cheaper than saving one window per drafted position -- the ``x`` it is
+    derived from is a factor of ``kwin`` smaller -- and needs no scatter kernel.
+    """
+
+    def __init__(self, max_batch, channels, kwin, steps, device, dtype):
+        # The window as it stood before the verify step consumed anything.
+        self.init = torch.zeros(max_batch, channels, kwin, device=device, dtype=dtype)
+        # The verify step's pre-conv inputs, in token order per request.
+        self.x = torch.zeros(max_batch, steps, channels, device=device, dtype=dtype)
+
+    def save(self, pool_buf, rows, x_gen, steps):
+        """Record this verify step, before the conv mutates ``pool_buf``."""
+        n = rows.shape[0]
+        self.init[:n].copy_(pool_buf.index_select(0, rows))
+        self.x[:n].copy_(x_gen.view(n, steps, -1))
+
+    def accepted_window(self, num_accepted, kwin):
+        """The window each request should be left holding, given acceptances.
+
+        ``num_accepted`` is per request and at least 1 -- the target's own token
+        is never rejected -- so every request advances by something and none is
+        rolled back to before the step.
+        """
+        n = num_accepted.shape[0]
+        # [n, C, kwin + steps]: the window followed by the inputs it consumed.
+        stream = torch.cat([self.init[:n], self.x[:n].transpose(1, 2)], dim=-1)
+        offs = num_accepted.view(n, 1, 1) + torch.arange(
+            kwin, device=stream.device, dtype=num_accepted.dtype
+        ).view(1, 1, kwin)
+        return stream.gather(2, offs.expand(n, stream.shape[1], kwin).to(torch.int64))
+
+
 class InklingConvStateCache:
     """Runtime-owned per-request short-conv state pool for the whole decoder.
 
@@ -133,6 +175,7 @@ class InklingConvStateCache:
         max_batch_size: int,
         device: torch.device,
         dtype: torch.dtype = torch.bfloat16,
+        verify_steps: int = 1,
     ):
         # Takes the pretrained config + tp_size rather than a ``ModelConfig`` so
         # the KV cache manager can build the pool from what it already has.
@@ -145,12 +188,30 @@ class InklingConvStateCache:
         def buf(channels):
             return torch.zeros(max_batch_size, channels, kwin, device=device, dtype=dtype)
 
+        # Speculative decoding replays the verify step's conv inputs after the
+        # target has decided how many tokens it accepts, so those inputs are
+        # captured per conv. Allocated up front, alongside the pool: the first
+        # verify step can happen inside a captured CUDA graph, where allocating
+        # is not an option.
+        self.verify_steps = max(1, int(verify_steps))
+
+        def cap(channels):
+            if self.verify_steps < 2:
+                return None
+            return _ConvVerifyCapture(
+                max_batch_size, channels, kwin, self.verify_steps, device, dtype
+            )
+
         self._layers: List[InklingConvState] = []
+        self._captures: List[Optional[InklingConvState]] = []
         for i in range(config.num_hidden_layers):
             kv_dim = (config.layer_num_kv_heads(i) * config.layer_head_dim(i)) // tp_size
             hidden = config.hidden_size
             self._layers.append(
                 InklingConvState(k=buf(kv_dim), v=buf(kv_dim), attn=buf(hidden), mlp=buf(hidden))
+            )
+            self._captures.append(
+                InklingConvState(k=cap(kv_dim), v=cap(kv_dim), attn=cap(hidden), mlp=cap(hidden))
             )
         # Stable per-request slot-index buffer, refreshed in place per forward
         # from input preparation (see :meth:`write_state_indices`) so a captured
@@ -167,6 +228,29 @@ class InklingConvStateCache:
     def layer_state(self, layer_idx: int) -> InklingConvState:
         """The four short-conv state buffers for ``layer_idx`` (pool views)."""
         return self._layers[layer_idx]
+
+    def layer_capture(self, layer_idx: int) -> InklingConvState:
+        """The four verify-step captures for ``layer_idx``; entries None if off."""
+        return self._captures[layer_idx]
+
+    def commit_after_verify(self, num_accepted: torch.Tensor, gen_rows: torch.Tensor) -> None:
+        """Roll every conv window back to each request's last accepted token.
+
+        Called once after the target has verified, with ``num_accepted`` per
+        generation request and the pool rows they occupy. Without this the
+        windows keep the rejected tokens: no shape is wrong and no kernel
+        complains, the model simply continues from a history it never produced.
+        """
+        if self.verify_steps < 2:
+            raise RuntimeError(
+                "Inkling conv state was not built for speculative decoding; "
+                "commit_after_verify has nothing captured to replay from."
+            )
+        num_accepted = num_accepted.to(torch.int64)
+        for layer_caps, layer_state in zip(self._captures, self._layers):
+            for cap, pool_buf in zip(layer_caps, layer_state):
+                window = cap.accepted_window(num_accepted, self.kwin)
+                pool_buf.index_copy_(0, gen_rows, window.to(pool_buf.dtype))
 
     def slots_for(self, request_ids: List[int]) -> List[int]:
         """Map request ids to their (stable) pool rows, allocating new ones.
@@ -360,6 +444,7 @@ def _apply_sconv(
     x: torch.Tensor,
     pool_buf: Optional[torch.Tensor],
     rt: Optional[InklingConvRuntime],
+    capture: Optional["_ConvVerifyCapture"] = None,
 ) -> torch.Tensor:
     """Run one short-conv over a (possibly mixed) batch through the state pool.
 
@@ -387,6 +472,13 @@ def _apply_sconv(
         )
     if x.shape[0] > nctx:
         if rt.gen_tokens_per_seq > 1:
+            if capture is not None:
+                # Before the conv mutates the pool: the window as it stands now,
+                # plus the inputs about to be consumed, are what the post-verify
+                # commit replays from.
+                capture.save(
+                    pool_buf, rt.gen_indices.to(torch.int64), x[nctx:], rt.gen_tokens_per_seq
+                )
             # Speculative decoding: several tokens per generation request in one
             # step. ``causal_conv1d_update`` is a single-token kernel -- it
             # requires one cache index per ROW, so it rejects this outright --
@@ -756,7 +848,7 @@ class InklingAttention(QKNormRoPEAttention):
         )
         self.local_num_heads = num_heads // tp_size
 
-    def _project(self, hidden_states, conv_pool_kv=None, conv_rt=None):
+    def _project(self, hidden_states, conv_pool_kv=None, conv_rt=None, conv_capture_kv=None):
         """Fused qkv projection -> split -> k/v short-conv -> per-head qk RMSNorm.
 
         Returns ``(q, k, v)`` shaped ``[T, local_heads, head_dim]`` /
@@ -773,8 +865,9 @@ class InklingAttention(QKNormRoPEAttention):
         # k/v short convolution before the q/k norm (source order).
         if conv_pool_kv is not None:
             pool_k, pool_v = conv_pool_kv
-            k = _apply_sconv(self.k_sconv, k, pool_k, conv_rt)
-            v = _apply_sconv(self.v_sconv, v, pool_v, conv_rt)
+            cap_k, cap_v = conv_capture_kv if conv_capture_kv is not None else (None, None)
+            k = _apply_sconv(self.k_sconv, k, pool_k, conv_rt, cap_k)
+            v = _apply_sconv(self.v_sconv, v, pool_v, conv_rt, cap_v)
         else:
             k = self.k_sconv(k)
             v = self.v_sconv(v)
@@ -1019,6 +1112,7 @@ class InklingAttention(QKNormRoPEAttention):
         attn_metadata: AttentionMetadata,
         *,
         conv_pool_kv=None,
+        conv_capture_kv=None,
         conv_rt=None,
         **kwargs,
     ):
@@ -1033,7 +1127,7 @@ class InklingAttention(QKNormRoPEAttention):
         # The pre-attention RMSNorm can emit fp32 while the attention/r
         # projections are bf16, so cast once here.
         hidden_states = hidden_states.to(self.qkv_proj.weight.dtype)
-        q, k, v = self._project(hidden_states, conv_pool_kv, conv_rt)
+        q, k, v = self._project(hidden_states, conv_pool_kv, conv_rt, conv_capture_kv)
         rel_logits = self._build_rel_logits(hidden_states, position_ids)
         attn_out = self._attention(
             q, k, v, rel_logits, attn_metadata, allow_mixed=conv_rt is not None
@@ -1289,6 +1383,7 @@ class InklingDecoderLayer(nn.Module):
         attn_metadata: AttentionMetadata,
         *,
         conv_state: Optional[InklingConvState] = None,
+        conv_capture: Optional[InklingConvState] = None,
         conv_rt: Optional[InklingConvRuntime] = None,
         all_rank_num_tokens: Optional[List[int]] = None,
         **kwargs,
@@ -1319,19 +1414,23 @@ class InklingDecoderLayer(nn.Module):
         # --- Runtime state-pool path (prefill-seed / decode / mixed). ---
         residual = hidden_states
         h = self.attn_norm(hidden_states)
+        caps = (
+            conv_capture if conv_capture is not None else InklingConvState(None, None, None, None)
+        )
         h = self.attn(
             position_ids,
             h,
             attn_metadata,
             conv_pool_kv=(conv_state.k, conv_state.v),
+            conv_capture_kv=(caps.k, caps.v),
             conv_rt=conv_rt,
             **kwargs,
         )
-        h = residual + _apply_sconv(self.attn_sconv, h, conv_state.attn, conv_rt)
+        h = residual + _apply_sconv(self.attn_sconv, h, conv_state.attn, conv_rt, caps.attn)
 
         residual = h
         hm = self._run_mlp(self.mlp_norm(h), all_rank_num_tokens)
-        return residual + _apply_sconv(self.mlp_sconv, hm, conv_state.mlp, conv_rt)
+        return residual + _apply_sconv(self.mlp_sconv, hm, conv_state.mlp, conv_rt, caps.mlp)
 
 
 def _mtp_num_depths(config: InklingTextConfig) -> int:
@@ -1523,11 +1622,13 @@ class InklingModel(DecoderModel):
         hidden_states = inputs_embeds if inputs_embeds_prenormed else self.embed_norm(inputs_embeds)
         for i, layer in enumerate(self.layers):
             layer_state = conv_cache.layer_state(i) if conv_cache is not None else None
+            layer_capture = conv_cache.layer_capture(i) if conv_cache is not None else None
             hidden_states = layer(
                 position_ids,
                 hidden_states,
                 attn_metadata,
                 conv_state=layer_state,
+                conv_capture=layer_capture,
                 conv_rt=conv_rt,
                 all_rank_num_tokens=all_rank_num_tokens,
             )
@@ -1559,38 +1660,33 @@ class InklingForCausalLM(DecoderModelForCausalLM[InklingModel, InklingTextConfig
 
     @staticmethod
     def _assert_inkling_spec_conv_state(model_config) -> None:
-        """Refuse speculative decoding until the conv state can be rolled back.
+        """Check the conv pool can roll back before allowing speculative decoding.
 
         The short-conv state is a sliding window of past INPUTS, mutated in
-        place. Speculative decoding advances it over every drafted token and
-        then accepts only a prefix, so on any partial acceptance the window is
-        left holding tokens the model never emitted. Every subsequent token is
-        then conditioned on them.
+        place. A verify step advances it over every drafted token while only a
+        prefix is accepted, so without a commit the window is left holding
+        tokens the model never emitted -- and nothing about that is detectable:
+        right shape, right dtype, a perfectly valid window. The KV cache is safe
+        here by construction, being position-indexed, which leaves the conv as
+        the one piece of state needing an explicit commit and the one no smoke
+        test would catch.
 
-        Nothing about that fails: no shape is wrong, no kernel complains, the
-        server answers normally and the answers are quietly worse. The KV cache
-        is safe by construction here -- it is indexed by position, so rejected
-        entries are simply overwritten -- which makes the conv the one piece of
-        state that needs an explicit commit, and the one a smoke test would
-        never catch.
-
-        SGLang commits the per-step window at each request's last accepted step
-        (``update_conv_state_after_mtp_verify``). Until the equivalent is wired
-        here, refusing is the only honest option: a run that crashes costs an
-        hour, a run that is silently wrong costs whatever is built on it.
+        That commit now exists (``InklingConvStateCache.commit_after_verify``,
+        driven from ``MTPWorker`` once acceptance is known). What is checked here
+        is the precondition it depends on: the capture buffers are sized from
+        ``max_draft_len``, so a chain deeper than they allow would commit the
+        wrong window rather than fail.
         """
         spec_config = getattr(model_config, "spec_config", None)
         if spec_config is None:
             return
-        raise NotImplementedError(
-            "Speculative decoding (MTP) is not yet supported for Inkling: the "
-            "short-conv state advances over drafted tokens and has no rollback "
-            "on partial acceptance, which would silently corrupt generation "
-            "rather than fail. The draft chain, its KV cache and the multi-token "
-            "conv forward are in place; what remains is committing the conv "
-            "window at each request's last accepted step. Run without "
-            "speculative_config until then."
-        )
+        draft_len = int(getattr(spec_config, "max_draft_len", 0) or 0)
+        if draft_len < 1:
+            raise ValueError(
+                f"Speculative decoding needs max_draft_len >= 1 (got {draft_len}); "
+                "the Inkling short-conv capture buffers are sized from it, and a "
+                "verify step with nothing captured cannot be rolled back."
+            )
 
     @staticmethod
     def _assert_inkling_attn_backend(model_config) -> None:

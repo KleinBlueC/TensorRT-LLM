@@ -164,12 +164,107 @@ def test_partial_acceptance_needs_an_earlier_window_than_the_forward_leaves():
     assert not torch.equal(windows[0], windows[-1])
 
 
-def test_speculative_config_is_refused_at_load():
-    """Better an immediate, explanatory failure than a silently worse server."""
+def test_a_draft_length_the_capture_cannot_hold_is_rejected():
+    """The capture buffers are sized from max_draft_len.
+
+    A verify step deeper than they hold could not be rolled back, so the
+    precondition is checked at load rather than discovered as quietly worse
+    output later. max_draft_len < 1 means nothing was sized at all.
+    """
     import inspect
 
     from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
 
     src = inspect.getsource(InklingForCausalLM._assert_inkling_spec_conv_state)
-    assert "NotImplementedError" in src
-    assert "spec_config" in src
+    assert "max_draft_len" in src and "raise ValueError" in src
+
+
+# --- rolling the window back to what was accepted --------------------------
+# The verify forward leaves the window advanced over every drafted token. What
+# each request should be left holding is the window after its ACCEPTED prefix,
+# and the two differ on any partial acceptance.
+
+
+def _capture(n, channels, kwin, steps, init, x):
+    from tensorrt_llm._torch.models.modeling_inkling import _ConvVerifyCapture
+
+    cap = _ConvVerifyCapture(n, channels, kwin, steps, torch.device("cpu"), torch.float32)
+    cap.init[:n].copy_(init)
+    cap.x[:n].copy_(x)
+    return cap
+
+
+def test_accepted_window_matches_the_hand_computed_stream():
+    """Reconstruct against the definition: last kwin of (init ++ x[:k]).
+
+    The reference shares no code with the implementation -- it slices the
+    concatenated stream directly -- so agreement is evidence, not tautology.
+    """
+    n, channels, kwin, steps = 3, 2, 3, 4
+    init = torch.randn(n, channels, kwin)
+    x = torch.randn(n, steps, channels)
+    cap = _capture(n, channels, kwin, steps, init, x)
+
+    for k in range(1, steps + 1):
+        got = cap.accepted_window(torch.full((n,), k, dtype=torch.int64), kwin)
+        want = torch.cat([init, x.transpose(1, 2)], dim=-1)[..., k : k + kwin]
+        assert torch.allclose(got, want), f"k={k}"
+
+
+def test_each_request_rolls_back_to_its_own_acceptance():
+    """Acceptance counts differ per request within one batch.
+
+    A commit that used a single count for the batch would be right for whichever
+    request happened to set it and wrong for the rest -- the kind of bug that
+    only shows up once acceptance rates stop being uniform.
+    """
+    n, channels, kwin, steps = 3, 2, 3, 4
+    init = torch.zeros(n, channels, kwin)
+    x = torch.arange(n * steps * channels, dtype=torch.float32).reshape(n, steps, channels)
+    cap = _capture(n, channels, kwin, steps, init, x)
+
+    accepted = torch.tensor([1, 3, 4], dtype=torch.int64)
+    got = cap.accepted_window(accepted, kwin)
+    stream = torch.cat([init, x.transpose(1, 2)], dim=-1)
+    for i, k in enumerate(accepted.tolist()):
+        assert torch.equal(got[i], stream[i, :, k : k + kwin])
+
+
+def test_full_acceptance_leaves_what_the_forward_already_wrote():
+    """When every drafted token is accepted the commit is a no-op in effect.
+
+    Worth pinning: it is the case where a wrong commit would be invisible,
+    because the forward's own result is also correct.
+    """
+    n, channels, kwin, steps = 2, 3, 2, 4
+    init = torch.randn(n, channels, kwin)
+    x = torch.randn(n, steps, channels)
+    cap = _capture(n, channels, kwin, steps, init, x)
+    got = cap.accepted_window(torch.full((n,), steps, dtype=torch.int64), kwin)
+    # The state after all steps is simply the last kwin inputs.
+    assert torch.allclose(got, x.transpose(1, 2)[..., -kwin:])
+
+
+def test_single_acceptance_discards_the_rejected_tokens():
+    """The target's own token is always accepted, so k >= 1 and never 0.
+
+    With k=1 the window keeps kwin-1 of the pre-step state and exactly one new
+    input; the drafted tokens 2..steps must leave no trace.
+    """
+    n, channels, kwin, steps = 1, 2, 3, 4
+    init = torch.full((n, channels, kwin), -1.0)
+    x = torch.arange(1, 1 + steps * channels, dtype=torch.float32).reshape(n, steps, channels)
+    cap = _capture(n, channels, kwin, steps, init, x)
+    got = cap.accepted_window(torch.ones(n, dtype=torch.int64), kwin)
+    assert torch.equal(got[0, :, :-1], init[0, :, 1:])
+    assert torch.equal(got[0, :, -1], x[0, 0])
+
+
+def test_capture_is_only_allocated_when_speculating():
+    """An ordinary server must not pay for buffers it never reads."""
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingConvStateCache
+
+    src = inspect.getsource(InklingConvStateCache.__init__)
+    assert "verify_steps" in src and "if self.verify_steps < 2" in src
