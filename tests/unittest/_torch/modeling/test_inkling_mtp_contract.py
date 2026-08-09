@@ -143,6 +143,31 @@ def test_inkling_is_registered_in_the_mtp_dispatch_table():
     assert "inkling_mm_model" in src and "InklingMTPBlock" in src
 
 
+# --- the draft chain's KV cache manager ------------------------------------
+
+
+def test_draft_kv_head_list_is_indexed_globally_not_by_depth():
+    """The chain's entries must be APPENDED to the trunk's, not replace them.
+
+    ``KVCacheManagerV2`` sets ``num_layers = len(layer_mask)`` and the draft
+    mask is ``[False]*trunk + [True]*depths``, so it reads ``num_kv_heads[i]``
+    at global indices trunk..trunk+depths. Handing it the chain's list alone
+    fails the length assertion; handing it the trunk's alone fails the same
+    assertion from the other side -- which is exactly the pair of end-to-end
+    failures this branch was written for.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.pyexecutor import _util
+
+    src = inspect.getsource(_util._create_kv_cache_manager)
+    assert "mtp_num_kv_heads_per_layer" in src, (
+        "the draft manager must be sized from the chain's geometry")
+    assert "num_key_value_heads +\n" in src or "num_key_value_heads + chain" in src, (
+        "the chain's entries must be appended so their global indices line up "
+        "with layer_mask")
+
+
 # --- loading the draft weights ---------------------------------------------
 
 

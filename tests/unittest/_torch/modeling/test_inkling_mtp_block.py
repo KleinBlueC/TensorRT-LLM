@@ -128,6 +128,44 @@ def test_deriving_does_not_mutate_the_trunk_config():
     assert before == after
 
 
+# --- the draft chain's own KV cache geometry -------------------------------
+# The draft chain gets a SEPARATE cache manager, built with num_layers = the
+# number of built depths. KVCacheManagerV2 asserts len(num_kv_heads) equals
+# that count, so handing it the trunk's per-layer list is an outright failure
+# -- which is how this was found, several minutes into a 4-GPU job.
+
+
+@pytest.mark.parametrize("depths", [1, 3, 8])
+def test_draft_kv_head_list_has_one_entry_per_built_depth(depths):
+    """Length must follow the chain the runtime built, not the checkpoint's 8.
+
+    A server asking for 3 draft tokens builds 3 blocks; the manager is created
+    with num_layers=3 and asserts the list matches.
+    """
+    assert len(_text().mtp_num_kv_heads_per_layer(depths)) == depths
+
+
+def test_draft_kv_heads_follow_the_chain_banded_pattern():
+    """Chain banded depths are [0,2,4,5,6,7]; the trunk's are [1,3,5].
+
+    On the full checkpoint banded layers carry 16 KV heads and global ones 8,
+    so a slice of the trunk's list would size depths 1 and 3 for 16 heads and
+    depth 1 for 8 -- pages allocated against the wrong head count, with nothing
+    at runtime to report it.
+    """
+    assert _text().mtp_num_kv_heads_per_layer(8) == [16, 8, 16, 8, 16, 16, 16, 16]
+
+
+def test_uniform_checkpoint_gives_a_uniform_draft_list():
+    """Inkling-small has swa_num_key_value_heads == num_key_value_heads == 8.
+
+    Banded and global depths then agree, and the list must simply be uniform
+    rather than accidentally picking up the trunk's 16 from a stale default.
+    """
+    text = _text(num_key_value_heads=8, swa_num_key_value_heads=8)
+    assert text.mtp_num_kv_heads_per_layer(4) == [8, 8, 8, 8]
+
+
 def test_chain_swa_geometry_can_differ_from_the_trunk():
     text = _text()
     text.mtp_swa_num_attention_heads = 32

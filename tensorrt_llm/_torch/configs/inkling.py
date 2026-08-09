@@ -225,6 +225,19 @@ class InklingTextConfig(PretrainedConfig):
     def mtp_depth_head_dim(self, depth: int) -> int:
         return self.mtp_swa_head_dim if self.is_mtp_local_depth(depth) else self.head_dim
 
+    def mtp_num_kv_heads_per_layer(self, num_depths: int) -> list[int]:
+        """Per-depth KV-head counts for the DRAFT chain's own KV cache.
+
+        The draft chain gets a separate cache manager, sized from the chain's
+        geometry -- not a slice of the trunk's. Slicing would be wrong twice
+        over: the list would be the trunk's length (42 or 66) where the manager
+        expects one entry per built depth, which is the assertion this exists to
+        satisfy; and the trunk's banded layers are not the chain's, so on the
+        full checkpoint (banded 16 KV heads, global 8) depths 1 and 3 would be
+        allocated 16 heads' worth of pages for an 8-head layer.
+        """
+        return [self.mtp_depth_num_kv_heads(d) for d in range(num_depths)]
+
     def mtp_block_config(self, depth: int) -> "InklingTextConfig":
         """A derived config that makes ``InklingDecoderLayer`` build an MTP block.
 
