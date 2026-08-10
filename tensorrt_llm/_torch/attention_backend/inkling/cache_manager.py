@@ -79,6 +79,20 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         verify_steps = 1
         if spec_config is not None:
             verify_steps = int(getattr(spec_config, "max_draft_len", 0) or 0) + 1
+            # The first verify step of a request needs KV room for all
+            # ``verify_steps`` positions it writes, and the context phase is
+            # what has to have reserved it: capacity there is
+            # ``prompt + num_extra_kv_tokens``, and the generic one-engine
+            # reserve is ``max_draft_len - 1``. Measured on a real run
+            # (job 6026096): prompt 669, capacity 671, first verify step writing
+            # positions 669..672 -- two short. It only surfaces when that last
+            # position lands on a page boundary, which is why short-prompt runs
+            # never caught it and a 5-shot GSM8K prompt did.
+            #
+            # From the second step on the scheduler's per-step growth
+            # (+1 + draft) takes over and the margin is 6, so this is a
+            # context-phase reservation, not a per-step one.
+            self.num_extra_kv_tokens = max(self.num_extra_kv_tokens, verify_steps)
         # A draft manager covers only the chain's layers, and addresses them by
         # the GLOBAL layer index its KV layer offsets already use. Sizing its
         # conv pool by the trunk's layer count would allocate 42 rows to hold 3

@@ -479,61 +479,21 @@ class InklingConvRuntime:
         )
 
 
-_PROBE_SEEN: dict = {}
+def _kv_capacity_report(mgr, request_id) -> str:
+    """What the manager thinks this request's KV cache holds.
 
-
-def _probe_kv_fields(attn_metadata, n):
-    """Every candidate for "how many KV entries does this request already have".
-
-    Two have been tried and both were wrong on the speculative path:
-    ``num_cached_tokens_per_seq`` is 0 (it is filled for the context path) and
-    ``ink_seq_lens`` is 1. Guessing a third from the source is how the second
-    one happened, so this prints them all from one real run.
+    The page list alone cannot say whether a short write is a capacity
+    shortfall or blocks that were never materialised: blocks follow capacity
+    (``div_up(capacity, tokens_per_block)``), so printing both settles it.
     """
-    out = []
-    for name in ("ink_seq_lens", "kv_lens_cuda", "seq_lens", "_seq_lens"):
-        v = getattr(attn_metadata, name, None)
-        try:
-            out.append(f"{name}={[int(x) for x in v[:n].tolist()]}")
-        except Exception:
-            out.append(f"{name}={v!r}"[:40])
-    kv = getattr(attn_metadata, "kv_cache_params", None)
-    for name in ("num_cached_tokens_per_seq",):
-        v = getattr(kv, name, None)
-        out.append(f"{name}={list(v)[:n] if v is not None else None}")
-    return " ".join(out)
-
-
-def _probe_kv(where, cache_layer, num_cached, steps, mgr, extra=""):
-    """Print the KV bookkeeping the verify path depends on, a few times.
-
-    ``_run_verify`` writes each drafted position at ``num_cached[i] + t``, which
-    is right only if ``num_cached`` is the count BEFORE this step. If the
-    framework has already advanced it, every position lands one slot late and
-    the TARGET's own cache is corrupted -- changing the target's output, not
-    just the drafts. Whether that happens is four numbers; reading the
-    framework's mutation order is a slower way to get them.
-    """
-    import os
-
-    if os.environ.get("INKLING_PROBE_KV") != "1" or cache_layer != 0:
-        return
-    n = _PROBE_SEEN.get(where, 0)
-    # The first handful of calls can be warmup/dummy batches, where a cached
-    # count of 0 is correct and proves nothing. Sample far enough in to be past
-    # them, and print the tail as well as the head.
-    # Skip the first calls outright: they are warmup/dummy batches where a
-    # cached count of 0 is correct, and sampling only those is how the previous
-    # two rounds reached a wrong conclusion.
-    skip = int(os.environ.get("INKLING_PROBE_SKIP", "20"))
-    limit = skip + 8
-    _PROBE_SEEN[where] = n + 1
-    if n < skip or n >= limit:
-        return
-    print(
-        f"[probe {where} #{n}] layer={cache_layer} steps={steps} "
-        f"num_cached={list(num_cached)[:2]} mgr={type(mgr).__name__} {extra}",
-        flush=True,
+    kv_cache = getattr(mgr, "kv_cache_map", {}).get(request_id)
+    if kv_cache is None:
+        return "no kv_cache entry"
+    return (
+        f"capacity={getattr(kv_cache, 'capacity', '?')} "
+        f"history={getattr(kv_cache, 'history_length', '?')} "
+        f"num_blocks={getattr(kv_cache, 'num_blocks', '?')} "
+        f"extra_kv_tokens={getattr(mgr, 'num_extra_kv_tokens', '?')}"
     )
 
 
@@ -1239,15 +1199,30 @@ class InklingAttention(QKNormRoPEAttention):
         # a NEGATIVE offset, which torch happily indexes from the end of the
         # page. That is worse than the thing it replaced.
         base = [int(x) for x in list(num_cached)[:num_gen]]
-        _probe_kv(
-            "verify-base",
-            cache_layer,
-            base,
-            steps,
-            mgr,
-            extra=_probe_kv_fields(attn_metadata, num_gen) + f" reqs={list(request_ids)[:2]}",
-        )
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
+        # A verify step writes positions ``base .. base + steps - 1``, so it
+        # needs the page holding the LAST of them. The manager grows a
+        # generation request's capacity by "1 + drafted tokens" per step, which
+        # covers exactly that -- but only while the drafted length it was asked
+        # for is the one this step presents. When the two disagree the write
+        # runs off the end of the block list and torch reports a bare "list
+        # index out of range" from inside the kernel helper, naming neither the
+        # request, the position, nor the size of the shortfall.
+        rids = list(request_ids)
+        for i in range(num_gen):
+            valid = sum(1 for b in block_ids[i] if int(b) >= 0)
+            need = (base[i] + steps - 1) // page_size + 1
+            if need > valid:
+                raise RuntimeError(
+                    "Inkling verify step has no KV page for the last drafted "
+                    f"position: request={rids[i]} layer={cache_layer} "
+                    f"base={base[i]} steps={steps} last_pos={base[i] + steps - 1} "
+                    f"page_size={page_size} needs {need} pages, "
+                    f"{type(mgr).__name__} has {valid} valid of "
+                    f"{len(block_ids[i])} ({_kv_capacity_report(mgr, rids[i])}). "
+                    "The request's KV capacity was grown for a different "
+                    "drafted length than this step presents."
+                )
         max_pages = max(len(b) for b in block_ids)
         page_table = build_page_table(block_ids, max_pages, q.device)
         # [num_gen, steps, ...]: the packed batch is request-major, so a request's
