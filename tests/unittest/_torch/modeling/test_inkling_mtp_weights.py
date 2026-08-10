@@ -113,3 +113,75 @@ def test_derivation_scales_with_depth_without_a_checkpoint():
     assert len(two) == 2 * len(one)
     for name in ("embed_norm.weight", "hidden_norm.weight", "input_proj.weight"):
         assert f"model.mtp.layers.0.{name}" in one
+
+
+# --- the chain is not quantized --------------------------------------------
+
+
+@pytest.mark.parametrize("ckpt", _CHECKPOINTS)
+def test_the_checkpoint_carries_no_nvfp4_scales_for_the_draft_chain(ckpt):
+    """The chain is BF16, and the checkpoint says so by omission.
+
+    Under ``model.mtp`` the only scale tensor is the dense MLP's
+    ``global_scale``, which BF16 dense layers carry too. No ``weight_scale``,
+    ``weight_scale_2`` or ``input_scale`` exists anywhere in the chain, so
+    building the draft blocks NVFP4 asks for tensors that were never written --
+    which surfaced first as a strict-load miss and then, once loading was fixed,
+    as "fp4_quantize only supports fp16/bf16/e4m3" from the quantize op: a dtype
+    complaint at the activation rather than "this was never quantized".
+    """
+    keys, _, _ = _load(ckpt)
+    scales = [
+        k
+        for k in keys
+        if k.startswith("model.mtp.")
+        and ("weight_scale" in k or "input_scale" in k or "amax" in k)
+    ]
+    assert scales == [], f"unexpected NVFP4 scales in the draft chain: {sorted(scales)[:3]}"
+
+
+@pytest.mark.parametrize("ckpt", _CHECKPOINTS)
+def test_the_exclude_list_cannot_carve_the_chain_out(ckpt):
+    """``exclude_modules`` names only ``model.llm.*`` entries.
+
+    So the chain sits outside the quantized subtree rather than being excluded
+    from it, and no exclusion-list matching would make a quantized draft block
+    behave. The block's config has to be built unquantized.
+    """
+    path = os.path.join(_HF_ROOT, ckpt, "hf_quant_config.json")
+    if not os.path.exists(path):
+        pytest.skip(f"{ckpt} has no hf_quant_config.json")
+    with open(path) as f:
+        excludes = json.load(f)["quantization"].get("exclude_modules", [])
+    assert excludes, "no exclude_modules to reason about"
+    assert not [e for e in excludes if e.startswith("model.mtp")]
+
+
+def test_the_draft_block_builds_its_config_unquantized():
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock, _unquantized_like
+
+    src = inspect.getsource(InklingMTPBlock.__init__)
+    assert "_unquantized_like" in src
+    assert _unquantized_like(None) is None
+
+
+def test_unquantized_config_actually_reports_no_quantization():
+    """Clearing ``quant_algo`` on a copy is not enough.
+
+    ``QuantConfig.quant_mode`` and ``layer_quant_mode`` are cached_property, so
+    a copy keeps whatever mode was already computed: the algo field reads None
+    while every Linear still builds quantized. The mode is what Linear consults,
+    so that is what this asserts.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import _unquantized_like
+    from tensorrt_llm.models.modeling_utils import QuantConfig
+
+    src = QuantConfig(quant_algo="NVFP4", kv_cache_quant_algo="FP8")
+    _ = src.quant_mode  # populate the cache, as the real config has by now
+    out = _unquantized_like(src)
+    assert out.quant_algo is None
+    assert not out.layer_quant_mode.has_nvfp4()
+    # The draft KV cache still follows the target's KV quantization.
+    assert out.kv_cache_quant_algo == src.kv_cache_quant_algo

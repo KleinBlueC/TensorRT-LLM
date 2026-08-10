@@ -506,6 +506,39 @@ def _apply_sconv(
     return parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
 
 
+def _unquantized_like(quant_config):
+    """The target's quant config with weight quantization switched off.
+
+    The MTP chain is NOT quantized in either shipped checkpoint. The evidence is
+    direct: under ``model.mtp`` the only scale tensor is the dense MLP's
+    ``global_scale`` (which BF16 dense layers carry too) -- there is no
+    ``weight_scale``, ``weight_scale_2`` or ``input_scale`` anywhere in the
+    chain. And ``hf_quant_config.json``'s ``exclude_modules`` names only
+    ``model.llm.*`` entries, so nothing in it can mark the chain as excluded:
+    the chain is outside the quantized subtree entirely rather than carved out
+    of it.
+
+    Building the draft blocks NVFP4 anyway produces two failures a long way from
+    the cause: a strict load reporting missing ``input_proj.weight_scale`` and
+    friends, and -- once loading is fixed -- ``fp4_quantize only supports
+    fp16/bf16/e4m3`` from the quantize op, which reads as a dtype problem at the
+    activation rather than as "this module should never have been quantized".
+
+    ``kv_cache_quant_algo`` is preserved: the draft KV cache follows the
+    target's KV quantization regardless of how the chain's weights are stored.
+    """
+    if quant_config is None:
+        return None
+    from tensorrt_llm.models.modeling_utils import QuantConfig
+
+    # A fresh instance, not a copy with quant_algo cleared: ``quant_mode`` and
+    # ``layer_quant_mode`` are cached_property, so a copy keeps the NVFP4 mode
+    # that was already computed and every Linear still builds quantized while
+    # the algo field reads None. Nothing about that is visible until the
+    # quantize op rejects the activation.
+    return QuantConfig(kv_cache_quant_algo=quant_config.kv_cache_quant_algo)
+
+
 def _module_excluded_from_quant(model_config: ModelConfig, name: str) -> bool:
     """True if ``name`` (or an ancestor) is bf16, not NVFP4.
 
@@ -1646,10 +1679,12 @@ class InklingMTPBlock(nn.Module):
             config.hidden_size,
             bias=False,
             dtype=config.torch_dtype,
-            quant_config=model_config.get_quant_config(),
+            # The chain is BF16; see _unquantized_like.
+            quant_config=None,
         )
         block_model_config = copy.copy(model_config)
         block_model_config.pretrained_config = config.mtp_block_config(depth, global_layer_idx)
+        block_model_config.quant_config = _unquantized_like(model_config.quant_config)
         self.transformer_block = InklingDecoderLayer(block_model_config, global_layer_idx)
         # MTPWorker calls shared_head(hidden, lm_head, attn_metadata) per depth.
         # ``chain_hidden_post_norm`` is False in both shipped checkpoints, which
