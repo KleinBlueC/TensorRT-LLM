@@ -231,8 +231,21 @@ class InklingConvStateCache:
         self._layers: List[InklingConvState] = []
         self._captures: List[Optional[InklingConvState]] = []
         for i in range(self._num_layers):
-            gi = i + layer_offset
-            kv_dim = (config.layer_num_kv_heads(gi) * config.layer_head_dim(gi)) // tp_size
+            if layer_offset:
+                # The draft chain's pool. Its rows are ADDRESSED by the global
+                # layer index, but their WIDTH comes from the chain's own
+                # geometry: asking the trunk's accessor at index 42 gets the
+                # trunk's answer for a layer the trunk does not have, and the
+                # chain's banded depths then get global widths (or the reverse).
+                # The two disagree by exactly the banded/global head ratio,
+                # which surfaces as a channel-width mismatch inside the verify
+                # capture -- and only on a checkpoint where the two differ.
+                kv_heads = config.mtp_depth_num_kv_heads(i)
+                head_dim = config.mtp_depth_head_dim(i)
+            else:
+                kv_heads = config.layer_num_kv_heads(i)
+                head_dim = config.layer_head_dim(i)
+            kv_dim = (kv_heads * head_dim) // tp_size
             hidden = config.hidden_size
             self._layers.append(
                 InklingConvState(k=buf(kv_dim), v=buf(kv_dim), attn=buf(hidden), mlp=buf(hidden))

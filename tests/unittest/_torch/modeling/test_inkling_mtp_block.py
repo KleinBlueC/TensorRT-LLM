@@ -210,3 +210,28 @@ def test_global_index_geometry_matches_the_chain_depth_geometry():
         assert by_global.layer_window(trunk + depth) == by_depth.layer_window(depth)
         assert by_global.layer_num_heads(trunk + depth) == by_depth.layer_num_heads(depth)
         assert by_global.layer_num_kv_heads(trunk + depth) == by_depth.layer_num_kv_heads(depth)
+
+
+def test_draft_conv_pool_widths_come_from_the_chain_not_the_trunk():
+    """Addressed globally, sized from the chain.
+
+    The draft pool's rows are indexed by the global layer number, but their
+    channel width is the chain's: the trunk's accessor at index 42 answers for
+    a layer the trunk does not have, so a banded depth would be given global
+    widths (or the reverse). The two differ by the banded/global head ratio,
+    which shows up as a channel-width mismatch inside the verify capture -- and
+    only on a checkpoint where those head counts differ, which is why the
+    short-prompt end-to-end run never caught it.
+    """
+    text = _text()
+    trunk = text.num_hidden_layers
+    for depth in range(8):
+        chain_heads = text.mtp_depth_num_kv_heads(depth)
+        trunk_answer = text.layer_num_kv_heads(trunk + depth)
+        # depth 0 is banded in the chain (16 heads here) and the trunk's
+        # accessor at 66 says global (8): exactly the mismatch.
+        if depth in (0, 2, 4, 5, 6, 7):
+            assert chain_heads == 16
+            assert trunk_answer == 8
+        else:
+            assert chain_heads == 8
