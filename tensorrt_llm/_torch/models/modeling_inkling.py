@@ -506,7 +506,14 @@ def _probe_kv(where, cache_layer, num_cached, steps, mgr, extra=""):
     if os.environ.get("INKLING_PROBE_KV") != "1" or cache_layer != 0:
         return
     n = _PROBE_SEEN.get(where, 0)
-    if n >= 6:
+    # The first handful of calls can be warmup/dummy batches, where a cached
+    # count of 0 is correct and proves nothing. Sample far enough in to be past
+    # them, and print the tail as well as the head.
+    limit = int(os.environ.get("INKLING_PROBE_N", "60"))
+    if n >= limit:
+        return
+    if n >= 8 and n % 10 != 0:
+        _PROBE_SEEN[where] = n + 1
         return
     _PROBE_SEEN[where] = n + 1
     print(
@@ -1250,7 +1257,7 @@ class InklingAttention(QKNormRoPEAttention):
             base,
             steps,
             mgr,
-            extra=_probe_kv_fields(attn_metadata, num_gen),
+            extra=_probe_kv_fields(attn_metadata, num_gen) + f" reqs={list(request_ids)[:2]}",
         )
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         max_pages = max(len(b) for b in block_ids)
