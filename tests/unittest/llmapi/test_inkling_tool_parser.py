@@ -217,3 +217,29 @@ def test_structure_info_round_trip():
     result = _parser().detect_and_parse(text, _tools("get_weather"))
     assert len(result.calls) == 1
     assert json.loads(result.calls[0].parameters) == {"city": "NYC"}
+
+
+def test_reasoning_parser_then_tool_parser_yields_a_call():
+    """The composition trtllm-serve actually runs, which no test covered.
+
+    `postprocess_handlers` applies the reasoning parser first and gives its
+    content to the tool parser. Every other test here feeds the framed form
+    directly, so they all passed while the served path returned
+    `content: {"name": ...}` with `tool_calls: []` -- measured against the BF16
+    release (job 6032875). The two parsers are only correct together.
+    """
+    from tensorrt_llm.llmapi.reasoning_parser import ReasoningParserFactory
+
+    raw = (
+        f"<|content_thinking|>The user wants the weather.<|end_message|>"
+        f'{MM}get_weather{IT}{{"name":"get_weather","args":{{"city":"Paris"}}}}{EM}'
+    )
+    reasoning = ReasoningParserFactory.create_reasoning_parser("inkling")
+    parsed = reasoning.parse(raw)
+    assert parsed.reasoning_content == "The user wants the weather."
+
+    parser = ToolParserFactory.create_tool_parser("inkling")
+    result = parser.detect_and_parse(parsed.content, _tools("get_weather"))
+    assert [c.name for c in result.calls] == ["get_weather"]
+    assert json.loads(result.calls[0].parameters) == {"city": "Paris"}
+    assert result.normal_text.strip() == ""

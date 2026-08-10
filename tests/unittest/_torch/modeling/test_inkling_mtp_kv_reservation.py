@@ -157,8 +157,12 @@ def test_the_media_towers_are_built_in_dtype_not_converted_into_it():
     that is ~950B parameters built the slow way before a weight is read -- 30
     minutes at 100% CPU with idle GPUs, twice mistaken for a hang.
 
-    The context manager is exercised against a meta module directly, because
-    the property that matters is exactly "no conversion happens".
+    The assertable property is the one the fix turns on: the parameters come
+    out in the target dtype with no conversion step at all. That `.to(dtype)`
+    is what meta init refuses is not asserted here -- eager torch allows it on
+    a meta tensor, and the refusal happens inside TRT-LLM's meta-init mode,
+    which needs a model to enter. The evidence for it is the fallback the
+    server logged.
     """
     import torch
 
@@ -168,11 +172,10 @@ def test_the_media_towers_are_built_in_dtype_not_converted_into_it():
         with _default_dtype(torch.bfloat16):
             built = torch.nn.Linear(8, 8)
         assert built.weight.dtype == torch.bfloat16
+        assert built.weight.is_meta  # never left the meta device
 
-        converted = torch.nn.Linear(8, 8)
-        assert converted.weight.dtype == torch.get_default_dtype()
-        with pytest.raises(NotImplementedError):
-            converted.to(torch.bfloat16)
+        default = torch.nn.Linear(8, 8)
+        assert default.weight.dtype == torch.get_default_dtype()
 
     # The default dtype is restored even though the body raised.
     before = torch.get_default_dtype()

@@ -723,6 +723,19 @@ class InklingReasoningParser(BaseReasoningParser):
     control token (or when no markers are present at all) is treated as visible
     content, so non-Inkling / already-stripped output passes through unchanged.
 
+    A tool-invocation block keeps its framing -- header token, function name and
+    content marker -- because in trtllm-serve the tool parser runs on THIS
+    parser's content (``postprocess_handlers`` applies reasoning first). Framing
+    is the tool protocol: dropping it left the detector matching bare JSON and
+    returning no calls at all, while the payload appeared as the assistant's
+    visible answer. Measured end to end on the BF16 release: a `get_weather`
+    request came back with ``content`` = ``{"name":"get_weather",...}`` and
+    ``tool_calls`` = ``[]``.
+
+    A client that declares tools and configures no tool parser therefore sees
+    the framed block rather than a bare payload. Neither is presentable, and the
+    framed one at least says what it is.
+
     ``needs_raw_special_tokens = True`` makes the OpenAI server disable
     ``skip_special_tokens`` for requests using this parser; otherwise the
     ``<|content_*|>`` delimiters are stripped from the decoded text before this
@@ -737,17 +750,23 @@ class InklingReasoningParser(BaseReasoningParser):
         super().__init__(chat_template_kwargs=chat_template_kwargs)
         self._kind: Optional[str] = None
         self._buffer = ""
+        # A header run is dropped unless the block it opens turns out to be a
+        # tool invocation, and that is only known at the NEXT control token --
+        # the function name sits between the two. So it is held, not emitted.
+        self._header = ""
 
     def _emit(self, segment: str, content: list[str],
               reasoning: list[str]) -> None:
         if not segment:
             return
         # content / tool / None(between blocks or no marker) -> visible content;
-        # reasoning -> reasoning; header -> framing (dropped).
+        # reasoning -> reasoning; header -> held (see _header).
         if self._kind in ("content", "tool", None):
             content.append(segment)
         elif self._kind == "reasoning":
             reasoning.append(segment)
+        elif self._kind == "header":
+            self._header += segment
 
     def _consume(self, text: str, content: list[str],
                  reasoning: list[str]) -> None:
@@ -758,20 +777,32 @@ class InklingReasoningParser(BaseReasoningParser):
             pos = m.end()
             if token == _INKLING_MESSAGE_MODEL:
                 self._kind = "header"
+                self._header = token
             elif token in _INKLING_TOOL_CONTENT_TOKENS:
+                # The block is a tool invocation: replay its framing verbatim so
+                # the tool parser downstream sees the protocol it matches on.
+                content.append(self._header + token)
+                self._header = ""
                 self._kind = "tool"
             elif token in _INKLING_CONTENT_KINDS:
+                self._header = ""
                 self._kind = _INKLING_CONTENT_KINDS[token]
             else:
                 # End tokens, message headers, and non-text content markers are
-                # framing. They close the previous block and drop any text until a
-                # visible content or tool-content marker opens a new block.
+                # framing. They close the previous block and hold any text until
+                # a visible content or tool-content marker opens a new block --
+                # except an end token closing a tool block, which belongs to the
+                # tool protocol and goes through with it.
+                if self._kind == "tool":
+                    content.append(token)
+                self._header = ""
                 self._kind = "header"
         self._emit(text[pos:], content, reasoning)
 
     def parse(self, text: str) -> ReasoningParserResult:
         self._kind = None
         self._buffer = ""
+        self._header = ""
         content: list[str] = []
         reasoning: list[str] = []
         self._consume(text, content, reasoning)
@@ -813,13 +844,16 @@ class InklingReasoningParser(BaseReasoningParser):
         self._buffer = ""
         if not remaining:
             self._kind = None
+            self._header = ""
             return ReasoningParserResult()
         content: list[str] = []
         reasoning: list[str] = []
         self._consume(remaining, content, reasoning)
-        # Reset the block kind too, so reusing this instance for a second stream
-        # does not route its first segment by the previous stream's channel.
+        # Reset the block kind and any held header too, so reusing this
+        # instance for a second stream does not route its first segment by the
+        # previous stream's channel.
         self._kind = None
+        self._header = ""
         return ReasoningParserResult(content="".join(content),
                                      reasoning_content="".join(reasoning))
 
