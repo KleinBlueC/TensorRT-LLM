@@ -79,6 +79,7 @@ from tensorrt_llm._torch.modules.linear import (
 from tensorrt_llm._torch.modules.mamba.causal_conv1d import causal_conv1d_fn, causal_conv1d_update
 from tensorrt_llm._torch.modules.qk_norm_attention import QKNormRoPEAttention
 from tensorrt_llm._torch.modules.rms_norm import RMSNorm
+from tensorrt_llm._torch.peft.lora.layer import LoraLayer, LoraModuleType
 
 # Protocol only, to avoid an import cycle back through pyexecutor.
 from tensorrt_llm._utils import prefer_pinned
@@ -881,7 +882,9 @@ class InklingAttention(QKNormRoPEAttention):
         )
         self.local_num_heads = num_heads // tp_size
 
-    def _project(self, hidden_states, conv_pool_kv=None, conv_rt=None, conv_capture_kv=None):
+    def _project(
+        self, hidden_states, conv_pool_kv=None, conv_rt=None, conv_capture_kv=None, lora_params=None
+    ):
         """Fused qkv projection -> split -> k/v short-conv -> per-head qk RMSNorm.
 
         Returns ``(q, k, v)`` shaped ``[T, local_heads, head_dim]`` /
@@ -894,6 +897,18 @@ class InklingAttention(QKNormRoPEAttention):
         D = self.head_dim
         num_tokens = hidden_states.shape[0]
         qkv = self.qkv_proj(hidden_states)
+        # The base Attention builds splitted_qkv_lora / fused_qkv_lora but
+        # applies them in its own forward, which this class overrides. Without
+        # this the adapter loads, allocates and is never called: a LoRA that
+        # quietly does nothing, which looks exactly like a LoRA that does not
+        # help. Applied to the fused qkv before split_qkv and before the k/v
+        # short-convs, matching where the base adds it and what the adapter was
+        # trained against.
+        if bool(lora_params):
+            for lora in (self.splitted_qkv_lora, self.fused_qkv_lora):
+                delta = lora(hidden_states, lora_params, self.layer_idx)
+                if delta is not None:
+                    qkv = qkv + delta
         q, k, v = self.split_qkv(qkv, None, None)
         # k/v short convolution before the q/k norm (source order).
         if conv_pool_kv is not None:
@@ -1261,6 +1276,7 @@ class InklingAttention(QKNormRoPEAttention):
         conv_pool_kv=None,
         conv_capture_kv=None,
         conv_rt=None,
+        lora_params=None,
         **kwargs,
     ):
         """Inkling attention through the Triton score_mod path.
@@ -1274,13 +1290,15 @@ class InklingAttention(QKNormRoPEAttention):
         # The pre-attention RMSNorm can emit fp32 while the attention/r
         # projections are bf16, so cast once here.
         hidden_states = hidden_states.to(self.qkv_proj.weight.dtype)
-        q, k, v = self._project(hidden_states, conv_pool_kv, conv_rt, conv_capture_kv)
+        q, k, v = self._project(hidden_states, conv_pool_kv, conv_rt, conv_capture_kv, lora_params)
         rel_logits = self._build_rel_logits(hidden_states, position_ids)
         attn_out = self._attention(
             q, k, v, rel_logits, attn_metadata, allow_mixed=conv_rt is not None
         )
         attn_out = attn_out.reshape(num_tokens, self.q_size)
-        return self.o_proj(attn_out)
+        # o_lora is passed to o_proj as ``lora=`` by the base, so the Linear
+        # applies it itself -- but only when lora_params reach it.
+        return self.o_proj(attn_out, lora_params=lora_params)
 
 
 # ----------------------------------------------------------------------------
@@ -1303,6 +1321,16 @@ class InklingDenseMLP(nn.Module):
         # Mirrors DeepSeek-V3's ``_compute_mlp_tp_size``.
         dp = model_config.mapping.enable_attention_dp
         mlp_mapping = None if dp else model_config.mapping
+        # Built only when an adapter is configured: LoraLayer is cheap but the
+        # dense MLP is instantiated per layer, and an unused module in every
+        # state_dict is a small ongoing lie about what the model supports.
+        # The fused gate_up takes MLP_GATE_UP over the full 2*inter width, as
+        # modules/gated_mlp.py does for the same fusion.
+        self.gate_up_lora = None
+        self.down_lora = None
+        if model_config.lora_config is not None:
+            self.gate_up_lora = LoraLayer([LoraModuleType.MLP_GATE_UP], [2 * inter])
+            self.down_lora = LoraLayer([LoraModuleType.MLP_4H_TO_H], [config.hidden_size])
         self.gate_up_proj = Linear(
             config.hidden_size,
             2 * inter,
@@ -1313,6 +1341,7 @@ class InklingDenseMLP(nn.Module):
             weights_loading_config=WeightsLoadingConfig(
                 weight_mode=WeightMode.FUSED_GATE_UP_LINEAR
             ),
+            lora=self.gate_up_lora,
         )
         self.down_proj = Linear(
             inter,
@@ -1321,15 +1350,16 @@ class InklingDenseMLP(nn.Module):
             dtype=config.torch_dtype,
             mapping=mlp_mapping,
             tensor_parallel_mode=None if dp else TensorParallelMode.ROW,
+            lora=self.down_lora,
         )
         self.global_scale = nn.Parameter(torch.ones(1))
         self.act_fn = torch.nn.functional.silu
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        gate, up = self.gate_up_proj(x).chunk(2, dim=-1)
+    def forward(self, x: torch.Tensor, lora_params=None) -> torch.Tensor:
+        gate, up = self.gate_up_proj(x, lora_params=lora_params).chunk(2, dim=-1)
         # ``global_scale`` is fp32 and promotes the output; cast back so the
         # residual stream stays in the input dtype.
-        out = self.down_proj(self.act_fn(gate) * up) * self.global_scale
+        out = self.down_proj(self.act_fn(gate) * up, lora_params=lora_params) * self.global_scale
         return out.to(x.dtype)
 
 
@@ -1516,12 +1546,18 @@ class InklingDecoderLayer(nn.Module):
         self,
         hidden_states: torch.Tensor,
         all_rank_num_tokens: Optional[List[int]],
+        lora_params=None,
     ) -> torch.Tensor:
         """Dense layers 0/1 take only the activations; MoE layers also take the
-        per-rank token counts the fused kernel needs to gather across ranks."""
+        per-rank token counts the fused kernel needs to gather across ranks.
+
+        ``lora_params`` reaches the dense MLP only. Routed-expert LoRA is
+        rejected at load (see ``_assert_inkling_lora_supported``) rather than
+        dropped here, because a silently ignored expert adapter is
+        indistinguishable from one that does not help."""
         if isinstance(self.mlp, InklingMoE):
             return self.mlp(hidden_states, all_rank_num_tokens=all_rank_num_tokens)
-        return self.mlp(hidden_states)
+        return self.mlp(hidden_states, lora_params=lora_params)
 
     def forward(
         self,
@@ -1533,6 +1569,7 @@ class InklingDecoderLayer(nn.Module):
         conv_capture: Optional[InklingConvState] = None,
         conv_rt: Optional[InklingConvRuntime] = None,
         all_rank_num_tokens: Optional[List[int]] = None,
+        lora_params=None,
         **kwargs,
     ) -> torch.Tensor:
         """Pre-norm attention + MLP, each followed by a short-conv (internal
@@ -1548,13 +1585,15 @@ class InklingDecoderLayer(nn.Module):
         if conv_rt is None:
             residual = hidden_states
             hidden_states = self.attn_norm(hidden_states)
-            hidden_states = self.attn(position_ids, hidden_states, attn_metadata)
+            hidden_states = self.attn(
+                position_ids, hidden_states, attn_metadata, lora_params=lora_params
+            )
             hidden_states = self.attn_sconv(hidden_states)  # internal residual
             hidden_states = residual + hidden_states
 
             residual = hidden_states
             hidden_states = self.mlp_norm(hidden_states)
-            hidden_states = self._run_mlp(hidden_states, all_rank_num_tokens)
+            hidden_states = self._run_mlp(hidden_states, all_rank_num_tokens, lora_params)
             hidden_states = self.mlp_sconv(hidden_states)  # internal residual
             return residual + hidden_states
 
@@ -1571,12 +1610,13 @@ class InklingDecoderLayer(nn.Module):
             conv_pool_kv=(conv_state.k, conv_state.v),
             conv_capture_kv=(caps.k, caps.v),
             conv_rt=conv_rt,
+            lora_params=lora_params,
             **kwargs,
         )
         h = residual + _apply_sconv(self.attn_sconv, h, conv_state.attn, conv_rt, caps.attn)
 
         residual = h
-        hm = self._run_mlp(self.mlp_norm(h), all_rank_num_tokens)
+        hm = self._run_mlp(self.mlp_norm(h), all_rank_num_tokens, lora_params)
         return residual + _apply_sconv(self.mlp_sconv, hm, conv_state.mlp, conv_rt, caps.mlp)
 
 
@@ -1781,6 +1821,9 @@ class InklingModel(DecoderModel):
         here. Text-only callers pass raw ``inputs_embeds`` and keep the norm."""
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
+        # Passed through kwargs by the runtime; None for every non-LoRA request,
+        # and the modules below no-op on a falsy value.
+        lora_params = kwargs.get("lora_params")
         conv_cache = getattr(attn_metadata, "ink_conv_cache", None)
         conv_rt = getattr(attn_metadata, "ink_conv_rt", None)
         # Per-rank token counts for this step, set on attn_metadata only under
@@ -1798,6 +1841,7 @@ class InklingModel(DecoderModel):
                 conv_capture=layer_capture,
                 conv_rt=conv_rt,
                 all_rank_num_tokens=all_rank_num_tokens,
+                lora_params=lora_params,
             )
         return self.norm(hidden_states)
 
@@ -1837,6 +1881,7 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
         self._assert_inkling_attn_backend(model_config)
         self._assert_inkling_moe_parallel(model_config)
         self._assert_inkling_spec_conv_state(model_config)
+        self._assert_inkling_lora_supported(model_config)
         self._apply_allreduce_strategy()
 
     @staticmethod
@@ -1867,6 +1912,47 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 f"Speculative decoding needs max_draft_len >= 1 (got {draft_len}); "
                 "the Inkling short-conv capture buffers are sized from it, and a "
                 "verify step with nothing captured cannot be rolled back."
+            )
+
+    @staticmethod
+    def _assert_inkling_lora_supported(model_config) -> None:
+        """Reject a LoRA target Inkling cannot serve, instead of ignoring it.
+
+        Two limits, and both are worth failing on rather than silently dropping.
+
+        Routed experts: ``check_moe_lora_supported`` allows expert LoRA only on
+        CUTLASS with bf16/fp16 or per-tensor-FP8 base weights, and the routed
+        experts are the ONLY NVFP4-quantized part of an Inkling checkpoint
+        (everything else is in ``exclude_modules``). So an expert adapter cannot
+        run on the shipped weights at all.
+
+        ``r_proj``: the relative-bias projection is Inkling-specific and has no
+        ``LoraModuleType``, so there is nothing an adapter could target it with.
+
+        In both cases the failure mode without a check is the same and is the
+        bad one: the adapter loads, consumes memory, and contributes nothing,
+        which is indistinguishable from an adapter that simply does not help.
+        """
+        lora_config = getattr(model_config, "lora_config", None)
+        if lora_config is None:
+            return
+        targets = set(getattr(lora_config, "lora_target_modules", None) or [])
+        # Both spellings: the canonical LoraModuleType names are "moe_h_to_4h"
+        # etc., while adapter configs in the wild often say "experts".
+        unsupported = sorted(
+            t
+            for t in targets
+            if "expert" in t.lower()
+            or t.lower().startswith("moe")
+            or t.lower() in {"r_proj", "attn_r"}
+        )
+        if unsupported:
+            raise ValueError(
+                f"Inkling cannot serve LoRA for {unsupported}. Routed-expert LoRA "
+                "needs unquantized or per-tensor-FP8 base weights and Inkling's "
+                "routed experts are NVFP4; the relative-bias r_proj has no LoRA "
+                "module type. Supported targets: attention q/k/v/dense and the "
+                "dense-MLP gate_up/down projections."
             )
 
     @staticmethod

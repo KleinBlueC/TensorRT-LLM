@@ -134,8 +134,7 @@ def test_the_checkpoint_carries_no_nvfp4_scales_for_the_draft_chain(ckpt):
     scales = [
         k
         for k in keys
-        if k.startswith("model.mtp.")
-        and ("weight_scale" in k or "input_scale" in k or "amax" in k)
+        if k.startswith("model.mtp.") and ("weight_scale" in k or "input_scale" in k or "amax" in k)
     ]
     assert scales == [], f"unexpected NVFP4 scales in the draft chain: {sorted(scales)[:3]}"
 
