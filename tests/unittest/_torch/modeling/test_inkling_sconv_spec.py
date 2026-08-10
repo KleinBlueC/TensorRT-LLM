@@ -520,3 +520,22 @@ def test_the_single_token_case_agrees_with_the_decode_path():
     """
     sl, steps = 37, 1
     assert sl - steps + 0 == sl - 1
+
+
+def test_a_negative_write_base_is_refused():
+    """Measured: every KV-length field is unpopulated on the speculative path.
+
+    ``num_cached_tokens_per_seq`` is 0, ``ink_seq_lens`` is derived from it
+    (``num_cached + 1``) so it is 1, and ``kv_lens_cuda``/``seq_lens`` are this
+    step's token count. None grows step to step. A base computed from any of
+    them lands at 0 or, with ink_seq_lens, at NEGATIVE -- and a negative offset
+    silently rewrites the start of the request's own history, which is exactly
+    the shape of "diverges from greedy at every draft length".
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    src = inspect.getsource(InklingAttention._run_verify)
+    assert "negative KV write base" in src
+    assert "if any(b < 0 for b in base)" in src

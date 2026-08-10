@@ -469,7 +469,29 @@ class InklingConvRuntime:
 _PROBE_SEEN: dict = {}
 
 
-def _probe_kv(where, cache_layer, num_cached, steps, mgr):
+def _probe_kv_fields(attn_metadata, n):
+    """Every candidate for "how many KV entries does this request already have".
+
+    Two have been tried and both were wrong on the speculative path:
+    ``num_cached_tokens_per_seq`` is 0 (it is filled for the context path) and
+    ``ink_seq_lens`` is 1. Guessing a third from the source is how the second
+    one happened, so this prints them all from one real run.
+    """
+    out = []
+    for name in ("ink_seq_lens", "kv_lens_cuda", "seq_lens", "_seq_lens"):
+        v = getattr(attn_metadata, name, None)
+        try:
+            out.append(f"{name}={[int(x) for x in v[:n].tolist()]}")
+        except Exception:
+            out.append(f"{name}={v!r}"[:40])
+    kv = getattr(attn_metadata, "kv_cache_params", None)
+    for name in ("num_cached_tokens_per_seq",):
+        v = getattr(kv, name, None)
+        out.append(f"{name}={list(v)[:n] if v is not None else None}")
+    return " ".join(out)
+
+
+def _probe_kv(where, cache_layer, num_cached, steps, mgr, extra=""):
     """Print the KV bookkeeping the verify path depends on, a few times.
 
     ``_run_verify`` writes each drafted position at ``num_cached[i] + t``, which
@@ -489,7 +511,7 @@ def _probe_kv(where, cache_layer, num_cached, steps, mgr):
     _PROBE_SEEN[where] = n + 1
     print(
         f"[probe {where} #{n}] layer={cache_layer} steps={steps} "
-        f"num_cached={list(num_cached)[:2]} mgr={type(mgr).__name__}",
+        f"num_cached={list(num_cached)[:2]} mgr={type(mgr).__name__} {extra}",
         flush=True,
     )
 
@@ -1200,6 +1222,36 @@ class InklingAttention(QKNormRoPEAttention):
             base = [int(x) - steps for x in sl[:num_gen].tolist()]
         else:
             base = [int(x) for x in list(num_cached)[:num_gen]]
+        # Measured on a real run: under speculative decoding every candidate for
+        # "how many KV entries does this request already have" is unpopulated.
+        # ``num_cached_tokens_per_seq`` is 0, and ``ink_seq_lens`` is derived
+        # from it (``num_cached + 1``), so it is 1; ``kv_lens_cuda`` and
+        # ``seq_lens`` are both this step's token count. None of them grows from
+        # step to step. Writing at a base derived from any of them puts the
+        # tokens in the wrong place -- at slot 0 with num_cached, or at a
+        # NEGATIVE offset with ink_seq_lens.
+        #
+        # Refusing is the only defensible option until the metadata is prepared
+        # for this path: a negative or zero base silently rewrites the start of
+        # the request's own history, which is why speculative decoding diverged
+        # from greedy at every draft length.
+        if any(b < 0 for b in base):
+            raise RuntimeError(
+                f"Inkling verify step computed a negative KV write base {base} "
+                f"(steps={steps}). The speculative path leaves "
+                "kv_cache_params.num_cached_tokens_per_seq at 0, so every length "
+                "InklingAttentionMetadata derives from it is wrong. The metadata "
+                "has to be prepared for speculative batches before a verify step "
+                "can place its tokens."
+            )
+        _probe_kv(
+            "verify-base",
+            cache_layer,
+            base,
+            steps,
+            mgr,
+            extra=_probe_kv_fields(attn_metadata, num_gen),
+        )
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         max_pages = max(len(b) for b in block_ids)
         page_table = build_page_table(block_ids, max_pages, q.device)
