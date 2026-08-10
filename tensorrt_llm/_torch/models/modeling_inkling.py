@@ -131,12 +131,24 @@ class _ConvVerifyCapture:
         self.init = torch.zeros(max_batch, channels, kwin, device=device, dtype=dtype)
         # The verify step's pre-conv inputs, in token order per request.
         self.x = torch.zeros(max_batch, steps, channels, device=device, dtype=dtype)
+        self.max_steps = steps
+        # How many of those step slots the last save actually filled. The buffer
+        # is sized for the TARGET's verify step (1 + max_draft_len), but the
+        # draft chain's own generation steps are shorter, and both go through
+        # here now that the chain has its own conv state.
+        self.steps_used = steps
 
     def save(self, pool_buf, rows, x_gen, steps):
         """Record this verify step, before the conv mutates ``pool_buf``."""
         n = rows.shape[0]
+        if steps > self.max_steps:
+            raise ValueError(
+                f"conv capture holds {self.max_steps} steps but {steps} were "
+                "presented; it is sized from max_draft_len."
+            )
         self.init[:n].copy_(pool_buf.index_select(0, rows))
-        self.x[:n].copy_(x_gen.view(n, steps, -1))
+        self.x[:n, :steps].copy_(x_gen.view(n, steps, -1))
+        self.steps_used = steps
 
     def accepted_window(self, num_accepted, kwin):
         """The window each request should be left holding, given acceptances.
@@ -146,8 +158,13 @@ class _ConvVerifyCapture:
         rolled back to before the step.
         """
         n = num_accepted.shape[0]
+        # Only the slots the last save filled: a shorter step than the buffer
+        # holds would otherwise concatenate stale inputs after the real ones and
+        # commit a window built from a previous batch.
+        steps = self.steps_used
+        num_accepted = num_accepted.clamp(max=steps)
         # [n, C, kwin + steps]: the window followed by the inputs it consumed.
-        stream = torch.cat([self.init[:n], self.x[:n].transpose(1, 2)], dim=-1)
+        stream = torch.cat([self.init[:n], self.x[:n, :steps].transpose(1, 2)], dim=-1)
         offs = num_accepted.view(n, 1, 1) + torch.arange(
             kwin, device=stream.device, dtype=num_accepted.dtype
         ).view(1, 1, kwin)
@@ -177,6 +194,8 @@ class InklingConvStateCache:
         device: torch.device,
         dtype: torch.dtype = torch.bfloat16,
         verify_steps: int = 1,
+        num_layers: int | None = None,
+        layer_offset: int = 0,
     ):
         # Takes the pretrained config + tp_size rather than a ``ModelConfig`` so
         # the KV cache manager can build the pool from what it already has.
@@ -203,10 +222,17 @@ class InklingConvStateCache:
                 max_batch_size, channels, kwin, self.verify_steps, device, dtype
             )
 
+        # The draft chain's manager owns a pool for the chain's layers only, so
+        # it is sized by ``num_layers`` and addressed by GLOBAL layer index --
+        # the same index the draft KV cache is keyed by. Without the offset a
+        # draft block at index 42 would index past a 3-row pool.
+        self._layer_offset = layer_offset
+        self._num_layers = num_layers if num_layers is not None else config.num_hidden_layers
         self._layers: List[InklingConvState] = []
         self._captures: List[Optional[InklingConvState]] = []
-        for i in range(config.num_hidden_layers):
-            kv_dim = (config.layer_num_kv_heads(i) * config.layer_head_dim(i)) // tp_size
+        for i in range(self._num_layers):
+            gi = i + layer_offset
+            kv_dim = (config.layer_num_kv_heads(gi) * config.layer_head_dim(gi)) // tp_size
             hidden = config.hidden_size
             self._layers.append(
                 InklingConvState(k=buf(kv_dim), v=buf(kv_dim), attn=buf(hidden), mlp=buf(hidden))
@@ -228,11 +254,11 @@ class InklingConvStateCache:
 
     def layer_state(self, layer_idx: int) -> InklingConvState:
         """The four short-conv state buffers for ``layer_idx`` (pool views)."""
-        return self._layers[layer_idx]
+        return self._layers[layer_idx - self._layer_offset]
 
     def layer_capture(self, layer_idx: int) -> InklingConvState:
         """The four verify-step captures for ``layer_idx``; entries None if off."""
-        return self._captures[layer_idx]
+        return self._captures[layer_idx - self._layer_offset]
 
     def commit_after_verify(self, num_accepted: torch.Tensor, gen_rows: torch.Tensor) -> None:
         """Roll every conv window back to each request's last accepted token.
@@ -1764,10 +1790,31 @@ class InklingMTPBlock(nn.Module):
         # which is not guaranteed either. The norm's own weight is a real
         # parameter of the model, built at the compute dtype.
         combined = combined.to(self.embed_norm.weight.dtype)
+        # The chain's own short-conv state. Without it the block takes the
+        # decoder layer's stateless branch, which is wrong twice over: a
+        # stateless conv runs across the context/generation boundary of a packed
+        # batch (the trunk raises NotImplementedError for exactly that), and the
+        # chain would carry no conv history between steps at all. Neither fails.
+        #
+        # It comes from the manager in play rather than from
+        # ``attn_metadata.ink_conv_cache``: that field was published once, during
+        # prepare(), from the TARGET manager, while the draft forward runs
+        # inside the draft KV cache context with the manager swapped underneath.
+        conv_state = conv_capture = conv_rt = None
+        mgr = getattr(attn_metadata, "kv_cache_manager", None)
+        prepare = getattr(mgr, "prepare_conv_runtime", None)
+        if prepare is not None:
+            cache, conv_rt = prepare(attn_metadata)
+            layer_idx = self.transformer_block.layer_idx
+            conv_state = cache.layer_state(layer_idx)
+            conv_capture = cache.layer_capture(layer_idx)
         return self.transformer_block(
             position_ids=position_ids,
             hidden_states=self.input_proj(combined),
             attn_metadata=attn_metadata,
+            conv_state=conv_state,
+            conv_capture=conv_capture,
+            conv_rt=conv_rt,
             **kwargs,
         )
 

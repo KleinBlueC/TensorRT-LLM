@@ -77,6 +77,17 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         verify_steps = 1
         if spec_config is not None:
             verify_steps = int(getattr(spec_config, "max_draft_len", 0) or 0) + 1
+        # A draft manager covers only the chain's layers, and addresses them by
+        # the GLOBAL layer index its KV layer offsets already use. Sizing its
+        # conv pool by the trunk's layer count would allocate 42 rows to hold 3
+        # and then index past them.
+        is_draft = bool(kwargs.get("is_draft"))
+        num_conv_layers = None
+        layer_offset = 0
+        if is_draft:
+            num_conv_layers = int(kwargs.get("num_layers") or 0) or None
+            text_layers = int(getattr(text_config, "num_hidden_layers", 0))
+            layer_offset = text_layers
         self._conv_cache = InklingConvStateCache(
             pretrained_config,
             attn_tp_size,
@@ -84,6 +95,8 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             torch.device("cuda", torch.cuda.current_device()),
             conv_dtype,
             verify_steps=verify_steps,
+            num_layers=num_conv_layers,
+            layer_offset=layer_offset,
         )
         self._last_conv_rt = None
 

@@ -1406,7 +1406,8 @@ class ModelConfig(Generic[TConfig]):
         # ``architectures`` is None on a nested text sub-config (the top-level
         # multimodal config carries it), and this method is reached only from
         # the LoRA path -- so a model that never ran LoRA never hit it.
-        architectures = getattr(self.pretrained_config, "architectures", None) or []
+        architectures = getattr(self.pretrained_config, "architectures",
+                                None) or []
         if architectures and architectures[0] in ["Gemma3ForCausalLM"]:
             logger.debug(
                 f"Setting layer types for {self.pretrained_config.architectures}"

@@ -349,3 +349,87 @@ def test_capture_under_cuda_graph_is_refused_with_a_reason():
 
     src = inspect.getsource(InklingAttention._run_verify)
     assert "is_cuda_graph" in src and "RuntimeError" in src
+
+
+# --- the draft chain's own conv state --------------------------------------
+# The chain's blocks are addressed by GLOBAL layer index (trunk + depth), the
+# same index their KV cache is keyed by, but the draft manager's conv pool holds
+# only the chain's layers. Both facts have to be true at once.
+
+
+def test_the_draft_pool_is_addressed_by_global_index():
+    """A 3-row pool indexed at 42 without the offset is an IndexError.
+
+    Sized by the trunk's layer count instead, it would allocate 42 rows to hold
+    3 -- no error, just a pool that is mostly waste and whose banded pattern
+    comes from the wrong layers.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingConvStateCache
+
+    src = inspect.getsource(InklingConvStateCache.__init__)
+    assert "layer_offset" in src and "num_layers" in src
+    state = inspect.getsource(InklingConvStateCache.layer_state)
+    assert "layer_idx - self._layer_offset" in state
+
+
+def test_the_draft_block_does_not_take_the_stateless_branch():
+    """Passing no conv_rt drops the block onto the stateless short-conv path.
+
+    That path convolves across the context/generation boundary of a packed
+    batch -- the trunk raises NotImplementedError for exactly that case -- and
+    the chain would keep no conv history between steps. Neither shows up as an
+    error.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock
+
+    src = inspect.getsource(InklingMTPBlock.forward)
+    assert "conv_rt=conv_rt" in src and "conv_state=conv_state" in src
+
+
+def test_the_draft_conv_state_comes_from_the_manager_in_play():
+    """``attn_metadata.ink_conv_cache`` is the TARGET's, published at prepare().
+
+    The draft forward runs inside the draft KV cache context with the manager
+    swapped underneath, so reading the published field would hand the chain the
+    trunk's pool rows: a real pool, real rows, wrong history.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock
+
+    src = inspect.getsource(InklingMTPBlock.forward)
+    assert "prepare_conv_runtime" in src
+    # Positive form only: the comment explaining why the published field is the
+    # wrong source names it, and a "not in" assertion keeps tripping over that.
+    assert 'getattr(attn_metadata, "kv_cache_manager", None)' in src
+
+
+def test_a_shorter_step_than_the_buffer_holds_is_recorded_as_such():
+    """The buffer is sized for the target's verify step; the chain's is shorter.
+
+    Reconstructing from the full buffer would concatenate stale inputs after the
+    real ones and commit a window built partly from a previous batch -- a valid
+    window, wrong history, no error.
+    """
+    n, channels, kwin, steps = 2, 3, 2, 4
+    init = torch.zeros(n, channels, kwin)
+    x = torch.arange(n * steps * channels, dtype=torch.float32).reshape(n, steps, channels)
+    cap = _capture(n, channels, kwin, steps, init, x)
+    cap.steps_used = 2  # as a 2-step save would leave it
+
+    got = cap.accepted_window(torch.full((n,), 2, dtype=torch.int64), kwin)
+    want = torch.cat([init, x[:, :2].transpose(1, 2)], dim=-1)[..., 2 : 2 + kwin]
+    assert torch.allclose(got, want)
+
+
+def test_more_steps_than_the_buffer_holds_is_an_error_not_a_truncation():
+    """Sized from max_draft_len, so overflow means the sizing assumption broke."""
+    from tensorrt_llm._torch.models.modeling_inkling import _ConvVerifyCapture
+
+    cap = _ConvVerifyCapture(2, 3, 2, 2, torch.device("cpu"), torch.float32)
+    with pytest.raises(ValueError, match="max_draft_len"):
+        cap.save(torch.zeros(2, 3, 2), torch.zeros(2, dtype=torch.int64), torch.zeros(8, 3), 4)
