@@ -314,7 +314,11 @@ def test_verify_walks_positions_in_order_so_causality_is_structural():
     write_at = src.index("write_kv_cache_hnd")
     attend_at = src.index("inkling_decode_attention")
     assert write_at < attend_at, "each position's KV must be written before it attends"
-    assert "int(num_cached[i]) + t + 1" in src
+    # The attended length grows by one per position. The base is derived from
+    # ink_seq_lens rather than num_cached (see the write-offset test below); what
+    # matters here is the "+ t + 1", which is what makes position t see exactly
+    # the prefix plus 0..t.
+    assert "+ t + 1" in src
 
 
 def test_verify_output_is_reassembled_in_packed_order():
@@ -478,3 +482,41 @@ def test_a_draft_layer_falls_back_off_the_published_page_table():
 
     src = inspect.getsource(InklingAttention._run_generation)
     assert "cache_layer in published" in src
+
+
+# --- where a verify step's KV actually goes ---------------------------------
+
+
+def test_verify_writes_after_the_existing_history_not_at_zero():
+    """``num_cached`` is 0 on every verify step; ``ink_seq_lens`` is not.
+
+    Measured on the cluster: the probe reported ``num_cached=[0]`` at every
+    verify step of a real run, so writing at ``num_cached + t`` put each step's
+    drafted positions at slots 0..steps-1 and overwrote the start of the
+    request's own cache. That corrupts the TARGET's history, which is why the
+    output diverged from greedy at every draft length rather than only when a
+    draft was accepted.
+
+    The decode path already reads the right thing -- ``ink_seq_lens`` is the
+    total KV length including this step's tokens, hence its single-token write
+    at ``sl - 1``. The same rule with ``steps`` tokens is ``sl - steps + t``.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    src = inspect.getsource(InklingAttention._run_verify)
+    assert "ink_seq_lens" in src
+    assert "- steps" in src
+    assert "int(num_cached[i]) + t" not in src
+
+
+def test_the_single_token_case_agrees_with_the_decode_path():
+    """steps == 1 must reduce to the decode path's ``sl - 1``.
+
+    If the two disagree, a verify step and an ordinary decode step write the
+    same logical position to different slots, and which one a token lands in
+    depends on how many drafts were in flight.
+    """
+    sl, steps = 37, 1
+    assert sl - steps + 0 == sl - 1

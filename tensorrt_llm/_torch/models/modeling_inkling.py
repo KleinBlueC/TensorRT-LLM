@@ -466,6 +466,34 @@ class InklingConvRuntime:
         )
 
 
+_PROBE_SEEN: dict = {}
+
+
+def _probe_kv(where, cache_layer, num_cached, steps, mgr):
+    """Print the KV bookkeeping the verify path depends on, a few times.
+
+    ``_run_verify`` writes each drafted position at ``num_cached[i] + t``, which
+    is right only if ``num_cached`` is the count BEFORE this step. If the
+    framework has already advanced it, every position lands one slot late and
+    the TARGET's own cache is corrupted -- changing the target's output, not
+    just the drafts. Whether that happens is four numbers; reading the
+    framework's mutation order is a slower way to get them.
+    """
+    import os
+
+    if os.environ.get("INKLING_PROBE_KV") != "1" or cache_layer != 0:
+        return
+    n = _PROBE_SEEN.get(where, 0)
+    if n >= 6:
+        return
+    _PROBE_SEEN[where] = n + 1
+    print(
+        f"[probe {where} #{n}] layer={cache_layer} steps={steps} "
+        f"num_cached={list(num_cached)[:2]} mgr={type(mgr).__name__}",
+        flush=True,
+    )
+
+
 def _batch_cache_indices(mgr, request_ids, cache_layer):
     """``mgr.get_batch_cache_indices`` with the layer-not-in-this-manager case named.
 
@@ -1156,6 +1184,22 @@ class InklingAttention(QKNormRoPEAttention):
                 "Inkling, or wait for the fused verify kernel."
             )
         num_gen = len(request_ids)
+        _probe_kv("verify", cache_layer, num_cached, steps, mgr)
+        # Where this step's tokens go. NOT ``num_cached``: under speculative
+        # decoding that field is 0 on every verify step (it is populated for the
+        # context path), so using it wrote every step's drafted positions to
+        # slots 0..steps-1 and overwrote the start of the request's own cache --
+        # corrupting the TARGET's history, not merely the drafts.
+        #
+        # The decode path already reads the right thing: ``ink_seq_lens`` is the
+        # total KV length including this step's tokens, which is why it writes a
+        # single token at ``sl - 1``. The same rule with ``steps`` tokens puts
+        # position t at ``sl - steps + t``.
+        sl = getattr(attn_metadata, "ink_seq_lens", None)
+        if sl is not None and int(getattr(attn_metadata, "ink_num_gen", 0)) >= num_gen:
+            base = [int(x) - steps for x in sl[:num_gen].tolist()]
+        else:
+            base = [int(x) for x in list(num_cached)[:num_gen]]
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         max_pages = max(len(b) for b in block_ids)
         page_table = build_page_table(block_ids, max_pages, q.device)
@@ -1174,11 +1218,11 @@ class InklingAttention(QKNormRoPEAttention):
                     kv_[i, t : t + 1].contiguous(),
                     vv[i, t : t + 1].contiguous(),
                     block_ids[i],
-                    int(num_cached[i]) + t,
+                    base[i] + t,
                     page_size,
                 )
             seq_lens = torch.tensor(
-                [int(num_cached[i]) + t + 1 for i in range(num_gen)],
+                [base[i] + t + 1 for i in range(num_gen)],
                 dtype=torch.int32,
                 device=q.device,
             )
@@ -1293,6 +1337,7 @@ class InklingAttention(QKNormRoPEAttention):
                 "LLM(attn_backend=...) and let the model default apply."
             )
         num_req = len(request_ids)
+        _probe_kv("decode", cache_layer, num_cached, 1, mgr)
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         for i in range(num_req):
             write_kv_cache_hnd(

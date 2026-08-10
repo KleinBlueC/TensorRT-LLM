@@ -129,13 +129,13 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         import os
 
         if os.environ.get("INKLING_DISABLE_CONV_COMMIT") == "1":
-            logger.info_once("Inkling conv commit DISABLED by env",
-                             key="ink_conv_commit_off")
+            logger.info_once("Inkling conv commit DISABLED by env", key="ink_conv_commit_off")
             return
         logger.info_once(
             f"Inkling conv commit active (steps={rt.gen_tokens_per_seq}, "
             f"rows={int(rt.gen_indices.shape[0])})",
-            key="ink_conv_commit_on")
+            key="ink_conv_commit_on",
+        )
         rows = rt.gen_indices.to(torch.int64)
         self._conv_cache.commit_after_verify(num_accepted[-rows.shape[0] :], rows)
 
