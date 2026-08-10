@@ -38,6 +38,7 @@ Architecture summary:
     slice logits to ``unpadded_vocab_size``. ``embed_norm`` folds onto embeddings.
 """
 
+import contextlib
 import copy
 from collections import namedtuple
 from dataclasses import dataclass
@@ -495,6 +496,29 @@ def _kv_capacity_report(mgr, request_id) -> str:
         f"num_blocks={getattr(kv_cache, 'num_blocks', '?')} "
         f"extra_kv_tokens={getattr(mgr, 'num_extra_kv_tokens', '?')}"
     )
+
+
+@contextlib.contextmanager
+def _default_dtype(dtype: torch.dtype):
+    """Build a submodule directly in ``dtype`` instead of converting it after.
+
+    ``Module(...).to(torch.bfloat16)`` is the obvious way to write this and it
+    breaks meta init: `.to` lowers to ``aten._to_copy``, which a meta tensor
+    refuses, and TRT-LLM then abandons meta init for the WHOLE model and falls
+    back to materialising every parameter. On the full BF16 checkpoint that is
+    ~950B parameters constructed the slow way before a single weight is read --
+    30 minutes of silence at 100% CPU with idle GPUs, which reads as a hang and
+    was twice taken for one.
+
+    Creating the parameters in the target dtype needs no conversion, so meta
+    init survives and construction is instant.
+    """
+    previous = torch.get_default_dtype()
+    torch.set_default_dtype(dtype)
+    try:
+        yield
+    finally:
+        torch.set_default_dtype(previous)
 
 
 def check_verify_write_room(
@@ -2522,14 +2546,16 @@ class InklingForConditionalGeneration(InklingForCausalLM):
         # over identical patches. ``None`` for a text-only checkpoint.
         vision_config = getattr(model_config.pretrained_config, "vision_config", None)
         if vision_config is not None and getattr(vision_config, "decoder_dmodel", None):
-            self.visual = InklingVisionModel(vision_config).to(torch.bfloat16)
+            with _default_dtype(torch.bfloat16):
+                self.visual = InklingVisionModel(vision_config)
         else:
             self.visual = None
         # The dMel audio tower follows the same rules as the vision tower, with
         # one row per dMel frame. ``None`` when the config has no ``audio_config``.
         audio_config = getattr(model_config.pretrained_config, "audio_config", None)
         if audio_config is not None and getattr(audio_config, "decoder_dmodel", None):
-            self.audio_tower = InklingAudioModel(audio_config).to(torch.bfloat16)
+            with _default_dtype(torch.bfloat16):
+                self.audio_tower = InklingAudioModel(audio_config)
         else:
             self.audio_tower = None
         # The media placeholder ids the Inkling chat template emits. They must be

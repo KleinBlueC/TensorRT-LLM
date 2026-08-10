@@ -146,3 +146,37 @@ def test_the_manager_raises_the_reservation_over_the_generic_one(monkeypatch):
     assert captured["generic"] == 2  # max_draft_len - 1, the generic reserve
     assert captured["verify_steps"] == 4  # 1 + max_draft_len, what a step writes
     assert mgr.num_extra_kv_tokens == 4
+
+
+def test_the_media_towers_are_built_in_dtype_not_converted_into_it():
+    """Meta init has to survive the vision and audio towers.
+
+    ``Module(...).to(bfloat16)`` lowers to ``aten._to_copy``, which a meta
+    tensor refuses; TRT-LLM catches that, gives up on meta init for the WHOLE
+    model and materialises every parameter instead. On the full BF16 checkpoint
+    that is ~950B parameters built the slow way before a weight is read -- 30
+    minutes at 100% CPU with idle GPUs, twice mistaken for a hang.
+
+    The context manager is exercised against a meta module directly, because
+    the property that matters is exactly "no conversion happens".
+    """
+    import torch
+
+    from tensorrt_llm._torch.models.modeling_inkling import _default_dtype
+
+    with torch.device("meta"):
+        with _default_dtype(torch.bfloat16):
+            built = torch.nn.Linear(8, 8)
+        assert built.weight.dtype == torch.bfloat16
+
+        converted = torch.nn.Linear(8, 8)
+        assert converted.weight.dtype == torch.get_default_dtype()
+        with pytest.raises(NotImplementedError):
+            converted.to(torch.bfloat16)
+
+    # The default dtype is restored even though the body raised.
+    before = torch.get_default_dtype()
+    with pytest.raises(ValueError):
+        with _default_dtype(torch.float16):
+            raise ValueError("body")
+    assert torch.get_default_dtype() == before
