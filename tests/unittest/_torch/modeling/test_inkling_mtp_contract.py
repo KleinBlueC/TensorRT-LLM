@@ -333,3 +333,29 @@ def test_the_draft_input_is_cast_to_the_projection_dtype():
     # worker hands over) were each tried on the cluster and each left fp32 in
     # place somewhere downstream.
     assert "combined.to(self.embed_norm.weight.dtype)" in src
+
+
+def test_the_mtp_head_returns_one_row_per_sequence():
+    """MTPWorker samples one draft token per sequence from this.
+
+    It then writes the result back at ``last_tokens_idx``, one index per
+    sequence, so a row per TOKEN turns that assignment into "value tensor of
+    shape [draft_len] cannot be broadcast to indexing result of shape [1]" --
+    several minutes into a multi-GPU run, in the speculative loop, naming
+    neither Inkling nor the head. Gathering here also keeps the vocab-sized
+    projection off every token of the batch, which is why DeepSeek's MTP head
+    does the same.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPHead
+
+    src = inspect.getsource(InklingMTPHead.forward)
+    assert "seq_lens_cuda" in src and "hidden_states[last_tokens]" in src
+
+
+def test_the_head_can_still_return_every_token():
+    """``return_context_logits`` keeps the full-batch path available."""
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPHead
+
+    params = inspect.signature(InklingMTPHead.forward).parameters
+    assert "return_context_logits" in params
+    assert params["return_context_logits"].default is False

@@ -1687,10 +1687,23 @@ class InklingMTPHead(nn.Module):
         hidden_states: torch.Tensor,
         lm_head: nn.Module,
         attn_metadata: AttentionMetadata,
+        return_context_logits: bool = False,
         **kwargs,
     ) -> torch.Tensor:
+        """One logit row per SEQUENCE, not per token.
+
+        ``MTPWorker`` samples one draft token per sequence from what this
+        returns and then writes it back at ``last_tokens_idx``, so a row per
+        token makes that assignment a shape mismatch -- [draft_len] into [1].
+        Gathering here rather than in the worker also avoids running the
+        vocab-sized projection over every token of the batch, which is the
+        reason DeepSeek's MTP head does the same thing.
+        """
         if self.norm is not None:
             hidden_states = self.norm(hidden_states)
+        if not return_context_logits and attn_metadata is not None:
+            last_tokens = torch.cumsum(attn_metadata.seq_lens_cuda, dim=0, dtype=torch.long) - 1
+            hidden_states = hidden_states[last_tokens]
         return lm_head(hidden_states)
 
 
