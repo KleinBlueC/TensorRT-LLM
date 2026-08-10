@@ -1187,7 +1187,6 @@ class InklingAttention(QKNormRoPEAttention):
                 "Inkling, or wait for the fused verify kernel."
             )
         num_gen = len(request_ids)
-        _probe_kv("verify", cache_layer, num_cached, steps, mgr)
         # Where this step's tokens go. ``num_cached_tokens_per_seq`` is what the
         # framework fills with the request's history for a speculative
         # generation batch (model_engine's _prepare_tp_inputs appends
@@ -1359,7 +1358,6 @@ class InklingAttention(QKNormRoPEAttention):
                 "LLM(attn_backend=...) and let the model default apply."
             )
         num_req = len(request_ids)
-        _probe_kv("decode", cache_layer, num_cached, 1, mgr)
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         for i in range(num_req):
             write_kv_cache_hnd(
