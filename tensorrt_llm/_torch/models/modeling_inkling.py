@@ -466,6 +466,28 @@ class InklingConvRuntime:
         )
 
 
+def _batch_cache_indices(mgr, request_ids, cache_layer):
+    """``mgr.get_batch_cache_indices`` with the layer-not-in-this-manager case named.
+
+    A draft block is addressed by the GLOBAL layer index (trunk + depth), which
+    only the SEPARATE draft KV cache manager is keyed by: its layer mask is
+    ``[False]*trunk + [True]*depths``. If the chain ends up running against the
+    target's manager instead, that index means nothing there and the manager
+    raises a bare ``KeyError: 42`` from inside its own pool lookup, minutes into
+    a multi-GPU run, naming neither the layer's origin nor the mismatch.
+    """
+    try:
+        return mgr.get_batch_cache_indices(request_ids, cache_layer)
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Inkling layer {cache_layer} has no slot in the KV cache manager in "
+            f"play ({type(mgr).__name__}). Draft-chain layers are addressed by "
+            "the global layer index and need the separate draft KV cache "
+            "manager; the chain cannot share the target's cache because its "
+            "layers are not the target's."
+        ) from exc
+
+
 def _apply_sconv(
     sconv: "InklingShortConv",
     x: torch.Tensor,
@@ -1068,7 +1090,7 @@ class InklingAttention(QKNormRoPEAttention):
     ):
         device = q.device
         # Persist new K/V to the paged cache for later generation reuse.
-        block_ids = mgr.get_batch_cache_indices(request_ids, cache_layer)
+        block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         off = 0
         for i, sl in enumerate(seq_lens):
             write_kv_cache_hnd(
@@ -1134,7 +1156,7 @@ class InklingAttention(QKNormRoPEAttention):
                 "Inkling, or wait for the fused verify kernel."
             )
         num_gen = len(request_ids)
-        block_ids = mgr.get_batch_cache_indices(request_ids, cache_layer)
+        block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         max_pages = max(len(b) for b in block_ids)
         page_table = build_page_table(block_ids, max_pages, q.device)
         # [num_gen, steps, ...]: the packed batch is request-major, so a request's
@@ -1226,7 +1248,13 @@ class InklingAttention(QKNormRoPEAttention):
         # indices are derived on-GPU. Padding rows carry their own dummy request
         # slots, so the scatter never corrupts a real request's page.
         num_req = q.shape[0]
-        if getattr(attn_metadata, "ink_num_gen", 0) == num_req:
+        # ``ink_page_table`` is published during prepare() for the TARGET's
+        # layers, so a draft block's global index (trunk + depth) is simply not
+        # a key in it -- a bare KeyError from a dict lookup, with the layer's
+        # origin nowhere in the message. The draft chain takes the eager path
+        # below, which builds the table from the manager actually in play.
+        published = getattr(attn_metadata, "ink_page_table", None) or {}
+        if getattr(attn_metadata, "ink_num_gen", 0) == num_req and cache_layer in published:
             sl = attn_metadata.ink_seq_lens[:num_req]
             pt = attn_metadata.ink_page_table[cache_layer][:num_req]
             pos = (sl - 1).long()  # write slot = total_kv_len - 1 = num_cached
@@ -1265,7 +1293,7 @@ class InklingAttention(QKNormRoPEAttention):
                 "LLM(attn_backend=...) and let the model default apply."
             )
         num_req = len(request_ids)
-        block_ids = mgr.get_batch_cache_indices(request_ids, cache_layer)
+        block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         for i in range(num_req):
             write_kv_cache_hnd(
                 k_cache,
@@ -1966,6 +1994,19 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
         spec_config = getattr(model_config, "spec_config", None)
         if spec_config is None:
             return
+        # The chain's blocks are addressed by global layer index, which only the
+        # separate draft KV cache manager provides. Without it every draft
+        # forward dies on a bare KeyError several minutes in, so the condition is
+        # checked where it can still be explained.
+        from tensorrt_llm._torch.speculative.interface import should_use_separate_draft_kv_cache
+
+        if not should_use_separate_draft_kv_cache(spec_config):
+            raise ValueError(
+                "Inkling speculative decoding requires a separate draft KV cache: "
+                "the draft chain's layers are not the target's, so they cannot "
+                "share its cache, and they are addressed by the global layer "
+                "index the separate manager is keyed by."
+            )
         draft_len = int(getattr(spec_config, "max_draft_len", 0) or 0)
         if draft_len < 1:
             raise ValueError(

@@ -433,3 +433,51 @@ def test_more_steps_than_the_buffer_holds_is_an_error_not_a_truncation():
     cap = _ConvVerifyCapture(2, 3, 2, 2, torch.device("cpu"), torch.float32)
     with pytest.raises(ValueError, match="max_draft_len"):
         cap.save(torch.zeros(2, 3, 2), torch.zeros(2, dtype=torch.int64), torch.zeros(8, 3), 4)
+
+
+def test_a_shared_draft_kv_cache_is_refused_at_load():
+    """The chain's layers are not the target's, so they cannot share its cache.
+
+    A draft block is addressed by the global layer index (trunk + depth), which
+    only the separate draft manager is keyed by. Running against the target's
+    manager instead produced a bare `KeyError: 42` inside the draft loop,
+    minutes into a 4-GPU run, naming nothing.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    src = inspect.getsource(InklingForCausalLM._assert_inkling_spec_conv_state)
+    assert "should_use_separate_draft_kv_cache" in src
+
+
+def test_a_layer_with_no_slot_in_the_manager_says_so():
+    """Same condition at runtime, in case the load-time check is bypassed."""
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    from tensorrt_llm._torch.models.modeling_inkling import _batch_cache_indices
+
+    class _Mgr:
+        def get_batch_cache_indices(self, request_ids, layer_idx):
+            raise KeyError(layer_idx)
+
+    with pytest.raises(RuntimeError, match="has no slot in the KV cache manager"):
+        _batch_cache_indices(_Mgr(), [0], 42)
+
+
+def test_a_draft_layer_falls_back_off_the_published_page_table():
+    """``ink_page_table`` is published for the TARGET's layers only.
+
+    A draft block's global index is not a key in it, and the lookup raises a
+    bare KeyError from inside a dict -- the same shape of failure as reading the
+    published conv cache. Both come from the draft chain running against
+    metadata prepared for the target.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+
+    src = inspect.getsource(InklingAttention._run_generation)
+    assert "cache_layer in published" in src
