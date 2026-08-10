@@ -509,13 +509,14 @@ def _probe_kv(where, cache_layer, num_cached, steps, mgr, extra=""):
     # The first handful of calls can be warmup/dummy batches, where a cached
     # count of 0 is correct and proves nothing. Sample far enough in to be past
     # them, and print the tail as well as the head.
-    limit = int(os.environ.get("INKLING_PROBE_N", "60"))
-    if n >= limit:
-        return
-    if n >= 8 and n % 10 != 0:
-        _PROBE_SEEN[where] = n + 1
-        return
+    # Skip the first calls outright: they are warmup/dummy batches where a
+    # cached count of 0 is correct, and sampling only those is how the previous
+    # two rounds reached a wrong conclusion.
+    skip = int(os.environ.get("INKLING_PROBE_SKIP", "20"))
+    limit = skip + 8
     _PROBE_SEEN[where] = n + 1
+    if n < skip or n >= limit:
+        return
     print(
         f"[probe {where} #{n}] layer={cache_layer} steps={steps} "
         f"num_cached={list(num_cached)[:2]} mgr={type(mgr).__name__} {extra}",
@@ -1214,43 +1215,17 @@ class InklingAttention(QKNormRoPEAttention):
             )
         num_gen = len(request_ids)
         _probe_kv("verify", cache_layer, num_cached, steps, mgr)
-        # Where this step's tokens go. NOT ``num_cached``: under speculative
-        # decoding that field is 0 on every verify step (it is populated for the
-        # context path), so using it wrote every step's drafted positions to
-        # slots 0..steps-1 and overwrote the start of the request's own cache --
-        # corrupting the TARGET's history, not merely the drafts.
+        # Where this step's tokens go. ``num_cached_tokens_per_seq`` is what the
+        # framework fills with the request's history for a speculative
+        # generation batch (model_engine's _prepare_tp_inputs appends
+        # ``past_seen_token_num`` on that branch), so position t belongs at
+        # ``num_cached[i] + t``.
         #
-        # The decode path already reads the right thing: ``ink_seq_lens`` is the
-        # total KV length including this step's tokens, which is why it writes a
-        # single token at ``sl - 1``. The same rule with ``steps`` tokens puts
-        # position t at ``sl - steps + t``.
-        sl = getattr(attn_metadata, "ink_seq_lens", None)
-        if sl is not None and int(getattr(attn_metadata, "ink_num_gen", 0)) >= num_gen:
-            base = [int(x) - steps for x in sl[:num_gen].tolist()]
-        else:
-            base = [int(x) for x in list(num_cached)[:num_gen]]
-        # Measured on a real run: under speculative decoding every candidate for
-        # "how many KV entries does this request already have" is unpopulated.
-        # ``num_cached_tokens_per_seq`` is 0, and ``ink_seq_lens`` is derived
-        # from it (``num_cached + 1``), so it is 1; ``kv_lens_cuda`` and
-        # ``seq_lens`` are both this step's token count. None of them grows from
-        # step to step. Writing at a base derived from any of them puts the
-        # tokens in the wrong place -- at slot 0 with num_cached, or at a
-        # NEGATIVE offset with ink_seq_lens.
-        #
-        # Refusing is the only defensible option until the metadata is prepared
-        # for this path: a negative or zero base silently rewrites the start of
-        # the request's own history, which is why speculative decoding diverged
-        # from greedy at every draft length.
-        if any(b < 0 for b in base):
-            raise RuntimeError(
-                f"Inkling verify step computed a negative KV write base {base} "
-                f"(steps={steps}). The speculative path leaves "
-                "kv_cache_params.num_cached_tokens_per_seq at 0, so every length "
-                "InklingAttentionMetadata derives from it is wrong. The metadata "
-                "has to be prepared for speculative batches before a verify step "
-                "can place its tokens."
-            )
+        # An earlier reading of this field as 0 came from warmup batches, where
+        # 0 is correct; deriving the base from ``ink_seq_lens`` instead produced
+        # a NEGATIVE offset, which torch happily indexes from the end of the
+        # page. That is worse than the thing it replaced.
+        base = [int(x) for x in list(num_cached)[:num_gen]]
         _probe_kv(
             "verify-base",
             cache_layer,
