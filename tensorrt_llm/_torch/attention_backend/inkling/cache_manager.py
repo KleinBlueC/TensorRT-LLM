@@ -137,6 +137,21 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             key="ink_conv_commit_on",
         )
         rows = rt.gen_indices.to(torch.int64)
+        import os
+
+        if os.environ.get("INKLING_PROBE_KV") == "1":
+            # How many drafted tokens the target actually accepted. Always the
+            # full chain would mean verification is not rejecting anything,
+            # which is a different bug from the drafts simply being bad.
+            n = getattr(self, "_probe_accept_n", 0)
+            if n < 8:
+                self._probe_accept_n = n + 1
+                print(
+                    f"[probe accept #{n}] steps={rt.gen_tokens_per_seq} "
+                    f"rows={int(rows.shape[0])} "
+                    f"num_accepted={num_accepted[-rows.shape[0] :].tolist()}",
+                    flush=True,
+                )
         self._conv_cache.commit_after_verify(num_accepted[-rows.shape[0] :], rows)
 
     def free_conv_state(self, request_ids) -> None:
