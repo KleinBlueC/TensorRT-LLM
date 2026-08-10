@@ -488,27 +488,29 @@ def test_a_draft_layer_falls_back_off_the_published_page_table():
 
 
 def test_verify_writes_after_the_existing_history_not_at_zero():
-    """``num_cached`` is 0 on every verify step; ``ink_seq_lens`` is not.
+    """A verify step's writes start at the history and grow by one per position.
 
-    Measured on the cluster: the probe reported ``num_cached=[0]`` at every
-    verify step of a real run, so writing at ``num_cached + t`` put each step's
-    drafted positions at slots 0..steps-1 and overwrote the start of the
-    request's own cache. That corrupts the TARGET's history, which is why the
-    output diverged from greedy at every draft length rather than only when a
-    draft was accepted.
+    This test asserted the opposite for four rounds. The reading that
+    ``num_cached`` is 0 on the speculative path came from warmup batches, where
+    0 is correct; sampled past them it grows by exactly one per verify step,
+    which is what ``model_engine``'s speculative branch fills it with. The
+    replacement base derived from ``ink_seq_lens`` computed
+    ``num_cached + 1 - steps`` -- negative early in a sequence -- so it was
+    reverted.
 
-    The decode path already reads the right thing -- ``ink_seq_lens`` is the
-    total KV length including this step's tokens, hence its single-token write
-    at ``sl - 1``. The same rule with ``steps`` tokens is ``sl - steps + t``.
+    What has to hold is the shape, not the field: the room a step needs runs
+    from the history to ``history + steps - 1``, and asking for that room
+    succeeds when the pages cover it.
     """
-    import inspect
+    from tensorrt_llm._torch.models.modeling_inkling import check_verify_write_room
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+    page_size, history, steps = 32, 669, 4
+    pages = list(range(history // page_size + 2))  # covers 0 .. history + steps
+    check_verify_write_room(history, steps, page_size, pages)
 
-    src = inspect.getsource(InklingAttention._run_verify)
-    assert "ink_seq_lens" in src
-    assert "- steps" in src
-    assert "int(num_cached[i]) + t" not in src
+    one_page_short = pages[:-1]
+    with pytest.raises(RuntimeError, match="no KV page for the last drafted"):
+        check_verify_write_room(history, steps, page_size, one_page_short)
 
 
 def test_the_single_token_case_agrees_with_the_decode_path():
@@ -523,19 +525,14 @@ def test_the_single_token_case_agrees_with_the_decode_path():
 
 
 def test_a_negative_write_base_is_refused():
-    """Measured: every KV-length field is unpopulated on the speculative path.
+    """A negative base must fail loudly rather than write from the end.
 
-    ``num_cached_tokens_per_seq`` is 0, ``ink_seq_lens`` is derived from it
-    (``num_cached + 1``) so it is 1, and ``kv_lens_cuda``/``seq_lens`` are this
-    step's token count. None grows step to step. A base computed from any of
-    them lands at 0 or, with ink_seq_lens, at NEGATIVE -- and a negative offset
-    silently rewrites the start of the request's own history, which is exactly
-    the shape of "diverges from greedy at every draft length".
+    The guard is kept even though the base it caught came from a reverted
+    change: torch indexes negatively, so such a write succeeds and rewrites the
+    start of the request's own history, producing fluent output that differs
+    from greedy. That took four rounds to find once.
     """
-    import inspect
+    from tensorrt_llm._torch.models.modeling_inkling import check_verify_write_room
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
-
-    src = inspect.getsource(InklingAttention._run_verify)
-    assert "negative KV write base" in src
-    assert "if any(b < 0 for b in base)" in src
+    with pytest.raises(RuntimeError, match="negative KV write base"):
+        check_verify_write_room(-3, 4, 32, list(range(24)))

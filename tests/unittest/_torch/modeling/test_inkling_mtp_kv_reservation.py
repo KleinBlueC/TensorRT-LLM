@@ -85,11 +85,15 @@ def test_the_generic_reserve_is_short_exactly_at_a_page_boundary(page_size):
         last_pos = prompt + max_draft_len  # positions prompt .. prompt + draft
         need = _pages(last_pos, page_size)
         if need > _reserved_pages(prompt, generic, page_size):
+            # Never more than one page short: the reservation misses by two
+            # tokens, so it can only ever miss the page those two open.
+            assert need == _reserved_pages(prompt, generic, page_size) + 1
             short_for.append(prompt)
         assert need <= _reserved_pages(prompt, fixed, page_size)
-    # Exactly the prompts whose first verify step crosses into a new page.
+    # It is an alignment, not a size: the same two residues in every page cycle
+    # (job 6026096's prompt of 669 is 669 % 32 == 29, the first of them).
     assert short_for, "the sweep must contain the failing alignment"
-    assert all(p % page_size in (page_size - 1, page_size - 2) for p in short_for)
+    assert {p % page_size for p in short_for} == {page_size - 3, page_size - 2}
 
 
 def test_the_manager_raises_the_reservation_over_the_generic_one(monkeypatch):

@@ -497,6 +497,56 @@ def _kv_capacity_report(mgr, request_id) -> str:
     )
 
 
+def check_verify_write_room(
+    base: int,
+    steps: int,
+    page_size: int,
+    block_ids,
+    *,
+    request_id=None,
+    cache_layer=None,
+    detail: str = "",
+) -> None:
+    """Refuse a verify step whose KV writes would land outside the request's pages.
+
+    A verify step writes positions ``base .. base + steps - 1``, so it needs the
+    page holding the LAST of them; the manager has to have reserved that during
+    the context phase. Both ways of getting this wrong have happened, and both
+    were silent:
+
+    * a base past the end -- the manager reserved for a different drafted length
+      than the step presents -- surfaces as a bare ``IndexError: list index out
+      of range`` from inside ``write_kv_cache_hnd``, naming neither the request
+      nor the position;
+    * a NEGATIVE base indexes from the END of the page list, so the write
+      succeeds and quietly rewrites the start of the request's own history. That
+      one produced fluent output that differed from greedy, and cost four rounds
+      to find.
+
+    Public because the tests exercise it directly: the arithmetic is the
+    contract, and asserting it through a full attention forward would need a
+    GPU to say something that is true on paper.
+    """
+    where = f"request={request_id} layer={cache_layer} " if request_id is not None else ""
+    if base < 0:
+        raise RuntimeError(
+            f"Inkling verify step has a negative KV write base: {where}"
+            f"base={base} steps={steps}. Torch indexes negatively from the end "
+            "of the page list, so this would silently rewrite the start of the "
+            f"request's own history rather than fail. {detail}"
+        )
+    valid = sum(1 for b in block_ids if int(b) >= 0)
+    need = (base + steps - 1) // page_size + 1
+    if need > valid:
+        raise RuntimeError(
+            f"Inkling verify step has no KV page for the last drafted position: {where}"
+            f"base={base} steps={steps} last_pos={base + steps - 1} "
+            f"page_size={page_size} needs {need} pages, has {valid} valid of "
+            f"{len(block_ids)}. The request's KV capacity was grown for a "
+            f"different drafted length than this step presents. {detail}"
+        )
+
+
 def _batch_cache_indices(mgr, request_ids, cache_layer):
     """``mgr.get_batch_cache_indices`` with the layer-not-in-this-manager case named.
 
@@ -1209,19 +1259,15 @@ class InklingAttention(QKNormRoPEAttention):
         # request, the position, nor the size of the shortfall.
         rids = list(request_ids)
         for i in range(num_gen):
-            valid = sum(1 for b in block_ids[i] if int(b) >= 0)
-            need = (base[i] + steps - 1) // page_size + 1
-            if need > valid:
-                raise RuntimeError(
-                    "Inkling verify step has no KV page for the last drafted "
-                    f"position: request={rids[i]} layer={cache_layer} "
-                    f"base={base[i]} steps={steps} last_pos={base[i] + steps - 1} "
-                    f"page_size={page_size} needs {need} pages, "
-                    f"{type(mgr).__name__} has {valid} valid of "
-                    f"{len(block_ids[i])} ({_kv_capacity_report(mgr, rids[i])}). "
-                    "The request's KV capacity was grown for a different "
-                    "drafted length than this step presents."
-                )
+            check_verify_write_room(
+                base[i],
+                steps,
+                page_size,
+                block_ids[i],
+                request_id=rids[i],
+                cache_layer=cache_layer,
+                detail=_kv_capacity_report(mgr, rids[i]),
+            )
         max_pages = max(len(b) for b in block_ids)
         page_table = build_page_table(block_ids, max_pages, q.device)
         # [num_gen, steps, ...]: the packed batch is request-major, so a request's
