@@ -26,6 +26,8 @@ to satisfy it would apply the same initial state to every drafted token instead
 of advancing through them -- no error, just a conv that stopped being causal.
 """
 
+import inspect
+
 import pytest
 import torch
 
@@ -531,8 +533,34 @@ def test_a_negative_write_base_is_refused():
     change: torch indexes negatively, so such a write succeeds and rewrites the
     start of the request's own history, producing fluent output that differs
     from greedy. That took four rounds to find once.
+
+    It is a backstop, not the handler for the one negative base that legitimately
+    occurs -- see the warmup clamp below.
     """
     from tensorrt_llm._torch.models.modeling_inkling import check_verify_write_room
 
     with pytest.raises(RuntimeError, match="negative KV write base"):
         check_verify_write_room(-3, 4, 32, list(range(24)))
+
+
+def test_the_draft_chains_warmup_underflow_is_clamped_not_refused():
+    """The draft chain's cached count goes negative on warmup, legitimately.
+
+    `mtp.py` rewinds `num_cached_tokens_per_seq` by the rejected drafts after
+    each verify step. On a real sequence the result is the correct post-rewind
+    count; on the tiny dummy sequences of generation-step warmup it underflows
+    (measured: `layer=42 base=-3 steps=3 history=0`, identically on the NVFP4
+    and BF16 checkpoints, during executor init). `mtp.py` clamps `kv_lens_cuda`
+    for exactly this case and says so; it does not clamp the CPU list Inkling
+    reads.
+
+    So the model clamps it, and a run must not abort at startup over it.
+    """
+    import re
+
+    import tensorrt_llm._torch.models.modeling_inkling as mi
+
+    src = inspect.getsource(mi.InklingAttention._run_verify)
+    assert re.search(r"base\s*=\s*\[max\(0,", src), (
+        "the verify base must clamp the framework's post-rewind underflow"
+    )

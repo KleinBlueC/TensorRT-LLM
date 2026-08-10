@@ -1271,7 +1271,16 @@ class InklingAttention(QKNormRoPEAttention):
         # 0 is correct; deriving the base from ``ink_seq_lens`` instead produced
         # a NEGATIVE offset, which torch happily indexes from the end of the
         # page. That is worse than the thing it replaced.
-        base = [int(x) for x in list(num_cached)[:num_gen]]
+        #
+        # The draft chain sees this field AFTER the framework rewinds it by the
+        # rejected drafts (`mtp.py`: `num_cached_tokens_per_seq[i] -=
+        # runtime_draft_len + 1 - num_accepted`). On a real sequence that is the
+        # correct post-rewind count; on the tiny dummy sequences of
+        # generation-step warmup it underflows below zero. `mtp.py` clamps
+        # `kv_lens_cuda` in the same place and for the same reason, and says so
+        # in a comment -- it just does not clamp this CPU list, which is the one
+        # Inkling reads. So clamp it here, on the same grounds.
+        base = [max(0, int(x)) for x in list(num_cached)[:num_gen]]
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         # A verify step writes positions ``base .. base + steps - 1``, so it
         # needs the page holding the LAST of them. The manager grows a
