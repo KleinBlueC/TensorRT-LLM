@@ -453,9 +453,6 @@ def test_a_shared_draft_kv_cache_is_refused_at_load():
 
 def test_a_layer_with_no_slot_in_the_manager_says_so():
     """Same condition at runtime, in case the load-time check is bypassed."""
-    import inspect
-
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
 
     from tensorrt_llm._torch.models.modeling_inkling import _batch_cache_indices
 
