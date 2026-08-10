@@ -176,3 +176,34 @@ def test_no_lora_config_is_not_an_error():
         lora_config = None
 
     InklingForCausalLM._assert_inkling_lora_supported(_NoLora())
+
+
+def test_layer_types_tolerates_a_config_without_architectures():
+    """``get_bindings_model_config`` is only reached on the LoRA path.
+
+    Inkling's text sub-config has ``architectures = None`` -- the top-level
+    multimodal config carries it -- so subscripting it raised TypeError the
+    first time LoRA was configured, several minutes into a 4-GPU run and with
+    nothing in the message naming either LoRA or Inkling.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.model_config import ModelConfig
+
+    src = inspect.getsource(ModelConfig.get_layer_types)
+    assert 'getattr(self.pretrained_config, "architectures", None) or []' in src
+
+
+def test_the_causal_lm_forwards_kwargs_to_the_decoder_stack():
+    """``lora_params`` arrives in kwargs and is read from there by the stack.
+
+    Naming only the arguments the causal-LM knows about drops it silently: the
+    model runs, the adapter loads, and the output is the base model's. That is
+    what the end-to-end harness caught -- a zero adapter matched the base (as it
+    must) and a NON-zero one matched it too.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    src = _src(InklingForCausalLM.forward)
+    call = src[src.index("self.model(") :]
+    assert "**kwargs," in call[: call.index(")")]

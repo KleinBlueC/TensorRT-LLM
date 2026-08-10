@@ -2094,6 +2094,11 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
             inputs_embeds_prenormed=inputs_embeds_prenormed,
+            # ``lora_params`` arrives here in kwargs and the decoder stack reads
+            # it from there. Naming only the arguments this method knows about
+            # silently drops it, and a dropped adapter is not an error: the
+            # model runs, the adapter loads, and the output is the base model's.
+            **kwargs,
         )
         # muP: accuracy-critical, and it applies to the lm_head input only. The
         # draft chain is handed the UNDIVIDED hidden states below, matching the
