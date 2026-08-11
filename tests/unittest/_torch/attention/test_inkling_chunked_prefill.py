@@ -452,3 +452,67 @@ def test_a_contiguous_page_assumption_would_be_caught():
         "reading with the wrong page order changed nothing -- the kernel is not "
         "using the page table"
     )
+
+
+@requires_gpu
+def test_report_the_per_layer_split_divergence_magnitude():
+    """Measure, do not just bound.
+
+    The end-to-end runs show the head of the distribution moving ~0.35 logprob
+    when a prompt is split (jobs 6046462 / 6047277), and the standing
+    explanation is that a correct chunked kernel still re-aligns query tiles at
+    the chunk boundary, so the online-softmax accumulation order differs and
+    bf16 rounding compounds over 66 layers.
+
+    That explanation is only credible if the PER-LAYER difference is actually
+    rounding-sized. The other tests bound it at 2e-2 and stop; this one prints
+    it, so the claim rests on a number. Compare against the same measurement
+    with num_cached == 0, where the kernels are bit-identical -- that is the
+    floor for this measurement.
+    """
+    total_len, num_kv_heads, window = 200, 8, WINDOW
+    q, k, v, rel = _make_case(total_len, num_kv_heads, has_rel=True, seed=91)
+    want = _packed(q, k, v, rel, window)
+
+    # Floor: same kernel, no split.
+    k_cache, v_cache = _empty_cache(16, num_kv_heads)
+    fresh = _run_chunk(q, k, v, rel, 0, k_cache, v_cache, list(range(16)), window)
+    f_abs = (fresh.float() - want.float()).abs().max().item()
+
+    print(f"\n  num_cached==0 floor : max_abs={f_abs:.3e}")
+    for split in (37, 64, 100):
+        k_cache, v_cache = _empty_cache(16, num_kv_heads)
+        blocks = list(range(16))
+        _run_chunk(
+            q[:split],
+            k[:split],
+            v[:split],
+            rel[:split].contiguous(),
+            0,
+            k_cache,
+            v_cache,
+            blocks,
+            window,
+        )
+        got = _run_chunk(
+            q[split:],
+            k[split:],
+            v[split:],
+            rel[split:].contiguous(),
+            split,
+            k_cache,
+            v_cache,
+            blocks,
+            window,
+        )
+        tail = want[split:].float()
+        max_abs = (got.float() - tail).abs().max().item()
+        rel_rms = ((got.float() - tail).pow(2).mean().sqrt() / tail.pow(2).mean().sqrt()).item()
+        cos = torch.nn.functional.cosine_similarity(
+            got.float().flatten(), tail.flatten(), dim=0
+        ).item()
+        print(
+            f"  split={split:4d}          : max_abs={max_abs:.3e} rel_rms={rel_rms:.3e} cos={cos:.8f}"
+        )
+        # Loose: this test reports, the strict bounds live in the tests above.
+        assert cos > 0.999, f"split={split} cos={cos}"
