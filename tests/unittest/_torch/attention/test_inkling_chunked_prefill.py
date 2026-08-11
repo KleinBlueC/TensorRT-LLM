@@ -356,3 +356,99 @@ def test_the_package_re_exports_the_chunked_entry_point():
 
     assert hasattr(pkg, "inkling_chunked_prefill_attention")
     assert "inkling_chunked_prefill_attention" in pkg.__all__
+
+
+# ---------------------------------------------------------------------------
+# The gap the rest of this file leaves open. Every test above hands the kernel
+# block_ids = range(16): contiguous, zero-based, ascending. A real
+# KVCacheManagerV2 hands out whatever pages are free -- sparse, unordered, and
+# never starting at 0 in a warm pool. The end-to-end runs (jobs 6046462 /
+# 6047277) show the head of the distribution shifting by ~0.35 logprob when a
+# prompt is actually split, and the real page table is the prime suspect
+# precisely because nothing here has ever exercised it.
+# ---------------------------------------------------------------------------
+@requires_gpu
+@pytest.mark.parametrize(
+    "blocks",
+    [
+        [9, 2, 14, 5, 11, 0, 7, 3],  # unordered
+        [31, 30, 29, 28, 27, 26, 25, 24],  # high, descending, never touches 0
+        [4, 12, 20, 28, 36, 44, 52, 60],  # strided, sparse
+    ],
+    ids=["unordered", "high_descending", "strided"],
+)
+def test_chunk_invariance_holds_on_a_realistic_page_layout(blocks):
+    """Split a prompt across pages the KV manager could plausibly hand out.
+
+    write_kv_cache_hnd and the kernel must agree on the SAME mapping from
+    absolute token position to (page, offset). A disagreement shows up here and
+    nowhere else in this file: with range(16) a bug that ignores the page table
+    and treats pages as contiguous still passes everything above.
+    """
+    total_len, num_kv_heads, split, window = 200, 8, 37, WINDOW
+    q, k, v, rel = _make_case(total_len, num_kv_heads, has_rel=True, seed=71)
+    want = _packed(q, k, v, rel, window)[split:]
+
+    k_cache, v_cache = _empty_cache(64, num_kv_heads)
+    _run_chunk(
+        q[:split],
+        k[:split],
+        v[:split],
+        rel[:split].contiguous(),
+        0,
+        k_cache,
+        v_cache,
+        blocks,
+        window,
+    )
+    got = _run_chunk(
+        q[split:],
+        k[split:],
+        v[split:],
+        rel[split:].contiguous(),
+        split,
+        k_cache,
+        v_cache,
+        blocks,
+        window,
+    )
+    _assert_close(got, want, f"pages={blocks[:4]}...")
+
+
+@requires_gpu
+def test_a_contiguous_page_assumption_would_be_caught():
+    """Negative control for the test above: writing with one layout and reading
+    with another must NOT agree. If it does, the kernel is ignoring the page
+    table and the test above proves nothing."""
+    total_len, num_kv_heads, split, window = 200, 8, 37, -1
+    q, k, v, rel = _make_case(total_len, num_kv_heads, has_rel=False, seed=73)
+    k_cache, v_cache = _empty_cache(64, num_kv_heads)
+    write_blocks = [9, 2, 14, 5, 11, 0, 7, 3]
+
+    _run_chunk(q[:split], k[:split], v[:split], None, 0, k_cache, v_cache, write_blocks, window)
+    honest = _run_chunk(
+        q[split:], k[split:], v[split:], None, split, k_cache, v_cache, write_blocks, window
+    )
+    # Same cache, but the reader is told a different page order.
+    cu = torch.tensor([0, total_len - split], dtype=torch.int32, device="cuda")
+    nc = torch.tensor([split], dtype=torch.int32, device="cuda")
+    max_pages = (total_len + PAGE_SIZE - 1) // PAGE_SIZE
+    wrong_table = build_page_table([list(range(max_pages))], max_pages, "cuda")
+    wrong = inkling_chunked_prefill_attention(
+        q[split:],
+        k_cache,
+        v_cache,
+        cu,
+        nc,
+        wrong_table,
+        PAGE_SIZE,
+        total_len - split,
+        HEAD_DIM**-1.0,
+        None,
+        0,
+        window,
+    )
+    assert not torch.allclose(honest.float(), wrong.float(), rtol=2e-2, atol=2e-2), (
+        "reading with the wrong page order changed nothing -- the kernel is not "
+        "using the page table"
+    )
