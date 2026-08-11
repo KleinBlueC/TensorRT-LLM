@@ -52,6 +52,7 @@ from torch import nn
 from tensorrt_llm._torch.attention_backend import AttentionMetadata
 from tensorrt_llm._torch.attention_backend.inkling import (
     build_page_table,
+    inkling_chunked_prefill_attention,
     inkling_decode_attention,
     inkling_prefill_attention,
     write_kv_cache_hnd,
@@ -866,16 +867,38 @@ class InklingAttention(QKNormRoPEAttention):
         cu = torch.zeros(len(seq_lens) + 1, dtype=torch.int32, device=device)
         cu[1:] = torch.tensor(seq_lens, dtype=torch.int32, device=device).cumsum(0)
         max_seqlen = max(seq_lens)
-        # NOTE: this attends only to the tokens of THIS call. The write above
-        # honours ``num_cached``, but ``inkling_prefill_attention`` takes no
-        # paged-KV argument, so a context request carrying cached history
-        # (chunked prefill, or a reused prefix) would silently drop all of it.
-        # Both are refused up front by
-        # ``reject_unsupported_inkling_kv_cache_features``; adding either one
-        # means giving Inkling a chunked-context prefill path that reads the
-        # pages back while carrying rel_logits and the sliding window across the
-        # boundary. ``num_cached`` is non-zero here only in that unsupported
-        # case, which is why the write path already accounts for it.
+        # A request with cached history (a later chunk of a chunked prefill, or
+        # a chunk sitting on a reused prefix) must attend to tokens it did not
+        # bring with it. The packed kernel below cannot: it takes no paged-KV
+        # argument and sees only this call's tokens. Route those requests to the
+        # chunked-context kernel, which reads every key from the page table --
+        # no gather needed, because the write above has already put this chunk's
+        # K/V into the same pages.
+        #
+        # The all-fresh case keeps the packed kernel: it is the common one and
+        # skips the page indirection entirely. The two must agree exactly when
+        # num_cached == 0, which test_chunked_prefill_parity pins.
+        if any(int(c) > 0 for c in num_cached):
+            max_total = max(int(c) + int(sl) for c, sl in zip(num_cached, seq_lens))
+            max_pages = (max_total + page_size - 1) // page_size
+            page_table = build_page_table(block_ids, max_pages, device)
+            num_cached_dev = torch.tensor(
+                [int(c) for c in num_cached], dtype=torch.int32, device=device
+            )
+            return inkling_chunked_prefill_attention(
+                q,
+                k_cache,
+                v_cache,
+                cu,
+                num_cached_dev,
+                page_table,
+                page_size,
+                max_seqlen,
+                self.sm_scale,
+                rel_logits,
+                self.rel_extent,
+                self.window_left,
+            )
         return inkling_prefill_attention(
             q, k, v, cu, max_seqlen, self.sm_scale, rel_logits, self.rel_extent, self.window_left
         )
