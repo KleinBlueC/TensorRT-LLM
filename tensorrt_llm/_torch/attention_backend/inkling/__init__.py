@@ -24,6 +24,7 @@ from .backend import InklingTritonAttention
 from .cache_manager import InklingHybridCacheManager
 from .kernels import (
     build_page_table,
+    inkling_chunked_prefill_attention,
     inkling_decode_attention,
     inkling_prefill_attention,
     write_kv_cache_hnd,
@@ -35,6 +36,7 @@ __all__ = [
     "InklingHybridCacheManager",
     "InklingTritonAttention",
     "build_page_table",
+    "inkling_chunked_prefill_attention",
     "inkling_decode_attention",
     "inkling_prefill_attention",
     "write_kv_cache_hnd",

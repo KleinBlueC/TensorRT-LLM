@@ -341,3 +341,18 @@ def test_declaring_no_initial_state_on_a_later_chunk_is_visibly_wrong():
         "dropping the carried window changed nothing -- the parity test above "
         "is not exercising what it claims"
     )
+
+
+def test_the_package_re_exports_the_chunked_entry_point():
+    """modeling_inkling imports from the PACKAGE, not from .kernels.
+
+    This test exists because the tests above import from
+    ``...inkling.kernels`` directly and so could not see that
+    ``inkling/__init__.py`` never re-exported the new entry point. The whole
+    unit suite passed while the model could not import it -- an end-to-end run
+    (job 6044664) was what surfaced it. No GPU needed: it is an import.
+    """
+    import tensorrt_llm._torch.attention_backend.inkling as pkg
+
+    assert hasattr(pkg, "inkling_chunked_prefill_attention")
+    assert "inkling_chunked_prefill_attention" in pkg.__all__
