@@ -260,6 +260,23 @@ class InklingConvStateCache:
                 self._free.append(slot)
 
 
+def _context_num_cached(attn_metadata, num_contexts):
+    """Per-context-request cached token counts, or None when unavailable.
+
+    The context slice of ``num_cached_tokens_per_seq`` is non-zero only for a
+    later chunk of a chunked prefill or a chunk on a reused prefix. Returns
+    None when the metadata carries no KV cache params at all (the cache-free
+    unit-test path), which the callers read as "everything is fresh".
+    """
+    params = getattr(attn_metadata, "kv_cache_params", None)
+    if params is None:
+        return None
+    per_seq = getattr(params, "num_cached_tokens_per_seq", None)
+    if per_seq is None:
+        return None
+    return [int(c) for c in per_seq[:num_contexts]]
+
+
 @dataclass
 class InklingConvRuntime:
     """Per-forward short-conv plumbing for the pool path (all layers share it).
@@ -304,18 +321,26 @@ class InklingConvRuntime:
                 0
             )
             query_start_loc = cu
-            # Fresh prefill carries no prior conv window. This is correct only
-            # because the two features that would leave a context request with a
-            # prior window -- KV block reuse and chunked prefill -- are refused
-            # up front by ``reject_unsupported_inkling_kv_cache_features``.
+            # A context request that already has tokens in the KV cache -- a
+            # later chunk of a chunked prefill, or a chunk on a reused prefix --
+            # also has the conv window those tokens left behind: ``slots_for``
+            # keeps its pool row, and ``causal_conv1d_fn`` wrote the trailing
+            # window there on the preceding call. Declaring it here is what
+            # makes that state get consumed instead of ignored (the
+            # ``Mamba2Metadata`` pattern).
             #
-            # Do NOT "fix" this line on its own. Deriving has_initial_state from
-            # ``num_cached_tokens_per_seq`` (the ``Mamba2Metadata`` pattern) is
-            # necessary but NOT sufficient: ``_run_context`` attends only to the
-            # tokens of its own call, so a request carrying cached history would
-            # still lose that history in attention and stay silently wrong. See
-            # ``reject_unsupported_inkling_kv_cache_features``.
-            has_initial_state = torch.zeros(num_contexts, dtype=torch.bool, device=device)
+            # This is only *sufficient* because ``_run_context`` now routes such
+            # requests to the chunked-context attention kernel, which reads the
+            # cached KV back. On its own it would leave attention losing the
+            # history while the convs kept it -- a subtler wrong answer than
+            # before. The two must land together.
+            cached = _context_num_cached(attn_metadata, num_contexts)
+            if cached is None:
+                has_initial_state = torch.zeros(num_contexts, dtype=torch.bool, device=device)
+            else:
+                has_initial_state = torch.tensor(
+                    [c > 0 for c in cached], dtype=torch.bool, device=device
+                )
         return cls(
             num_ctx_tokens=num_ctx_tokens,
             ctx_indices=ctx_indices,

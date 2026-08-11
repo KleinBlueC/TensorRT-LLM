@@ -263,3 +263,81 @@ def test_grouped_query_attention_maps_heads_correctly():
         window,
     )
     _assert_close(got, want, "gqa split")
+
+
+# ---------------------------------------------------------------------------
+# The conv half of the same property. Attention is only one of the two places
+# a split prompt can lose its history; the four depthwise short convs are the
+# other. causal_conv1d_fn writes the trailing kernel-1 window into the state
+# pool on every context call, so a later chunk only has to DECLARE that it has
+# one (has_initial_state) for it to be consumed.
+# ---------------------------------------------------------------------------
+SCONV_KERNEL = 4
+SCONV_CHANNELS = 256
+
+
+def _conv_state_pool(rows=1):
+    return torch.zeros(rows, SCONV_CHANNELS, SCONV_KERNEL - 1, device="cuda", dtype=DTYPE)
+
+
+def _run_conv_chunk(x, conv_w, state, has_initial):
+    """One varlen context call through causal_conv1d_fn, state updated in place."""
+    from tensorrt_llm._torch.modules.mamba.causal_conv1d import causal_conv1d_fn
+
+    n = x.shape[0]
+    xt = x.transpose(0, 1).contiguous()  # [channels, tokens]
+    y = causal_conv1d_fn(
+        xt,
+        conv_w,
+        None,
+        query_start_loc=torch.tensor([0, n], dtype=torch.int32, device="cuda"),
+        cache_indices=torch.tensor([0], dtype=torch.int32, device="cuda"),
+        has_initial_state=torch.tensor([has_initial], dtype=torch.bool, device="cuda"),
+        conv_states=state,
+        activation=None,
+    )
+    return y.transpose(0, 1).contiguous()
+
+
+@requires_gpu
+@pytest.mark.parametrize("split", [1, 2, 3, 4, 17, 64])
+def test_the_short_conv_carries_its_window_across_a_chunk_boundary(split):
+    """Splitting must not change the conv output either.
+
+    Splits at 1..3 are the interesting ones: they are shorter than the
+    kernel-1 window, so the second chunk's first outputs depend on tokens the
+    first chunk owned. With has_initial_state=False these were convolved
+    against zeros -- the defect the review named.
+    """
+    total_len = 128
+    x = _rand(total_len, SCONV_CHANNELS, seed=41)
+    conv_w = _rand(SCONV_CHANNELS, SCONV_KERNEL, seed=42)
+
+    state = _conv_state_pool()
+    want = _run_conv_chunk(x, conv_w, state, False)
+
+    state = _conv_state_pool()
+    _run_conv_chunk(x[:split], conv_w, state, False)
+    got = _run_conv_chunk(x[split:], conv_w, state, True)
+    _assert_close(got, want[split:], f"conv split={split}")
+
+
+@requires_gpu
+def test_declaring_no_initial_state_on_a_later_chunk_is_visibly_wrong():
+    """The negative control: without has_initial_state the second chunk really
+    does differ. If this ever passes, the test above proves nothing."""
+    total_len, split = 128, 2
+    x = _rand(total_len, SCONV_CHANNELS, seed=43)
+    conv_w = _rand(SCONV_CHANNELS, SCONV_KERNEL, seed=44)
+
+    state = _conv_state_pool()
+    want = _run_conv_chunk(x, conv_w, state, False)[split:]
+
+    state = _conv_state_pool()
+    _run_conv_chunk(x[:split], conv_w, state, False)
+    wrong = _run_conv_chunk(x[split:], conv_w, state, False)  # the old behaviour
+
+    assert not torch.allclose(wrong.float(), want.float(), rtol=2e-2, atol=2e-2), (
+        "dropping the carried window changed nothing -- the parity test above "
+        "is not exercising what it claims"
+    )
