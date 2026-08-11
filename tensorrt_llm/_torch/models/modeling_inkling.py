@@ -39,6 +39,7 @@ Architecture summary:
 """
 
 import copy
+import os
 from collections import namedtuple
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple
@@ -903,7 +904,13 @@ class InklingAttention(QKNormRoPEAttention):
         # The all-fresh case keeps the packed kernel: it is the common one and
         # skips the page indirection entirely. The two must agree exactly when
         # num_cached == 0, which test_chunked_prefill_parity pins.
-        if any(int(c) > 0 for c in num_cached):
+        # INKLING_FORCE_CHUNKED_ATTN=1 routes even all-fresh requests through
+        # the chunked kernel. Test-only: it makes the two kernels A/B-able on
+        # one prompt, in one process, against one set of weights -- which is
+        # the only way to compare them without the job-to-job variance this
+        # model has (jobs 6045346 / 6045688). It changes nothing by default.
+        force_chunked = os.environ.get("INKLING_FORCE_CHUNKED_ATTN", "0") == "1"
+        if force_chunked or any(int(c) > 0 for c in num_cached):
             max_total = max(int(c) + int(sl) for c, sl in zip(num_cached, seq_lens))
             max_pages = (max_total + page_size - 1) // page_size
             page_table = build_page_table(block_ids, max_pages, device)
