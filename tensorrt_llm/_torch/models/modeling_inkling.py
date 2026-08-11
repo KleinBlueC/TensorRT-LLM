@@ -261,6 +261,25 @@ class InklingConvStateCache:
                 self._free.append(slot)
 
 
+def _needs_chunked_context(num_cached) -> bool:
+    """True when the context path must read cached KV back from the pages.
+
+    Any request carrying cached tokens needs it -- a later chunk of a chunked
+    prefill, or a chunk on a reused prefix. The packed kernel cannot serve
+    those: it sees only the tokens of its own call.
+
+    ``INKLING_FORCE_CHUNKED_ATTN=1`` forces the chunked path even for all-fresh
+    requests. Test-only, default off. It exists because comparing the two
+    kernels any other way is impossible on this model: its sampled output is
+    not reproducible run to run, or even between two generate() calls in one
+    process, unless the autotuner is off. The knob makes both kernels reachable
+    in one process against one set of weights (jobs 6046191 / 6046341).
+    """
+    if os.environ.get("INKLING_FORCE_CHUNKED_ATTN", "0") == "1":
+        return True
+    return any(int(c) > 0 for c in num_cached)
+
+
 def _context_num_cached(attn_metadata, num_contexts):
     """Per-context-request cached token counts, or None when unavailable.
 
@@ -904,13 +923,7 @@ class InklingAttention(QKNormRoPEAttention):
         # The all-fresh case keeps the packed kernel: it is the common one and
         # skips the page indirection entirely. The two must agree exactly when
         # num_cached == 0, which test_chunked_prefill_parity pins.
-        # INKLING_FORCE_CHUNKED_ATTN=1 routes even all-fresh requests through
-        # the chunked kernel. Test-only: it makes the two kernels A/B-able on
-        # one prompt, in one process, against one set of weights -- which is
-        # the only way to compare them without the job-to-job variance this
-        # model has (jobs 6045346 / 6045688). It changes nothing by default.
-        force_chunked = os.environ.get("INKLING_FORCE_CHUNKED_ATTN", "0") == "1"
-        if force_chunked or any(int(c) > 0 for c in num_cached):
+        if _needs_chunked_context(num_cached):
             max_total = max(int(c) + int(sl) for c, sl in zip(num_cached, seq_lens))
             max_pages = (max_total + page_size - 1) // page_size
             page_table = build_page_table(block_ids, max_pages, device)

@@ -1341,3 +1341,50 @@ def test_attention_still_shards_heads_and_channels_without_attention_dp(no_colle
     )
     assert attn.k_sconv.channels == kv_dim // _ADP_RANKS
     assert attn.k_sconv.channels_full == kv_dim
+
+
+# ---------------------------------------------------------------------------
+# Routing between the two prefill kernels. Behavioural, not source-grepping:
+# the __init__ re-export bug (job 6044664) showed how much a green suite can
+# miss when it never exercises the real call shape.
+# ---------------------------------------------------------------------------
+def test_all_fresh_context_requests_keep_the_packed_kernel(monkeypatch):
+    """The common case must not pay for page indirection it does not need."""
+    from tensorrt_llm._torch.models.modeling_inkling import _needs_chunked_context
+
+    monkeypatch.delenv("INKLING_FORCE_CHUNKED_ATTN", raising=False)
+    assert _needs_chunked_context([0, 0, 0]) is False
+    assert _needs_chunked_context([]) is False
+
+
+def test_any_cached_token_routes_to_the_chunked_kernel(monkeypatch):
+    """One request with history is enough: the batch runs one kernel, and the
+    packed one would silently drop that request's prefix."""
+    from tensorrt_llm._torch.models.modeling_inkling import _needs_chunked_context
+
+    monkeypatch.delenv("INKLING_FORCE_CHUNKED_ATTN", raising=False)
+    assert _needs_chunked_context([0, 7, 0]) is True
+    assert _needs_chunked_context([1]) is True
+
+
+def test_the_force_knob_is_off_by_default_and_test_only(monkeypatch):
+    """It must flip the route, and only when set to exactly 1 -- an unset or
+    stale value must not silently change the production path."""
+    from tensorrt_llm._torch.models.modeling_inkling import _needs_chunked_context
+
+    monkeypatch.setenv("INKLING_FORCE_CHUNKED_ATTN", "1")
+    assert _needs_chunked_context([0, 0]) is True
+    for value in ("0", "", "true", "yes"):
+        monkeypatch.setenv("INKLING_FORCE_CHUNKED_ATTN", value)
+        assert _needs_chunked_context([0, 0]) is False, value
+
+
+def test_the_routing_predicate_accepts_tensor_like_counts():
+    """num_cached arrives from kv_cache_params as a tensor/list of numpy ints,
+    not python ints; int() coercion is load-bearing."""
+    import torch
+
+    from tensorrt_llm._torch.models.modeling_inkling import _needs_chunked_context
+
+    assert _needs_chunked_context(torch.tensor([0, 0])) is False
+    assert _needs_chunked_context(torch.tensor([0, 3])) is True
