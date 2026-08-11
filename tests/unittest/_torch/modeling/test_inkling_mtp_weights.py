@@ -184,3 +184,50 @@ def test_unquantized_config_actually_reports_no_quantization():
     assert not out.layer_quant_mode.has_nvfp4()
     # The draft KV cache still follows the target's KV quantization.
     assert out.kv_cache_quant_algo == src.kv_cache_quant_algo
+
+
+def test_the_draft_chain_is_looked_up_under_its_mapped_names():
+    """The keys `_load_mtp_weights` searches must be the ones the mapper emits.
+
+    The chain arrives as ``model.mtp.layers.N.*`` and the loader walks the
+    module tree as ``mtp_layers.N.*``; the mapper is what converts one to the
+    other. Searching the RAW dict for the MAPPED prefix matches nothing, and
+    nothing is a silent success: every draft block keeps its initial values,
+    the drafter proposes token 0 forever, every draft is rejected, and
+    speculative decoding costs a forward per step while changing no output.
+    That is what shipped until it was probed at the drafter's proposals.
+    """
+    import inspect
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    src = inspect.getsource(InklingForCausalLM._load_mtp_weights)
+    # The raw checkpoint prefix has to be selected, and the mapper has to run,
+    # BEFORE anything looks for the mapped prefix.
+    assert 'startswith("model.mtp.")' in src
+    assert "preprocess_weights" in src
+    assert src.index("preprocess_weights") < src.index('startswith("mtp_layers.")')
+
+
+def test_an_unloaded_draft_block_is_refused():
+    """All-zero weight matrices after loading must raise, not run.
+
+    A trained projection is never all zeros; a block that was built and never
+    loaded is exactly that (its norms sit at their init 1.0). The state costs
+    nothing at load and everything at runtime, so it is checked at load.
+    """
+    import pytest
+    import torch
+
+    from tensorrt_llm._torch.models.modeling_inkling import _assert_draft_chain_loaded
+
+    class _Block(torch.nn.Module):
+        def __init__(self, zeroed: bool):
+            super().__init__()
+            self.norm = torch.nn.Parameter(torch.ones(8))
+            w = torch.zeros(8, 8) if zeroed else torch.randn(8, 8)
+            self.proj = torch.nn.Parameter(w)
+
+    _assert_draft_chain_loaded([_Block(False), _Block(False)])
+    with pytest.raises(RuntimeError, match="all zeros after loading"):
+        _assert_draft_chain_loaded([_Block(False), _Block(True)])

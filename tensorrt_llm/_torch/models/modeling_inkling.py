@@ -521,6 +521,35 @@ def _default_dtype(dtype: torch.dtype):
         torch.set_default_dtype(previous)
 
 
+def _assert_draft_chain_loaded(mtp_layers) -> None:
+    """Refuse a draft chain whose weights never arrived.
+
+    A trained projection is not all zeros. A block that was built but never
+    loaded is: it keeps whatever ``to_empty``/init left, which is zeros for the
+    matrices and ones for the norms. That state costs nothing at load and
+    everything at runtime -- the block returns zeros, its logits are flat, the
+    drafter proposes token 0 forever, the target rejects every draft, and
+    speculative decoding burns a whole extra forward per step for no speedup,
+    with no error and correct output. It took a probe on the drafter's own
+    proposals to see it.
+
+    So the invariant is checked where it is cheap: once, at load.
+    """
+    for depth, block in enumerate(mtp_layers):
+        for name, param in block.named_parameters():
+            # Norms legitimately load as all-ones; a weight MATRIX does not
+            # legitimately load as all-zeros.
+            if param.dim() < 2:
+                continue
+            if not torch.any(param != 0):
+                raise RuntimeError(
+                    f"Inkling MTP depth {depth}: '{name}' is all zeros after "
+                    f"loading, i.e. the draft chain's weights never reached the "
+                    f"module. The chain would run, propose nothing the target "
+                    f"accepts, and cost a forward per step."
+                )
+
+
 def check_verify_write_room(
     base: int,
     steps: int,
@@ -2407,9 +2436,21 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
         if not mtp_layers:
             return
         built = len(mtp_layers)
+        # The chain arrives under its CHECKPOINT names (``model.mtp.layers.N.``)
+        # and the loader walks the MODULE tree (``mtp_layers.N.``); the mapper
+        # is what turns one into the other. Looking for the mapped names in the
+        # raw dict finds nothing, and "nothing" is a silent success here: every
+        # draft block keeps its initial values, the drafter proposes token 0 on
+        # every step, the target rejects all of it, and speculative decoding
+        # runs at a loss with no error anywhere. Measured before this was fixed:
+        # every weight matrix of the built blocks read absmean 0.0, with the
+        # norms at their init 1.0.
+        mtp_weights = weight_mapper.preprocess_weights(
+            {k: v for k, v in weights.items() if k.startswith("model.mtp.")}
+        )
         available = {
             int(k.split("mtp_layers.")[1].split(".")[0])
-            for k in weights
+            for k in mtp_weights
             if k.startswith("mtp_layers.")
         }
         if not available:
@@ -2424,10 +2465,29 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
         # loading bug later.
         depth_weights = {
             k: v
-            for k, v in weights.items()
+            for k, v in mtp_weights.items()
             if k.startswith("mtp_layers.") and int(k.split("mtp_layers.")[1].split(".")[0]) < built
         }
+        # ``_load_weights_impl`` reads ``model.model_config`` for the quant and
+        # mapping config it needs to fuse and shard. ``MTPForCausalLM`` keeps
+        # only ``mtp_layers``/``lm_head``/``embed_tokens``, so it is handed the
+        # config the chain was built from -- the same object, not a copy, since
+        # the blocks were constructed with it.
+        if not hasattr(draft_model, "model_config"):
+            draft_model.model_config = self.model_config
+        if not hasattr(draft_model, "config"):
+            # The loader reads ``config.num_key_value_heads`` for ONE purpose:
+            # duplicating KV weights when the head count is below tp_size. The
+            # chain's depths disagree on that count (banded 16, global 8), so a
+            # single value cannot be right for all of them -- it is safe here
+            # only because both counts exceed the tensor-parallel sizes Inkling
+            # runs at. If Inkling is ever run at TP > 8 without attention DP,
+            # this needs the per-depth accessor instead.
+            # ``self.model_config`` is already the TEXT sub-config here (the
+            # causal LM is constructed from it), so no further descent.
+            draft_model.config = self.model_config.pretrained_config
         _load_weights_impl(draft_model, depth_weights)
+        _assert_draft_chain_loaded(mtp_layers)
         if len(available) > built:
             logger.info(
                 f"MTP: built {built} of the checkpoint's {len(available)} draft depths "
