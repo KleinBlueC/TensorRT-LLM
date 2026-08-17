@@ -115,6 +115,7 @@ class InklingTritonAttention(TrtllmAttention):
                     k_cache,
                     v_cache,
                     page_size,
+                    attn_metadata,
                 )
             )
         if num_contexts < num_seqs:
@@ -150,6 +151,7 @@ class InklingTritonAttention(TrtllmAttention):
         k_cache,
         v_cache,
         page_size,
+        attn_metadata,
     ):
         device = q.device
         # Persist new K/V to the paged cache for later generation reuse.
@@ -166,8 +168,29 @@ class InklingTritonAttention(TrtllmAttention):
                 page_size,
             )
             off += sl
-        cu = torch.zeros(len(seq_lens) + 1, dtype=torch.int32, device=device)
-        cu[1:] = torch.tensor(seq_lens, dtype=torch.int32, device=device).cumsum(0)
+        # ``cu`` and ``num_cached`` describe the BATCH, not the layer, so the 66
+        # layers of one forward all want the same two tensors. Building them per
+        # layer costs two H2D copies each; caching them on the metadata leaves
+        # two per forward.
+        #
+        # Keyed on the batch's own contents rather than on the metadata object's
+        # identity: ``attn_metadata`` is reused across iterations (its buffers
+        # are stable so decode can be captured), so identity would hand a later
+        # iteration the previous one's offsets -- wrong logits, no error. The key
+        # is pure Python and costs no copy, which is the point.
+        key = (tuple(seq_lens), tuple(int(c) for c in num_cached))
+        cached = getattr(attn_metadata, "_ink_ctx_cache", None)
+        if cached is not None and cached[0] == key:
+            cu, num_cached_t = cached[1], cached[2]
+        else:
+            offsets = [0] * (len(seq_lens) + 1)
+            for i, sl in enumerate(seq_lens):
+                offsets[i + 1] = offsets[i] + sl
+            cu = torch.tensor(offsets, dtype=torch.int32, device=device)
+            num_cached_t = torch.tensor(
+                [int(c) for c in num_cached], dtype=torch.int32, device=device
+            )
+            attn_metadata._ink_ctx_cache = (key, cu, num_cached_t)
         max_seqlen = max(seq_lens)
         # The prefill kernel reads K/V back out of the pages the loop above just
         # wrote, which is what lets a context request carry cached history: with
@@ -180,7 +203,6 @@ class InklingTritonAttention(TrtllmAttention):
         # page table needs no stable buffer and no publish step.
         max_pages = max(len(b) for b in block_ids)
         page_table = build_page_table(block_ids, max_pages, device)
-        num_cached_t = torch.tensor([int(c) for c in num_cached], dtype=torch.int32, device=device)
         return inkling_prefill_attention(
             q,
             k_cache,

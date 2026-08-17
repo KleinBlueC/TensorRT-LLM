@@ -670,3 +670,86 @@ def test_report_the_split_divergence_magnitude():
             f"rel_rms={rel_rms:.3e} cos={cos:.8f}"
         )
         assert cos > 0.999, f"split={split} cos={cos}"
+
+
+# ---------------------------------------------------------------------------
+# 6. The host-side work the service benchmark charged for.
+#
+# The kernel was faster in isolation and the endpoint was ~5% slower, which
+# pointed at Python: build_page_table did one H2D copy per sequence and the
+# batch-level tensors were rebuilt once per layer. Both were fixed; these tests
+# guard the two ways the fix could be silently wrong.
+# ---------------------------------------------------------------------------
+@requires_gpu
+@pytest.mark.parametrize(
+    "blocks,max_pages",
+    [
+        ([[0, 1, 2], [5]], 3),  # ragged
+        ([[7, -1, -1], [3, 4, -1]], 3),  # -1 padding from the manager
+        ([[], [1, 2]], 2),  # a request with no pages yet
+        ([[9, 2, 14, 5]], 6),  # row shorter than the table width
+    ],
+)
+def test_build_page_table_matches_a_row_by_row_construction(blocks, max_pages):
+    """The flat-list build must be indistinguishable from the obvious one.
+
+    The obvious version is the reference here precisely because it is the one
+    that was replaced for speed: -1 entries are dropped rather than kept, short
+    rows pad with 0, and getting either wrong points the kernel at another
+    request's pages -- valid memory, wrong contents, no error.
+    """
+    got = build_page_table(blocks, max_pages, "cuda")
+
+    want = torch.zeros((len(blocks), max_pages), dtype=torch.int32, device="cuda")
+    for i, row in enumerate(blocks):
+        valid = [int(b) for b in row if int(b) >= 0]
+        if valid:
+            want[i, : len(valid)] = torch.tensor(valid, dtype=torch.int32, device="cuda")
+
+    assert torch.equal(got, want), f"{got.tolist()} != {want.tolist()}"
+    assert got.dtype == torch.int32 and got.is_cuda
+
+
+@requires_gpu
+def test_the_per_forward_cache_is_keyed_on_the_batch_not_the_metadata_object():
+    """``_run_context`` caches cu/num_cached on attn_metadata across the 66
+    layers of one forward. The metadata object is REUSED across iterations, so
+    an identity-keyed cache would hand iteration N+1 the offsets of iteration N
+    -- wrong logits, no error. This drives two different batches through the
+    same object and checks the second call rebuilds.
+    """
+    from types import SimpleNamespace
+
+    from tensorrt_llm._torch.attention_backend.inkling.backend import InklingTritonAttention
+
+    num_kv_heads, page_size = 8, PAGE_SIZE
+    k_cache, v_cache = _empty_cache(16, num_kv_heads, page_size)
+    mgr = SimpleNamespace(get_batch_cache_indices=lambda ids, layer: [list(range(8)) for _ in ids])
+    meta = SimpleNamespace()  # stands in for the reused attn_metadata
+
+    be = object.__new__(InklingTritonAttention)
+    be.sm_scale, be.rel_extent, be.window_left = SM_SCALE, 0, -1
+
+    def run(seq_lens, num_cached):
+        total = sum(seq_lens)
+        q = _rand(total, NUM_HEADS, HEAD_DIM, seed=101)
+        k = _rand(total, num_kv_heads, HEAD_DIM, seed=102)
+        v = _rand(total, num_kv_heads, HEAD_DIM, seed=103)
+        return be._run_context(
+            q, k, v, None, seq_lens, num_cached, list(range(len(seq_lens))),
+            mgr, 0, k_cache, v_cache, page_size, meta,
+        )
+
+    run([64, 32], [0, 0])
+    first = meta._ink_ctx_cache
+    assert first[1].tolist() == [0, 64, 96], first[1].tolist()
+
+    # Same object, different batch: the cache must NOT be reused.
+    run([16, 48], [8, 0])
+    second = meta._ink_ctx_cache
+    assert second[1].tolist() == [0, 16, 64], second[1].tolist()
+    assert second[2].tolist() == [8, 0], second[2].tolist()
+
+    # Same batch again: it SHOULD be reused, or the optimisation does nothing.
+    run([16, 48], [8, 0])
+    assert meta._ink_ctx_cache[1] is second[1], "cache did not hit on an identical batch"

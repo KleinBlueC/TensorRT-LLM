@@ -567,14 +567,26 @@ def build_page_table(block_ids_per_seq, max_pages: int, device) -> torch.Tensor:
     ``KVCacheManagerV2.get_batch_cache_indices``) into a dense
     ``[batch, max_pages]`` int32 page table, padding short rows with 0 (never
     read: the decode kernel bounds every access by the per-request ``seq_len``).
+
+    Built host-side into one flat list and copied once. The obvious version --
+    allocate on device, then assign each row from its own ``torch.tensor(...,
+    device=...)`` -- costs one H2D copy per sequence, and the context path calls
+    this once per layer, so at 66 layers and a batch of 8 that is ~500 tiny
+    copies per forward. It measured: see the service benchmark in the campaign
+    notes, where the paged path lost ~5% throughput while the kernel itself was
+    faster in isolation.
     """
     batch = len(block_ids_per_seq)
-    pt = torch.zeros((batch, max_pages), dtype=torch.int32, device=device)
+    flat = [0] * (batch * max_pages)
     for i, blocks in enumerate(block_ids_per_seq):
-        valid = [int(b) for b in blocks if int(b) >= 0]
-        if valid:
-            pt[i, : len(valid)] = torch.tensor(valid, dtype=torch.int32, device=device)
-    return pt
+        base = i * max_pages
+        j = 0
+        for b in blocks:
+            b = int(b)
+            if b >= 0:
+                flat[base + j] = b
+                j += 1
+    return torch.tensor(flat, dtype=torch.int32, device=device).view(batch, max_pages)
 
 
 def write_kv_cache_hnd(
