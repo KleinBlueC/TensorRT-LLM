@@ -169,18 +169,31 @@ class InklingTritonAttention(TrtllmAttention):
         cu = torch.zeros(len(seq_lens) + 1, dtype=torch.int32, device=device)
         cu[1:] = torch.tensor(seq_lens, dtype=torch.int32, device=device).cumsum(0)
         max_seqlen = max(seq_lens)
-        # NOTE: this attends only to the tokens of THIS call. The write above
-        # honours ``num_cached``, but ``inkling_prefill_attention`` takes no
-        # paged-KV argument, so a context request carrying cached history
-        # (chunked prefill, or a reused prefix) would silently drop all of it.
-        # Both are refused up front by
-        # ``reject_unsupported_inkling_kv_cache_features``; adding either one
-        # means giving Inkling a chunked-context prefill path that reads the
-        # pages back while carrying rel_logits and the sliding window across the
-        # boundary. ``num_cached`` is non-zero here only in that unsupported
-        # case, which is why the write path already accounts for it.
+        # The prefill kernel reads K/V back out of the pages the loop above just
+        # wrote, which is what lets a context request carry cached history: with
+        # ``num_cached[i] > 0`` the queries of this chunk attend across the chunk
+        # boundary into the prefix. A fresh context is the same call with
+        # ``num_cached`` all zero.
+        #
+        # Built here rather than in ``metadata.py``: context runs eager (the
+        # CUDA-graph requirement in ``_run_generation`` is decode-only), so the
+        # page table needs no stable buffer and no publish step.
+        max_pages = max(len(b) for b in block_ids)
+        page_table = build_page_table(block_ids, max_pages, device)
+        num_cached_t = torch.tensor([int(c) for c in num_cached], dtype=torch.int32, device=device)
         return inkling_prefill_attention(
-            q, k, v, cu, max_seqlen, self.sm_scale, rel_logits, self.rel_extent, self.window_left
+            q,
+            k_cache,
+            v_cache,
+            cu,
+            num_cached_t,
+            page_table,
+            page_size,
+            max_seqlen,
+            self.sm_scale,
+            rel_logits,
+            self.rel_extent,
+            self.window_left,
         )
 
     def _run_generation(

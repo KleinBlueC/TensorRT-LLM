@@ -257,18 +257,26 @@ class InklingConvRuntime:
                 0
             )
             query_start_loc = cu
-            # Fresh prefill carries no prior conv window. This is correct only
-            # because the two features that would leave a context request with a
-            # prior window -- KV block reuse and chunked prefill -- are refused
-            # up front by ``reject_unsupported_inkling_kv_cache_features``.
+            # A context request has a prior conv window exactly when it has
+            # cached KV: both are the tail of an earlier chunk of the same
+            # prompt. ``slots_for`` keeps the request's pool row across chunks
+            # and ``causal_conv1d_fn`` writes the trailing window into it, so
+            # declaring it here is all that is needed to consume it. Same
+            # derivation as ``Mamba2Metadata``.
             #
-            # Do NOT "fix" this line on its own. Deriving has_initial_state from
-            # ``num_cached_tokens_per_seq`` (the ``Mamba2Metadata`` pattern) is
-            # necessary but NOT sufficient: ``_run_context`` attends only to the
-            # tokens of its own call, so a request carrying cached history would
-            # still lose that history in attention and stay silently wrong. See
-            # ``reject_unsupported_inkling_kv_cache_features``.
-            has_initial_state = torch.zeros(num_contexts, dtype=torch.bool, device=device)
+            # This is only correct alongside the paged-KV prefill kernel. Until
+            # that landed, a request carrying cached history lost that history
+            # in *attention* regardless of the conv window, so seeding a real
+            # window here would have built a half-working, silently-wrong path.
+            # ``reject_unsupported_inkling_kv_cache_features`` still refuses
+            # block reuse, where the window comes from a *different* request and
+            # so does not exist in the pool at all.
+            num_cached = attn_metadata.kv_cache_params.num_cached_tokens_per_seq
+            has_initial_state = torch.tensor(
+                [int(num_cached[i]) > 0 for i in range(num_contexts)],
+                dtype=torch.bool,
+                device=device,
+            )
         return cls(
             num_ctx_tokens=num_ctx_tokens,
             ctx_indices=ctx_indices,

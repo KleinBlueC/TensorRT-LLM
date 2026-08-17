@@ -131,13 +131,14 @@ def test_block_reuse_default_departs_from_the_framework_default():
 
 
 # ---------------------------------------------------------------------------
-# The two features that must be refused, not defaulted off.
+# What must be refused, and what must NOT be.
 #
-# Both leave a CONTEXT request with history it should attend to and convolve
-# against, and Inkling gets that wrong twice: _run_context attends only to the
-# tokens of its own call (inkling_prefill_attention has no paged-KV argument),
-# and InklingConvRuntime.build seeds every context request with
-# has_initial_state=False. Neither raises on its own -- both emit wrong logits.
+# All of these leave a CONTEXT request with history it should attend to and
+# convolve against. Chunked prefill is now served: the prefill kernel reads the
+# paged KV, and InklingConvRuntime.build declares has_initial_state per request.
+# Block reuse and disagg are still refused, and for a reason the attention fix
+# does not touch -- the short-conv window belongs to another request (reuse) or
+# another instance (disagg), so there is nothing to restore.
 # ---------------------------------------------------------------------------
 def test_block_reuse_is_rejected_not_merely_defaulted_off():
     """An explicit enable_block_reuse=True wins the deep-merge over the model
@@ -152,18 +153,40 @@ def test_block_reuse_is_rejected_not_merely_defaulted_off():
         )
 
 
-def test_chunked_prefill_is_rejected():
-    """slots_for keeps a request's pool row across chunks and causal_conv1d_fn
-    does write the trailing window into it, but a second chunk still declares
-    has_initial_state=False, so the carried window is never consumed."""
+def test_chunked_prefill_is_accepted():
+    """The guard used to refuse this. It is the regression that would matter
+    most if the paged-KV prefill were ever reverted without reinstating the
+    guard, so the acceptance is asserted rather than assumed: a raise here means
+    the feature was turned off, and silence with a reverted kernel means wrong
+    logits with no error."""
     from tensorrt_llm._torch.pyexecutor.config_utils import (
         reject_unsupported_inkling_kv_cache_features,
     )
 
-    with pytest.raises(NotImplementedError, match="chunked prefill"):
-        reject_unsupported_inkling_kv_cache_features(
-            InklingConfig(), enable_block_reuse=False, enable_chunked_prefill=True
-        )
+    reject_unsupported_inkling_kv_cache_features(
+        InklingConfig(), enable_block_reuse=False, enable_chunked_prefill=True
+    )
+
+
+def test_chunked_prefill_is_served_by_a_paged_prefill_kernel():
+    """The pairing that makes the acceptance above safe. Both halves must hold:
+    the kernel takes the page table (attention crosses the chunk boundary) and
+    the conv runtime derives has_initial_state (the window crosses it too).
+    Accepting the flag with either half missing is the silent-wrong-logits case
+    the old guard existed to prevent."""
+    import inspect
+
+    from tensorrt_llm._torch.attention_backend.inkling import (
+        InklingConvRuntime,
+        inkling_prefill_attention,
+    )
+
+    sig = inspect.signature(inkling_prefill_attention)
+    assert "page_table" in sig.parameters, sig
+    assert "num_cached" in sig.parameters, sig
+
+    src = inspect.getsource(InklingConvRuntime.build)
+    assert "num_cached_tokens_per_seq" in src, src
 
 
 def test_disaggregated_serving_is_rejected():
@@ -189,38 +212,38 @@ def test_disaggregated_serving_is_rejected():
     )
 
 
-def test_both_messages_name_the_attention_path_not_just_the_conv():
-    """The conv window is the visible half; the load-bearing half is that
-    inkling_prefill_attention has no paged-KV argument, so a context request
-    with cached history loses it in ATTENTION too. A reader who sees only the
-    conv reason will "fix" has_initial_state, get a still-wrong result, and
-    conclude the guard was over-cautious. Both messages must say so."""
+def test_the_reuse_message_names_the_reason_that_still_applies():
+    """The reuse message used to blame the attention path. That reason is gone,
+    and leaving it in would send the next reader to fix a kernel that is already
+    fixed and conclude the guard is stale. The surviving reason is the conv
+    window's lifecycle: it belonged to another request and was freed with it."""
     from tensorrt_llm._torch.pyexecutor.config_utils import (
         reject_unsupported_inkling_kv_cache_features,
     )
 
-    for reuse, chunked in ((True, False), (False, True)):
-        with pytest.raises(NotImplementedError) as exc:
-            reject_unsupported_inkling_kv_cache_features(
-                InklingConfig(), enable_block_reuse=reuse, enable_chunked_prefill=chunked
-            )
-        msg = str(exc.value)
-        assert "inkling_prefill_attention" in msg, msg
-        assert "paged-KV" in msg, msg
+    with pytest.raises(NotImplementedError) as exc:
+        reject_unsupported_inkling_kv_cache_features(
+            InklingConfig(), enable_block_reuse=True, enable_chunked_prefill=False
+        )
+    msg = str(exc.value)
+    assert "short-conv" in msg, msg
+    assert "reuse key" in msg, msg
+    # The claim that would now be false.
+    assert "has no paged-KV path" not in msg, msg
 
 
-def test_the_conv_seeding_site_warns_against_a_partial_fix():
-    """InklingConvRuntime.build is where someone would land with the
-    Mamba2Metadata pattern in hand. The comment there has to say that deriving
-    has_initial_state is necessary but not sufficient, or the next reader
-    reintroduces the bug in a form that no longer raises."""
+def test_the_conv_seeding_site_derives_the_flag_per_request():
+    """InklingConvRuntime.build is the half of chunked prefill that is not the
+    kernel. It must derive has_initial_state from the request's cached length --
+    a hardcoded False silently drops the window carried from the previous chunk,
+    which no test of attention alone would catch."""
     import inspect
 
     from tensorrt_llm._torch.attention_backend.inkling import InklingConvRuntime
 
     src = inspect.getsource(InklingConvRuntime.build)
-    assert "not sufficient" in src.lower(), src
-    assert "_run_context" in src, src
+    assert "num_cached_tokens_per_seq" in src, src
+    assert "torch.zeros(num_contexts, dtype=torch.bool" not in src, src
 
 
 def test_the_supported_configuration_is_accepted():
@@ -249,26 +272,20 @@ def test_the_rejection_is_scoped_to_inkling():
     )
 
 
-def test_the_rejection_names_both_features_separately():
-    """Two independent causes; a user who hits both must not have to re-run to
-    discover the second. Block reuse is reported first because it is the one a
-    user can hit without asking for it (the framework default is True)."""
+def test_the_rejection_tells_the_user_which_knob_to_turn():
+    """A refusal that names the feature but not the setting costs the user a
+    round trip. Block reuse is the one they can hit without asking for it (the
+    framework default is True), so its message must name the knob."""
     from tensorrt_llm._torch.pyexecutor.config_utils import (
         reject_unsupported_inkling_kv_cache_features,
     )
 
-    with pytest.raises(NotImplementedError) as first:
+    with pytest.raises(NotImplementedError) as exc:
         reject_unsupported_inkling_kv_cache_features(
             InklingConfig(), enable_block_reuse=True, enable_chunked_prefill=True
         )
-    assert "block reuse" in str(first.value)
-    assert "enable_block_reuse=False" in str(first.value)
-
-    with pytest.raises(NotImplementedError) as second:
-        reject_unsupported_inkling_kv_cache_features(
-            InklingConfig(), enable_block_reuse=False, enable_chunked_prefill=True
-        )
-    assert "enable_chunked_prefill=False" in str(second.value)
+    assert "block reuse" in str(exc.value)
+    assert "enable_block_reuse=False" in str(exc.value)
 
 
 def test_the_kv_cache_creator_calls_the_guard():

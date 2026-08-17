@@ -48,30 +48,59 @@ _NEG = tl.constexpr(-1.0e30)
 
 
 # ---------------------------------------------------------------------------
-# Prefill (context) kernel: contiguous varlen Q/K/V, causal + optional window,
-# optional relative-bias score_mod. One fresh context has no cached prefix, so
-# K/V are read from the packed extend tensors directly.
+# Prefill (context) kernel: BLOCK_M-tiled queries reading the PAGED KV cache,
+# causal + optional window, optional relative-bias score_mod.
+#
+# Keys and values come from the pages, never from the packed extend tensors, so
+# a context request may carry cached history. ``num_cached[i] > 0`` is the
+# chunked-prefill case; ``num_cached[i] == 0`` is a fresh context and takes the
+# same path with the same code. ``InklingTritonAttention._run_context`` writes
+# this call's new K/V into the pages *before* launching, so the prefix and the
+# new tokens are both already there and no gather-and-concat is needed.
+#
+# Two coordinate systems live in this kernel, and mixing them up is its whole
+# risk surface -- every confusion is a silent wrong-logits bug, not a crash:
+#
+#   q_loc   row within THIS call's packed Q. Indexes Q, Out and RelLogits, all
+#           of which cover new tokens only.
+#   q_glob  position within the whole prompt (``cached + q_loc``). Drives the
+#           causal mask, the sliding window, and the relative-bias distance.
+#
+# Keys only ever have a global position: they span ``[0, cached + new_len)``.
+# The names are kept distinct rather than reusing one ``q_pos`` precisely so
+# that an index cannot be borrowed from the wrong space by accident.
+#
+# A key tile never straddles a page: ``lo`` is BLOCK_N-aligned, the loop steps
+# by BLOCK_N, and the wrapper asserts ``PAGE_SIZE % BLOCK_N == 0``. So the page
+# id is one scalar load per tile and the K/V accesses stay coalesced instead of
+# degrading into a per-element gather.
 # ---------------------------------------------------------------------------
 @triton.jit
 def _inkling_prefill_kernel(
     Q,
-    K,
-    V,
+    K_Cache,
+    V_Cache,
     Out,
     RelLogits,
     cu_seqlens,
+    num_cached,
+    page_table,
     sm_scale,
     stride_qt,
     stride_qh,
-    stride_kt,
+    stride_kp,
     stride_kh,
-    stride_vt,
+    stride_kt,
+    stride_vp,
     stride_vh,
+    stride_vt,
     stride_ot,
     stride_oh,
     stride_rt,
     stride_rh,
+    stride_ptb,
     kv_group_num,
+    PAGE_SIZE: tl.constexpr,
     rel_extent: tl.constexpr,
     HAS_REL: tl.constexpr,
     WINDOW_LEFT: tl.constexpr,
@@ -86,28 +115,34 @@ def _inkling_prefill_kernel(
     cur_kv_head = cur_head // kv_group_num
 
     seq_start = tl.load(cu_seqlens + cur_seq)
-    seq_len = tl.load(cu_seqlens + cur_seq + 1) - seq_start
+    new_len = tl.load(cu_seqlens + cur_seq + 1) - seq_start
+    cached = tl.load(num_cached + cur_seq)
+    total_len = cached + new_len
 
     offs_m = tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
     offs_d = tl.arange(0, BLOCK_DMODEL)
     mask_d = offs_d < Lk
 
-    q_pos = cur_block_m * BLOCK_M + offs_m  # [BLOCK_M], position within sequence
-    mask_m = q_pos < seq_len
+    q_loc = cur_block_m * BLOCK_M + offs_m  # [BLOCK_M], row in this call's Q
+    mask_m = q_loc < new_len
+    q_glob = cached + q_loc  # [BLOCK_M], position in the whole prompt
 
-    q_ptrs = (seq_start + q_pos)[:, None] * stride_qt + cur_head * stride_qh + offs_d[None, :]
+    q_ptrs = (seq_start + q_loc)[:, None] * stride_qt + cur_head * stride_qh + offs_d[None, :]
     q = tl.load(Q + q_ptrs, mask=mask_m[:, None] & mask_d[None, :], other=0.0)
 
     acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     e_max = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
     e_sum = tl.zeros([BLOCK_M], dtype=tl.float32)
 
-    # Causal: query block cur_block_m only attends to keys <= its last row.
-    end_n = tl.minimum(seq_len, (cur_block_m + 1) * BLOCK_M)
-    # Sliding window: skip whole key tiles older than the window low bound.
+    # Causal, in GLOBAL space: this tile's last query sits at
+    # ``cached + (cur_block_m + 1) * BLOCK_M - 1``, so keys stop one past it.
+    end_n = tl.minimum(total_len, cached + (cur_block_m + 1) * BLOCK_M)
+    # Sliding window: skip whole key tiles older than the window low bound. The
+    # bound is global too, so a window that reaches back into the prefix keeps
+    # reaching back across the chunk boundary.
     if WINDOW_LEFT >= 0:
-        lo = cur_block_m * BLOCK_M - WINDOW_LEFT
+        lo = cached + cur_block_m * BLOCK_M - WINDOW_LEFT
         if lo < 0:
             lo = 0
         lo = (lo // BLOCK_N) * BLOCK_N
@@ -116,28 +151,49 @@ def _inkling_prefill_kernel(
 
     for start_n in range(lo, end_n, BLOCK_N):
         start_n = tl.multiple_of(start_n, BLOCK_N)
-        k_pos = start_n + offs_n  # [BLOCK_N]
-        mask_n = k_pos < seq_len
+        k_glob = start_n + offs_n  # [BLOCK_N], global key positions
+        mask_n = k_glob < total_len
 
+        # One page per tile (see the header): scalar page id, contiguous offsets.
+        # ``start_n < end_n <= total_len`` bounds page_row inside the request's
+        # own page list, so this load never runs off the page table row.
+        page_row = start_n // PAGE_SIZE
+        page_id = tl.load(page_table + cur_seq * stride_ptb + page_row).to(tl.int64)
+        tok_in_page = start_n % PAGE_SIZE + offs_n
+
+        # [BLOCK_DMODEL, BLOCK_N], the layout tl.dot wants for the K operand.
         k_ptrs = (
-            (seq_start + k_pos)[None, :] * stride_kt + cur_kv_head * stride_kh + offs_d[:, None]
+            page_id * stride_kp
+            + cur_kv_head * stride_kh
+            + tok_in_page[None, :] * stride_kt
+            + offs_d[:, None]
         )
-        k = tl.load(K + k_ptrs, mask=mask_n[None, :] & mask_d[:, None], other=0.0)
+        k = tl.load(K_Cache + k_ptrs, mask=mask_n[None, :] & mask_d[:, None], other=0.0)
         qk = tl.dot(q, k, out_dtype=tl.float32) * sm_scale  # [BLOCK_M, BLOCK_N]
 
         if HAS_REL:
-            rel_dist = q_pos[:, None] - k_pos[None, :]
-            rel_idx = tl.minimum(tl.maximum(rel_dist, 0), rel_extent - 1)
-            rel_ptrs = (seq_start + q_pos)[:, None] * stride_rt + cur_head * stride_rh + rel_idx
-            rel_valid = (rel_dist >= 0) & (rel_dist < rel_extent)
-            bias = tl.load(
-                RelLogits + rel_ptrs, mask=mask_m[:, None] & mask_n[None, :] & rel_valid, other=0.0
-            )
-            qk += bias
+            # Whole-tile skip: the smallest distance anywhere in this tile is
+            # (first query) - (last key), so once even that is past the profile
+            # the bias is identically zero and the gather can be skipped. Every
+            # tile of a long cached prefix hits this, which is what makes
+            # reading history nearly free for the score_mod.
+            if (cached + cur_block_m * BLOCK_M) - (start_n + BLOCK_N - 1) < rel_extent:
+                rel_dist = q_glob[:, None] - k_glob[None, :]
+                rel_idx = tl.minimum(tl.maximum(rel_dist, 0), rel_extent - 1)
+                # Row is the LOCAL query index: rel_logits covers new tokens
+                # only, being built from each new token's own hidden state.
+                rel_ptrs = (seq_start + q_loc)[:, None] * stride_rt + cur_head * stride_rh + rel_idx
+                rel_valid = (rel_dist >= 0) & (rel_dist < rel_extent)
+                bias = tl.load(
+                    RelLogits + rel_ptrs,
+                    mask=mask_m[:, None] & mask_n[None, :] & rel_valid,
+                    other=0.0,
+                )
+                qk += bias
 
-        valid = mask_m[:, None] & mask_n[None, :] & (q_pos[:, None] >= k_pos[None, :])
+        valid = mask_m[:, None] & mask_n[None, :] & (q_glob[:, None] >= k_glob[None, :])
         if WINDOW_LEFT >= 0:
-            valid &= (q_pos[:, None] - k_pos[None, :]) <= WINDOW_LEFT
+            valid &= (q_glob[:, None] - k_glob[None, :]) <= WINDOW_LEFT
         qk = tl.where(valid, qk, _NEG)
 
         row_max = tl.max(qk, 1)
@@ -147,14 +203,17 @@ def _inkling_prefill_kernel(
         e_sum = e_sum * re_scale + tl.sum(p, 1)
 
         v_ptrs = (
-            (seq_start + k_pos)[:, None] * stride_vt + cur_kv_head * stride_vh + offs_d[None, :]
+            page_id * stride_vp
+            + cur_kv_head * stride_vh
+            + tok_in_page[:, None] * stride_vt
+            + offs_d[None, :]
         )
-        v = tl.load(V + v_ptrs, mask=mask_n[:, None] & mask_d[None, :], other=0.0)
+        v = tl.load(V_Cache + v_ptrs, mask=mask_n[:, None] & mask_d[None, :], other=0.0)
         acc = acc * re_scale[:, None] + tl.dot(p.to(v.dtype), v, out_dtype=tl.float32)
         e_max = n_e_max
 
     acc = acc / e_sum[:, None]
-    o_ptrs = (seq_start + q_pos)[:, None] * stride_ot + cur_head * stride_oh + offs_d[None, :]
+    o_ptrs = (seq_start + q_loc)[:, None] * stride_ot + cur_head * stride_oh + offs_d[None, :]
     tl.store(Out + o_ptrs, acc.to(Out.dtype.element_ty), mask=mask_m[:, None] & mask_d[None, :])
 
 
@@ -291,38 +350,51 @@ def _block_dmodel(head_dim: int) -> int:
 
 def inkling_prefill_attention(
     q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
+    k_cache: torch.Tensor,
+    v_cache: torch.Tensor,
     cu_seqlens: torch.Tensor,
+    num_cached: torch.Tensor,
+    page_table: torch.Tensor,
+    page_size: int,
     max_seqlen: int,
     sm_scale: float,
     rel_logits: Optional[torch.Tensor] = None,
     rel_extent: int = 0,
     window_left: int = -1,
 ) -> torch.Tensor:
-    """Context-phase attention over packed varlen Q/K/V.
+    """Context-phase attention: packed varlen queries over the paged KV cache.
+
+    The caller must have written this call's new K/V into the pages already
+    (``write_kv_cache_hnd`` at offset ``num_cached``); the kernel reads every
+    key from the page table, so it makes no distinction between a fresh context
+    and a later chunk sitting on a cached prefix.
 
     Args:
-        q: ``[total_tokens, num_heads, head_dim]``
-        k, v: ``[total_tokens, num_kv_heads, head_dim]``
-        cu_seqlens: ``[batch + 1]`` int32 cumulative token counts.
-        max_seqlen: max per-request length (host int; used for the grid).
+        q: ``[total_new_tokens, num_heads, head_dim]`` -- this call's queries.
+        k_cache, v_cache: ``[num_pages, num_kv_heads, page_size, head_dim]`` HND
+            views (K/V selected from the ``[num_pages, 2, ...]`` pool).
+        cu_seqlens: ``[batch + 1]`` int32 cumulative NEW token counts.
+        num_cached: ``[batch]`` int32 GPU tensor, tokens already in the cache
+            per request. All-zero is the fresh-context case.
+        page_table: ``[batch, max_pages]`` int32 GPU physical page ids.
+        page_size: tokens per page.
+        max_seqlen: max NEW tokens for one request (host int; used for the grid).
         sm_scale: softmax scale (``1 / head_dim`` for Inkling).
-        rel_logits: ``[total_tokens, num_heads, rel_extent]`` fp32 aux bias, or
-            None to skip the score_mod.
+        rel_logits: ``[total_new_tokens, num_heads, rel_extent]`` fp32 aux bias
+            indexed by the packed (local) query row, or None to skip the
+            score_mod.
         rel_extent: relative-bias extent (profile width).
         window_left: sliding-window radius (inclusive), -1 to disable.
 
-    Returns ``[total_tokens, num_heads, head_dim]`` in q's dtype.
+    Returns ``[total_new_tokens, num_heads, head_dim]`` in q's dtype.
     """
-    # The kernels index head_dim with an implicit stride-1 last axis, so the
-    # inputs must be contiguous. ``v`` in particular arrives non-contiguous: it
-    # keeps the fused-qkv row stride, having skipped ``apply_qk_norm``'s reshape.
+    # The kernel indexes head_dim with an implicit stride-1 last axis, so q must
+    # be contiguous. It arrives non-contiguous when it keeps the fused-qkv row
+    # stride, having skipped ``apply_qk_norm``'s reshape. K/V need no such call:
+    # they are the cache pool, whose layout the manager owns.
     q = q.contiguous()
-    k = k.contiguous()
-    v = v.contiguous()
     _total_tokens, num_heads, head_dim = q.shape
-    num_kv_heads = k.shape[1]
+    num_kv_heads = k_cache.shape[1]
     # The kernel maps a query head to its KV head as ``cur_head // kv_group_num``;
     # a non-divisible pair would silently mis-map instead of failing.
     assert num_heads % num_kv_heads == 0, (num_heads, num_kv_heads)
@@ -340,29 +412,56 @@ def inkling_prefill_attention(
 
     BLOCK_DMODEL = _block_dmodel(head_dim)
     BLOCK_M = 64
-    BLOCK_N = 64
+    # The kernel's one-page-per-tile addressing (scalar page id, contiguous
+    # in-page offsets) is valid only if a BLOCK_N-aligned key tile cannot
+    # straddle a page, i.e. BLOCK_N divides page_size. So BLOCK_N follows the
+    # page size rather than the other way round: ``tokens_per_block`` defaults
+    # to 32, and a fixed BLOCK_N of 64 would fail on every default deployment.
+    # 64 is the cap because it is what the tile shape was tuned at; a larger
+    # page just runs several tiles inside one page.
+    BLOCK_N = min(64, page_size)
+    # Two things have to hold, and only together do they cover the cases:
+    #   * BLOCK_N divides page_size, or a tile straddles a page and the scalar
+    #     page id is wrong for part of it. That is a wrong ADDRESS, not a wrong
+    #     number, so nothing downstream would flag it.
+    #   * BLOCK_N is a power of two, because ``tl.arange`` requires one. Without
+    #     this clause a page_size of 48 takes BLOCK_N=48, divides cleanly, and
+    #     dies inside Triton with an arange complaint that names neither the
+    #     page size nor the setting that produced it.
+    assert page_size % BLOCK_N == 0 and BLOCK_N & (BLOCK_N - 1) == 0, (
+        f"Inkling prefill cannot tile a page of {page_size} tokens: it needs a "
+        f"power-of-two key tile that divides the page (got BLOCK_N={BLOCK_N}). "
+        f"Set kv_cache_config.tokens_per_block to a power of two (32, the "
+        f"default, 64, or 128)."
+    )
     batch = cu_seqlens.shape[0] - 1
     grid = (batch, num_heads, triton.cdiv(max_seqlen, BLOCK_M))
 
     _inkling_prefill_kernel[grid](
         q,
-        k,
-        v,
+        k_cache,
+        v_cache,
         o,
         rel_arg,
         cu_seqlens,
+        num_cached,
+        page_table,
         sm_scale,
         q.stride(0),
         q.stride(1),
-        k.stride(0),
-        k.stride(1),
-        v.stride(0),
-        v.stride(1),
+        k_cache.stride(0),
+        k_cache.stride(1),
+        k_cache.stride(2),
+        v_cache.stride(0),
+        v_cache.stride(1),
+        v_cache.stride(2),
         o.stride(0),
         o.stride(1),
         r_st,
         r_sh,
+        page_table.stride(0),
         kv_group_num,
+        PAGE_SIZE=page_size,
         rel_extent=rel_extent if has_rel else 1,
         HAS_REL=has_rel,
         WINDOW_LEFT=window_left,
