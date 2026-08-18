@@ -216,6 +216,40 @@ class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
             f"{self._conv_cache.conv_state_bytes() / (1 << 20):.1f} MiB"
         )
 
+    def prepare_context(self, req):
+        """Observation only: count how much prefix each request actually reused.
+
+        ``get_kv_cache_stats`` is not usable here -- measured, it returns
+        reused/missed/alloc all zero for this configuration, so it reports the
+        same thing whether reuse works or never runs. ``context_current_position``
+        after the base call is the reused prefix length, which is the signal the
+        earlier bespoke implementation used and the only one confirmed to move.
+        """
+        first = bool(getattr(req, "is_first_context_chunk", True))
+        ok = super().prepare_context(req)
+        pos = int(getattr(req, "context_current_position", 0) or 0)
+        d = getattr(self, "_hit_dbg", None)
+        if d is None:
+            d = self._hit_dbg = {"n": 0, "chunks": 0, "hits": 0, "best": 0,
+                                 "total": 0}
+        d["chunks"] += 1
+        # Only the FIRST context chunk can carry a reused prefix. A
+        # continuation chunk also arrives with context_current_position > 0 --
+        # its own earlier chunks -- and counting those made a reuse-OFF arm
+        # report 221 hits, i.e. the counter measured chunked prefill, not reuse.
+        if not first:
+            return ok
+        d["n"] += 1
+        if pos > 0:
+            d["hits"] += 1
+            d["total"] += pos
+            d["best"] = max(d["best"], pos)
+        if d["n"] % 64 == 0:
+            logger.info(
+                f"Inkling prefix reuse: {d['hits']}/{d['n']} requests, "
+                f"longest={d['best']} tokens, total={d['total']}")
+        return ok
+
     # ---- reusable snapshots ------------------------------------------------
     def prepare_expect_snapshot_points(self, requests) -> None:
         """Where this batch's requests must snapshot their short-conv window.
@@ -249,6 +283,12 @@ class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
             request.expect_snapshot_points = list(
                 range(interval, request.prompt_len + 1, interval)
             )
+            if not getattr(self, "_logged_first_points", False):
+                self._logged_first_points = True
+                logger.info(
+                    f"Inkling snapshot points: interval={interval} "
+                    f"prompt_len={request.prompt_len} "
+                    f"points={request.expect_snapshot_points}")
 
     # ---- V2 cache layout ---------------------------------------------------
     def _build_cache_config(
@@ -312,6 +352,23 @@ class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
             # and the same line Mamba carries for the same reason.
             commit_min_snapshot=True,
         )
+
+    def _get_pool_roles(self, pool_id):
+        """Which roles the page-table index lanes carry for ``pool_id``.
+
+        The base answers Role.KEY/Role.VALUE for every pool, because every pool
+        it knows about is a paged attention pool. The conv pools hold no K/V --
+        asking for them raises ``KeyError: (pool_id, 'key')`` out of
+        ``_build_pool_mapping_tensors`` before the server can start.
+
+        Reporting CONV_K with no second lane matches what Mamba does for its
+        SSM pools: the page table is an attention structure, and these pools are
+        addressed by slot, not through it.
+        """
+        layer_id = int(self.impl.layer_grouping[pool_id][0])
+        if layer_id >= self._conv_layer_id_base:
+            return InklingRole.CONV_K, None
+        return super()._get_pool_roles(pool_id)
 
     def _conv_state_buffer(self, local_layer_idx: int, role, global_layer_idx: int):
         """One conv buffer as a ``[num_slots, channels, kwin]`` view of V2 memory.

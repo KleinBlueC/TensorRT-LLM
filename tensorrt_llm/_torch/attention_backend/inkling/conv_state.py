@@ -65,12 +65,12 @@ class InklingConvStateCache:
     holds, and a graph replaying against a freed buffer does not raise -- it
     reads whatever the allocator handed out next.
 
-    Fixing the size also keeps KV-cache capacity estimation honest. The pool is
-    a plain torch allocation, invisible to the V2 manager's own byte quota, and
-    it is counted only because the throwaway estimation manager holds one while
-    ``configure_kv_cache_capacity`` reads peak memory. That accounting is
-    correct exactly when the estimation pool and the serving pool are the same
-    size, which is true iff neither can grow.
+    The memory itself belongs to the V2 manager's SSM cache layers and is
+    injected as ``layer_states``; this class owns the request-to-row mapping,
+    not the bytes. V2 may size the pool above the floor the manager asks for,
+    so the injected buffers are sliced to the rows this pool addresses -- a
+    slice from zero, which keeps the stable device address a captured CUDA
+    graph holds.
     """
 
     def __init__(
@@ -107,20 +107,37 @@ class InklingConvStateCache:
             # than trusted: a shape that disagrees with what this pool computes
             # would not fault, it would index one layer's window into another's
             # and produce plausible-but-wrong activations.
+            checked = []
             for i, st in enumerate(layer_states):
                 kv_dim = (config.layer_num_kv_heads(i) * config.layer_head_dim(i)) // tp_size
+                fields = {}
                 for name, want in (
                     ("k", kv_dim), ("v", kv_dim),
                     ("attn", config.hidden_size), ("mlp", config.hidden_size),
                 ):
-                    got = tuple(getattr(st, name).shape)
-                    if got != (num_slots, want, kwin):
+                    buf = getattr(st, name)
+                    got = tuple(buf.shape)
+                    # Channels and window must match exactly -- those are the
+                    # dimensions a mismatch would silently index across.
+                    if got[1:] != (want, kwin):
                         raise ValueError(
                             f"Inkling conv buffer layer {i} '{name}' from the V2 "
                             f"pool has shape {got}, expected "
-                            f"{(num_slots, want, kwin)}"
+                            f"(*, {want}, {kwin})"
                         )
-            self._layers: List[InklingConvState] = list(layer_states)
+                    # Rows may exceed the floor this pool asked for: the SSM
+                    # slot count is a minimum constraint, and V2 is free to
+                    # size the pool above it. Fewer is a real error -- a slot
+                    # id this pool hands out would index past the buffer.
+                    if got[0] < num_slots:
+                        raise ValueError(
+                            f"Inkling conv buffer layer {i} '{name}' has "
+                            f"{got[0]} slots, fewer than the {num_slots} rows "
+                            f"this pool addresses"
+                        )
+                    fields[name] = buf[:num_slots]
+                checked.append(InklingConvState(**fields))
+            self._layers: List[InklingConvState] = checked
         else:
             # Standalone allocation. Kept for tests, which build the pool
             # without a cache manager; serving always goes through V2 so the

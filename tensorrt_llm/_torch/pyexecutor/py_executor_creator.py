@@ -782,6 +782,9 @@ def create_py_executor(
         # Snapshot boundaries come from expect_snapshot_points.  The unit is
         # only used to align chunks shortened by the scheduling budget.
         ctx_chunk_config = (ContextChunkingPolicy.FORCE_CHUNK, tokens_per_block)
+        logger.info(
+            f"FORCE_CHUNK context chunking at {tokens_per_block} tokens: "
+            "recurrent-state snapshots must land on block boundaries")
 
     guided_decoder: Optional[GuidedDecoder] = None
     if guided_decoding_config is not None:
