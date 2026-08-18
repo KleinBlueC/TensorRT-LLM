@@ -1123,6 +1123,26 @@ class InklingMTPBlock(nn.Module):
         # ``attn_metadata.ink_conv_cache``: that field was published once, during
         # prepare(), from the TARGET manager, while the draft forward runs
         # inside the draft KV cache context with the manager swapped underneath.
+        #
+        # KNOWN GAP, and deliberately left: the chain's windows are never rolled
+        # back. ``MTPWorker`` calls ``commit_conv_state_after_verify`` once, on
+        # ``attn_metadata.kv_cache_manager``, before entering the draft context
+        # -- so the commit only ever reaches the TARGET's pool. The chain
+        # advances its own windows over every drafted token and keeps the ones
+        # the next step rejects.
+        #
+        # This is an acceptance-rate defect, not a correctness one, and the
+        # asymmetry is the whole reason the target-side commit exists: a wrong
+        # window in the TARGET corrupts the logits that decide acceptance, so
+        # the committed tokens leave the greedy trajectory; a wrong window in
+        # the CHAIN only produces a worse draft, which the target then rejects.
+        # Output stays exactly right and the cost is a forward per step.
+        #
+        # Closing it is not mechanical: the chain consumes ``runtime_draft_len``
+        # tokens at step N whose acceptance is not decided until step N+1, so
+        # the rollback has to be deferred a step rather than mirrored. Measure
+        # first -- ``test_nvfp4_mtp_ar`` is the instrument that would show
+        # whether it costs anything.
         conv_state = conv_capture = conv_rt = None
         mgr = getattr(attn_metadata, "kv_cache_manager", None)
         prepare = getattr(mgr, "prepare_conv_runtime", None)

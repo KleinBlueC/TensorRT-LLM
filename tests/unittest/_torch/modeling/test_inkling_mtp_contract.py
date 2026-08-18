@@ -359,3 +359,123 @@ def test_the_head_can_still_return_every_token():
     params = inspect.signature(InklingMTPHead.forward).parameters
     assert "return_context_logits" in params
     assert params["return_context_logits"].default is False
+
+
+# ---------------------------------------------------------------------------
+# What the causal LM hands the spec worker
+# ---------------------------------------------------------------------------
+# Behavioural rather than signature-level: the two defects below were both
+# "the right method was called with the wrong value", which a signature check
+# cannot see. The forward is exercised unbound against a stub `self`, so this
+# still needs no GPU, checkpoint or built extension.
+
+
+class _RecordingSpecWorker:
+    """Stands in for MTPWorker and keeps what it was called with."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        return "spec-output"
+
+
+class _StubLogitsProcessor:
+
+    def forward(self, hidden_states, lm_head, attn_metadata, return_context_logits):
+        return hidden_states
+
+
+class _StubAttnMetadata:
+
+    def __init__(self, num_tokens, padded_num_tokens=None):
+        self.num_tokens = num_tokens
+        self.padded_num_tokens = padded_num_tokens
+
+
+class _StubSpecMetadata:
+
+    def __init__(self, gather_ids):
+        self.gather_ids = gather_ids
+
+
+def _run_causal_lm_forward(*, input_ids, kwargs, padded_num_tokens=None, num_tokens=4):
+    """Drive InklingForCausalLM.forward against a stub self, return the worker."""
+    import torch
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    total_rows = padded_num_tokens if padded_num_tokens is not None else num_tokens
+    worker = _RecordingSpecWorker()
+
+    class _Stub:
+        mup_multiplier = 2.0
+        spec_worker = worker
+        logits_processor = _StubLogitsProcessor()
+        lm_head = None
+        draft_model = None
+
+        def model(self, **_kw):
+            return torch.arange(total_rows, dtype=torch.float32).unsqueeze(1)
+
+    stub = _Stub()
+    InklingForCausalLM.forward(
+        stub,
+        _StubAttnMetadata(num_tokens, padded_num_tokens),
+        input_ids=input_ids,
+        position_ids=torch.arange(total_rows, dtype=torch.int32),
+        spec_metadata=_StubSpecMetadata(torch.tensor([0])),
+        **kwargs,
+    )
+    assert len(worker.calls) == 1
+    return worker.calls[0]
+
+
+def test_the_worker_gets_the_pre_fusion_ids_on_a_multimodal_request():
+    """``fuse_input_embeds`` returns input_ids as None; the worker subscripts it.
+
+    On a request carrying an image the token stream becomes an embedding
+    stream, so ``input_ids`` arrives here as None. MTPWorker does
+    ``input_ids[:num_ctx_tokens]`` in prepare_drafter_inputs, which is a
+    TypeError -- Inkling is the only MTP model that is also multimodal, so
+    nothing else exercises this. The wrapper forwards the pre-fusion ids under
+    ``orig_input_ids`` and this is where they are picked back up.
+    """
+    import torch
+
+    orig = torch.arange(4, dtype=torch.int32)
+    call = _run_causal_lm_forward(input_ids=None, kwargs={"orig_input_ids": orig})
+    assert call["input_ids"] is not None, (
+        "the spec worker was handed input_ids=None; it subscripts them"
+    )
+    assert torch.equal(call["input_ids"], orig)
+
+
+def test_real_input_ids_win_over_the_multimodal_fallback():
+    """A text-only request must not be rerouted through the fallback."""
+    import torch
+
+    real = torch.arange(10, 14, dtype=torch.int32)
+    stale = torch.zeros(4, dtype=torch.int32)
+    call = _run_causal_lm_forward(input_ids=real, kwargs={"orig_input_ids": stale})
+    assert torch.equal(call["input_ids"], real)
+
+
+def test_padding_rows_do_not_reach_the_spec_worker():
+    """Padded rows are scratch the batch was rounded up to, not tokens.
+
+    ``padded_num_tokens`` set means hidden_states / input_ids / position_ids all
+    carry rows past ``num_tokens``. The worker indexes by request and would read
+    them as real; the one-engine base trims all three, and this override has to
+    repeat that rather than inherit it.
+    """
+    import torch
+
+    ids = torch.arange(8, dtype=torch.int32)
+    call = _run_causal_lm_forward(
+        input_ids=ids, kwargs={}, padded_num_tokens=8, num_tokens=5
+    )
+    assert call["input_ids"].shape[0] == 5
+    assert call["position_ids"].shape[-1] == 5
+    assert call["hidden_states"].shape[0] == 5
