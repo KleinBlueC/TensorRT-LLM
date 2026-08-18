@@ -194,8 +194,7 @@ def reject_unsupported_inkling_kv_cache_features(
 
     **Block reuse.** The four short-conv windows per layer are per-request state
     outside the KV cache. On a prefix hit there is no window to restore, because
-    the convs consume activations a reused prefix never computed. Design for
-    lifting this: ``docs/source/developer-guide/inkling-prefix-reuse-design.md``.
+    the convs consume activations a reused prefix never computed.
 
     **Disaggregated serving.** The C++ transceiver route is already refused in
     ``_util.py`` for every V2 manager. The Python one would transfer the paged KV
@@ -223,8 +222,7 @@ def reject_unsupported_inkling_kv_cache_features(
             "convs consume activations that a reused prefix never computed. "
             "The result is silently wrong output, not a cache miss. Set "
             "kv_cache_config.enable_block_reuse=False (the Inkling model "
-            "default) to run Inkling. Design for lifting this: "
-            "docs/source/developer-guide/inkling-prefix-reuse-design.md")
+            "default) to run Inkling.")
     if enable_cache_transceiver:
         raise NotImplementedError(
             "Inkling does not support disaggregated serving. The four "
