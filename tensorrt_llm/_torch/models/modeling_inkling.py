@@ -1330,6 +1330,25 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "so no draft depths to build). Speculative decoding needs a "
                 "checkpoint that ships one; run without speculative_config."
             )
+        if not spec_config.spec_dec_mode.is_mtp_vanilla():
+            # Inkling's chain is vanilla MTP: every depth has its own weights
+            # and its own banded/global attention geometry. The EAGLE-style
+            # modes build ONE block and replay it, which is a different model.
+            #
+            # This is reachable by configuration rather than by asking for it:
+            # ``spec_dec_mode`` resolves to EAGLE whenever the spec config's
+            # ``num_nextn_predict_layers`` comes out as 1, and that field is
+            # filled from the TOP-LEVEL pretrained config. Nothing downstream
+            # complains -- the model side reads the text config and believes it
+            # has N depths while the framework has decided there is one.
+            raise ValueError(
+                f"Inkling MTP needs vanilla MTP, got {spec_config.spec_dec_mode}. "
+                "Its draft depths have distinct weights and attention geometry, "
+                "so a single replayed block is a different model. This usually "
+                "means the chain depth did not reach the speculative config; "
+                "set use_mtp_vanilla=True on MTPDecodingConfig if the checkpoint "
+                "genuinely declares one depth."
+            )
         if getattr(model_config, "use_cuda_graph", False):
             # The verify step walks the drafted positions one at a time, writing
             # KV and re-attending per position, which is not capturable; the

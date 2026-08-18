@@ -361,6 +361,24 @@ class InklingConfig(PretrainedConfig):
                 depths = len(getattr(self.mtp_config, "local_layer_ids", None) or ()) or None
             if depths is not None:
                 self.text_config.num_nextn_predict_layers = int(depths)
+                # And on THIS config as well, because two different framework
+                # readers look in two different places.
+                #
+                # ``MTPForCausalLM`` gets the TEXT sub-config (the causal LM is
+                # built from it), but ``update_spec_config_from_model_config``
+                # is handed ``config.pretrained_config`` -- which for a
+                # multimodal checkpoint is this top-level object -- and reads
+                # ``num_nextn_predict_layers`` off it directly, with no descent
+                # into text_config. Not finding it, it falls back to 1, and
+                # ``MTPDecodingConfig.spec_dec_mode`` then resolves 1 depth plus
+                # the default flags to MTP_EAGLE_ONE_MODEL rather than vanilla
+                # MTP. That builds ONE draft block and replays it max_draft_len
+                # times, which is not Inkling's chain: its depths have their own
+                # weights and their own banded/global attention geometry
+                # (``mtp_depth_num_kv_heads``). Nothing raises -- the model side
+                # reads the text config and believes it has N depths while the
+                # framework has decided there is one.
+                self.num_nextn_predict_layers = int(depths)
 
     @staticmethod
     def _as_config(value):

@@ -163,3 +163,44 @@ def test_no_chain_leaves_the_framework_field_unset():
     """
     cfg = InklingConfig(text_config={})
     assert getattr(cfg.text_config, "num_nextn_predict_layers", None) is None
+
+
+def test_the_chain_depth_reaches_both_framework_readers():
+    """Two readers, two places, and only one of them descends into text_config.
+
+    ``MTPForCausalLM`` is handed the TEXT sub-config, but
+    ``update_spec_config_from_model_config`` is handed
+    ``config.pretrained_config`` -- the TOP-LEVEL object for a multimodal
+    checkpoint -- and reads the field off it directly. Missing it there, it
+    falls back to 1, and ``MTPDecodingConfig.spec_dec_mode`` then resolves 1
+    depth plus the default flags to MTP_EAGLE_ONE_MODEL instead of vanilla MTP:
+    one draft block replayed, rather than Inkling's per-depth chain. Nothing
+    raises; the two sides simply disagree about how many depths exist.
+    """
+    cfg = InklingConfig(text_config={}, mtp_config=dict(_CKPT_MTP_CONFIG))
+    depth = len(_CKPT_MTP_CONFIG["local_layer_ids"])
+    assert cfg.text_config.num_nextn_predict_layers == depth
+    assert cfg.num_nextn_predict_layers == depth, (
+        "the top-level config is what update_spec_config_from_model_config reads"
+    )
+
+
+def test_the_resolved_spec_mode_is_vanilla_mtp_not_eagle():
+    """End-to-end on the field that decides it, through the real resolver.
+
+    Pinning the mode rather than the field, because the field is only
+    interesting for what it resolves to -- and the failure was silent precisely
+    because the field looked absent rather than wrong.
+    """
+    from tensorrt_llm._torch.speculative.utils import update_spec_config_from_model_config
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    cfg = InklingConfig(text_config={}, mtp_config=dict(_CKPT_MTP_CONFIG))
+    spec_config = MTPDecodingConfig(max_draft_len=3)
+    update_spec_config_from_model_config(spec_config, cfg)
+
+    assert spec_config.num_nextn_predict_layers == len(_CKPT_MTP_CONFIG["local_layer_ids"])
+    assert spec_config.spec_dec_mode.is_mtp_vanilla(), (
+        f"resolved to {spec_config.spec_dec_mode}; Inkling's depths have their "
+        "own weights and geometry, so a replayed single block is a different model"
+    )
