@@ -162,3 +162,58 @@ def test_the_block_concatenates_hidden_then_embed():
     i_hidden = src.index("self.hidden_norm(")
     i_embed = src.index("self.embed_norm(")
     assert i_hidden < i_embed, "hidden_norm must come first in the concatenation"
+
+
+# --- what the shipped config.json actually resolves to ----------------------
+# Cheap enough to belong here despite the file's name: it reads config.json and
+# no tensors. It is the only check that runs the REAL declaration through the
+# REAL resolver, and it is the one that would have caught the chain being built
+# as a single replayed block on both releases.
+
+
+@pytest.mark.parametrize("ckpt", _CHECKPOINTS)
+def test_the_shipped_config_resolves_to_vanilla_mtp(ckpt):
+    """A whole-chain check, from config.json to the resolved decoding mode.
+
+    Two framework readers want the chain depth and only one descends into
+    text_config: MTPForCausalLM gets the TEXT sub-config, while
+    update_spec_config_from_model_config gets the TOP-LEVEL object. Both shipped
+    releases are `InklingForConditionalGeneration` / `inkling_mm_model`, whose
+    top-level config.json carries no `num_nextn_predict_layers` at all -- so the
+    second reader found nothing, fell back to 1, and the mode resolved to
+    MTP_EAGLE_ONE_MODEL: ONE draft block replayed max_draft_len times, against a
+    chain that declares eight depths with their own weights and their own
+    banded/global attention geometry.
+
+    Nothing raised. The model side read the text config and believed it had
+    eight depths while the framework had decided there was one.
+    """
+    from tensorrt_llm._torch.configs.inkling import InklingConfig
+    from tensorrt_llm._torch.speculative.utils import (
+        get_num_spec_layers,
+        update_spec_config_from_model_config,
+    )
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    path = os.path.join(_HF_ROOT, ckpt, "config.json")
+    if not os.path.exists(path):
+        pytest.skip(f"{ckpt} not mounted")
+    raw = json.load(open(path))
+
+    assert raw["architectures"] == ["InklingForConditionalGeneration"]
+    declared = raw["mtp_config"]["num_nextn_predict_layers"]
+    assert raw.get("num_nextn_predict_layers") is None, (
+        "the top level is where the resolver looks and where the checkpoint is silent"
+    )
+
+    cfg = InklingConfig(**{k: v for k, v in raw.items() if k != "architectures"})
+    spec_config = MTPDecodingConfig(max_draft_len=3)
+    update_spec_config_from_model_config(spec_config, cfg)
+
+    assert spec_config.num_nextn_predict_layers == declared
+    assert spec_config.spec_dec_mode.is_mtp_vanilla(), (
+        f"{ckpt} resolved to {spec_config.spec_dec_mode}"
+    )
+    # What MTPForCausalLM will build, and what the draft KV cache is sized for.
+    assert min(spec_config.max_draft_len, cfg.text_config.num_nextn_predict_layers) == 3
+    assert get_num_spec_layers(spec_config) == declared
