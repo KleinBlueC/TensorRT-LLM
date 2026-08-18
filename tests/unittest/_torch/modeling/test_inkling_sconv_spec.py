@@ -270,7 +270,9 @@ def test_capture_is_only_allocated_when_speculating():
     """An ordinary server must not pay for buffers it never reads."""
     import inspect
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import InklingConvStateCache
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import (
+        InklingConvStateCache,
+    )
 
     src = inspect.getsource(InklingConvStateCache.__init__)
     assert "verify_steps" in src and "if self.verify_steps < 2" in src
@@ -293,9 +295,7 @@ def test_verify_attention_is_not_routed_through_the_context_path():
     """
     import inspect
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        InklingTritonAttention,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
     src = inspect.getsource(InklingTritonAttention._run_verify)
     # The docstring explains why the prefill kernel is wrong here, so check the
@@ -316,9 +316,7 @@ def test_verify_walks_positions_in_order_so_causality_is_structural():
     """
     import inspect
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        InklingTritonAttention,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
     src = inspect.getsource(InklingTritonAttention._run_verify)
     write_at = src.index("write_kv_cache_hnd")
@@ -359,9 +357,7 @@ def test_capture_under_cuda_graph_is_refused_with_a_reason():
     """
     import inspect
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        InklingTritonAttention,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
     src = inspect.getsource(InklingTritonAttention._run_verify)
     assert "is_cuda_graph" in src and "RuntimeError" in src
@@ -382,7 +378,9 @@ def test_the_draft_pool_is_addressed_by_global_index():
     """
     import inspect
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import InklingConvStateCache
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import (
+        InklingConvStateCache,
+    )
 
     src = inspect.getsource(InklingConvStateCache.__init__)
     assert "layer_offset" in src and "num_layers" in src
@@ -470,9 +468,7 @@ def test_a_shared_draft_kv_cache_is_refused_at_load():
 def test_a_layer_with_no_slot_in_the_manager_says_so():
     """Same condition at runtime, in case the load-time check is bypassed."""
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        _batch_cache_indices,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import _batch_cache_indices
 
     class _Mgr:
         def get_batch_cache_indices(self, request_ids, layer_idx):
@@ -499,9 +495,7 @@ def test_a_draft_layer_falls_back_off_the_published_page_table():
     """
     import inspect
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        InklingTritonAttention,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
     src = inspect.getsource(InklingTritonAttention._run_verify)
     assert "_batch_cache_indices(mgr" in src, (
@@ -531,9 +525,7 @@ def test_verify_writes_after_the_existing_history_not_at_zero():
     from the history to ``history + steps - 1``, and asking for that room
     succeeds when the pages cover it.
     """
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        check_verify_write_room,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import check_verify_write_room
 
     page_size, history, steps = 32, 669, 4
     pages = list(range(history // page_size + 2))  # covers 0 .. history + steps
@@ -566,9 +558,7 @@ def test_a_negative_write_base_is_refused():
     It is a backstop, not the handler for the one negative base that legitimately
     occurs -- see the warmup clamp below.
     """
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        check_verify_write_room,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import check_verify_write_room
 
     with pytest.raises(RuntimeError, match="negative KV write base"):
         check_verify_write_room(-3, 4, 32, list(range(24)))

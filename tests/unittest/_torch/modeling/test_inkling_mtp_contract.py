@@ -413,20 +413,17 @@ class _RecordingSpecWorker:
 
 
 class _StubLogitsProcessor:
-
     def forward(self, hidden_states, lm_head, attn_metadata, return_context_logits):
         return hidden_states
 
 
 class _StubAttnMetadata:
-
     def __init__(self, num_tokens, padded_num_tokens=None):
         self.num_tokens = num_tokens
         self.padded_num_tokens = padded_num_tokens
 
 
 class _StubSpecMetadata:
-
     def __init__(self, gather_ids):
         self.gather_ids = gather_ids
 
@@ -504,9 +501,7 @@ def test_padding_rows_do_not_reach_the_spec_worker():
     import torch
 
     ids = torch.arange(8, dtype=torch.int32)
-    call = _run_causal_lm_forward(
-        input_ids=ids, kwargs={}, padded_num_tokens=8, num_tokens=5
-    )
+    call = _run_causal_lm_forward(input_ids=ids, kwargs={}, padded_num_tokens=8, num_tokens=5)
     assert call["input_ids"].shape[0] == 5
     assert call["position_ids"].shape[-1] == 5
     assert call["hidden_states"].shape[0] == 5
@@ -523,8 +518,9 @@ def _spec_guard_config(*, depths=8, draft_len=3, cuda_graph=False, vanilla=True)
 
     text = InklingConfig(
         text_config={"num_hidden_layers": 42},
-        mtp_config=({"num_nextn_predict_layers": depths, "local_layer_ids": [0, 2]}
-                    if depths else None),
+        mtp_config=(
+            {"num_nextn_predict_layers": depths, "local_layer_ids": [0, 2]} if depths else None
+        ),
     ).text_config
     spec_config = MTPDecodingConfig(max_draft_len=draft_len)
     # What the resolver would have set; done by hand so each case is explicit.

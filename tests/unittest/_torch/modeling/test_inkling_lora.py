@@ -196,6 +196,7 @@ def test_layer_types_tolerates_a_config_without_architectures():
     assert getattr(text, "architectures", None) is None
     assert ModelConfig(pretrained_config=text).get_layer_types() is None
 
+
 def test_the_causal_lm_forwards_kwargs_to_the_decoder_stack():
     """``lora_params`` arrives in kwargs and is read from there by the stack.
 

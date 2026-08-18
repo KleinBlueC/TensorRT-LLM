@@ -206,8 +206,7 @@ def test_the_resolved_spec_mode_is_vanilla_mtp_not_eagle():
     spec_config = MTPDecodingConfig(max_draft_len=3)
     update_spec_config_from_model_config(spec_config, cfg)
 
-    assert (spec_config.num_nextn_predict_layers
-            == _CKPT_MTP_CONFIG["num_nextn_predict_layers"])
+    assert spec_config.num_nextn_predict_layers == _CKPT_MTP_CONFIG["num_nextn_predict_layers"]
     assert spec_config.spec_dec_mode.is_mtp_vanilla(), (
         f"resolved to {spec_config.spec_dec_mode}; Inkling's depths have their "
         "own weights and geometry, so a replayed single block is a different model"
