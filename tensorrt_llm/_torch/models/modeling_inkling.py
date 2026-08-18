@@ -1296,6 +1296,19 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "the Inkling short-conv capture buffers are sized from it, and a "
                 "verify step with nothing captured cannot be rolled back."
             )
+        if getattr(model_config, "use_cuda_graph", False):
+            # The verify step walks the drafted positions one at a time, writing
+            # KV and re-attending per position, which is not capturable; the
+            # backend raises when it sees a captured batch. That raise lands
+            # inside warmup, minutes in, from a stack that names neither
+            # speculation nor the graph setting -- so refuse the combination
+            # here, where both are still in hand.
+            raise ValueError(
+                "Inkling speculative decoding cannot run with CUDA graphs: the "
+                "verify step walks the drafted positions one at a time and "
+                "cannot be captured. Set cuda_graph_config=None (or remove it "
+                "from --extra_llm_api_options) when enabling MTP on Inkling."
+            )
 
     @staticmethod
     def _assert_inkling_lora_supported(model_config) -> None:
@@ -1497,6 +1510,12 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
             # model runs, the adapter loads, and the output is the base model's.
             **kwargs,
         )
+        # Padded rows are scratch the batch was rounded up to; the spec worker
+        # indexes by request and would read them as real tokens. The one-engine
+        # base trims here for the same reason -- this override has to repeat it
+        # rather than inherit it.
+        if attn_metadata.padded_num_tokens is not None:
+            hidden_states = hidden_states[: attn_metadata.num_tokens]
         # muP: accuracy-critical, and it applies to the lm_head input only. The
         # draft chain is handed the UNDIVIDED hidden states below, matching the
         # SGLang reference, because the division belongs to the head rather than
@@ -1509,9 +1528,22 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 attn_metadata,
                 True,
             )
+            # On a multimodal request ``fuse_input_embeds`` returns input_ids as
+            # None -- the token stream became an embedding stream -- and the
+            # worker subscripts what it is given (``input_ids[:num_ctx_tokens]``
+            # in prepare_drafter_inputs). The wrapper forwards the pre-fusion ids
+            # under ``orig_input_ids`` for exactly this, the same key
+            # Qwen3-VL and Gemma4-MM use.
+            spec_input_ids = input_ids if input_ids is not None else kwargs.get("orig_input_ids")
+            spec_position_ids = position_ids
+            if attn_metadata.padded_num_tokens is not None:
+                if spec_input_ids is not None:
+                    spec_input_ids = spec_input_ids[: attn_metadata.num_tokens]
+                if spec_position_ids is not None:
+                    spec_position_ids = spec_position_ids[..., : attn_metadata.num_tokens]
             return self.spec_worker(
-                input_ids=input_ids,
-                position_ids=position_ids,
+                input_ids=spec_input_ids,
+                position_ids=spec_position_ids,
                 hidden_states=hidden_states,
                 logits=logits,
                 attn_metadata=attn_metadata,
@@ -1839,6 +1871,11 @@ class InklingForConditionalGeneration(InklingForCausalLM):
         text decoder. Only context (prefill) requests carry media features;
         decode steps have ``num_contexts == 0`` and pass straight through. A
         text-only request never touches the towers."""
+        # Kept before fusion: ``fuse_input_embeds`` returns input_ids as None,
+        # and the MTP worker needs the token stream. Passed down under
+        # ``orig_input_ids`` (Qwen3-VL / Gemma4-MM use the same key) rather than
+        # threaded as a named argument, so the non-speculative path is untouched.
+        orig_input_ids = input_ids
         inputs_embeds_prenormed = False
         if inputs_embeds is None and (self.visual is not None or self.audio_tower is not None):
             multimodal_params = kwargs.get("multimodal_params", []) or []
@@ -1910,6 +1947,7 @@ class InklingForConditionalGeneration(InklingForCausalLM):
                         ],
                     )
                     inputs_embeds_prenormed = True
+        kwargs.setdefault("orig_input_ids", orig_input_ids)
         return super().forward(
             attn_metadata,
             input_ids=input_ids,

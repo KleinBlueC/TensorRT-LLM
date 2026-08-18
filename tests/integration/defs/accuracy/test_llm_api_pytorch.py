@@ -8459,3 +8459,64 @@ class TestInkling_Small_NVFP4(TestInkling_NVFP4):
 
     MODEL_NAME = "thinkingmachines/Inkling-Small-NVFP4"
     MODEL_PATH = f"{llm_models_root()}/Inkling-Small-NVFP4"
+
+    @skip_pre_blackwell
+    @pytest.mark.skip_less_mpi_world_size(4)
+    def test_nvfp4_mtp_ar(self):
+        """MTP drafts are accepted at a useful rate.
+
+        Acceptance, not accuracy, deliberately -- and for the same reason the
+        DeepSeek-R1 MTP test gives (nvbugs/6460072): the target regenerates
+        rejected drafts, so a broken drafter leaves the score intact and shows
+        up only as a collapsed acceptance length. The one thing an accuracy
+        assertion would catch here it should NOT be asked to: Inkling is a
+        long-CoT model scored at a 16384-token cap, where a perturbation of the
+        size any batched MoE already has costs it termination on a majority of
+        answers. That is a model property, measured and documented, and pinning
+        it to a threshold would make this test a referendum on it.
+
+        ``cuda_graph_config=None`` is required, not tuning: the Inkling verify
+        step walks the drafted positions one at a time and cannot be captured.
+        The model raises at construction if both are set.
+        """
+        max_draft_len = 3
+        mtp_config = MTPDecodingConfig(max_draft_len=max_draft_len)
+        with LLM(
+                self.MODEL_PATH,
+                tensor_parallel_size=4,
+                max_num_tokens=self.MAX_NUM_TOKENS,
+                max_batch_size=4,
+                kv_cache_config=self.kv_cache_config,
+                cuda_graph_config=None,
+                disable_overlap_scheduler=True,
+                speculative_config=mtp_config,
+        ) as llm:
+            prompts = [
+                llm.tokenizer.apply_chat_template(
+                    [{
+                        "role": "user",
+                        "content": p
+                    }],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                ) for p in (
+                    "What is 17 * 23?",
+                    "Name the capital of France.",
+                    "Sort 5, 2, 9, 1 in ascending order.",
+                )
+            ]
+            sampling_params = SamplingParams(max_tokens=128, temperature=0)
+            for i, prompt in enumerate(prompts):
+                num_tokens = 0
+                num_drafted = 0
+                num_accepted = 0
+                for output in llm.generate_async(prompt,
+                                                 sampling_params,
+                                                 streaming=True):
+                    new_tokens = output.outputs[0].token_ids
+                    num_drafted += max_draft_len
+                    num_accepted += len(new_tokens) - num_tokens - 1
+                    num_tokens = len(new_tokens)
+                accept_rate = num_accepted / num_drafted
+                assert accept_rate > 0.2, \
+                    f"Acceptance rate too low for prompt {i}: {accept_rate:.2f}"
