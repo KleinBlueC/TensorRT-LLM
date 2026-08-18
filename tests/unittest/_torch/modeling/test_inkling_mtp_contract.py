@@ -31,6 +31,8 @@ than at the end of an end-to-end job.
 
 import inspect
 
+import pytest
+
 from tensorrt_llm._torch.configs.inkling import InklingConfig
 from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock, InklingMTPHead
 
@@ -125,14 +127,43 @@ def test_block_constructor_takes_the_frameworks_three_positionals():
 def test_offset_layer_index_maps_back_onto_the_chain():
     """The framework passes ``depth + target_num_hidden_layers``.
 
-    A 66-layer trunk means depth 0 arrives as 66. Indexing the chain's geometry
-    with 66 would read past the chain and treat every depth as global -- wrong
+    A 42-layer trunk means depth 0 arrives as 42. Indexing the chain's geometry
+    with 42 would read past the chain and treat every depth as global -- wrong
     windows on every banded depth, and no crash to show it.
+
+    This asserted a MODULO until the shipped numbers were checked. 42 % 8 = 2,
+    so every block was built with depth ``b + 2``'s geometry while carrying
+    depth ``b``'s weights; it survived at max_draft_len 3 only because the
+    banded set [0, 2, 4, 5, 6, 7] gives 0,1,2 and 2,3,4 the same banded/global
+    pattern. Block 3 is where it diverges.
     """
-    src = inspect.getsource(InklingMTPBlock.__init__)
-    assert "%" in src and "_mtp_num_depths" in src, (
-        "the offset start_layer_idx must be folded back onto the chain's own indexing"
-    )
+    from tensorrt_llm._torch.models.modeling_inkling import _mtp_depth_from_global_index
+
+    text = InklingConfig(
+        text_config={"num_hidden_layers": 42},
+        mtp_config={"num_nextn_predict_layers": 8, "local_layer_ids": [0, 2, 4, 5, 6, 7]},
+    ).text_config
+    assert 42 % 8 != 0, "the shape that makes a modulo and a subtraction differ"
+    for depth in range(8):
+        assert _mtp_depth_from_global_index(text, 42 + depth) == depth
+
+
+def test_an_index_outside_the_chain_is_refused():
+    """Off the end means the caller and the config disagree about the trunk.
+
+    Every symptom of that is silent -- wrong window, wrong KV-head count, a conv
+    pool sized from a different depth -- so it raises instead of clamping.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import _mtp_depth_from_global_index
+
+    text = InklingConfig(
+        text_config={"num_hidden_layers": 42},
+        mtp_config={"num_nextn_predict_layers": 8, "local_layer_ids": [0, 2]},
+    ).text_config
+    with pytest.raises(ValueError, match="disagree about the trunk"):
+        _mtp_depth_from_global_index(text, 41)
+    with pytest.raises(ValueError, match="disagree about the trunk"):
+        _mtp_depth_from_global_index(text, 50)
 
 
 def test_inkling_is_registered_in_the_mtp_dispatch_table():

@@ -976,6 +976,34 @@ def _mtp_num_depths(config: InklingTextConfig) -> int:
     return (max(ids) + 1) if ids else 1
 
 
+def _mtp_depth_from_global_index(config: InklingTextConfig, global_layer_idx: int) -> int:
+    """Recover a chain depth from the layer index the framework builds with.
+
+    ``MTPForCausalLM`` passes ``depth + start_layer_idx`` where start_layer_idx
+    is the trunk's layer count, so the trunk is SUBTRACTED back off. A modulo
+    over the depth count gives the same answer only when
+    ``num_hidden_layers % num_depths == 0``; on the shipped small checkpoint
+    that is 42 % 8 = 2, which shifted every block onto another depth's geometry
+    while it carried its own depth's weights.
+
+    Raises rather than clamping: an index outside the chain means the caller and
+    this config disagree about how tall the trunk is, and every downstream
+    symptom of that (wrong window, wrong KV-head count, a conv pool sized from a
+    different depth) is silent.
+    """
+    depth = global_layer_idx - config.num_hidden_layers
+    num_depths = _mtp_num_depths(config)
+    if not 0 <= depth < num_depths:
+        raise ValueError(
+            f"Inkling MTP block built at global layer index {global_layer_idx}, "
+            f"i.e. depth {depth} of a {num_depths}-deep chain sitting above "
+            f"{config.num_hidden_layers} trunk layers. MTPForCausalLM passes the "
+            "trunk's layer count as start_layer_idx, so this means the two "
+            "disagree about the trunk."
+        )
+    return depth
+
+
 class InklingMTPHead(nn.Module):
     """Per-depth head: optional chain post-norm, then the shared LM head.
 
@@ -1055,7 +1083,7 @@ class InklingMTPBlock(nn.Module):
         # manager for layer 2 when the buffers live at trunk+2, a KeyError deep
         # in the first draft forward.
         global_layer_idx = depth
-        depth = depth % max(1, _mtp_num_depths(config))
+        depth = _mtp_depth_from_global_index(config, global_layer_idx)
         # Accepted for the framework's uniform constructor signature. Inkling's
         # draft blocks are dense, so there is no MoE/shared-expert overlap to
         # schedule on a second stream.
