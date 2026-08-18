@@ -967,7 +967,13 @@ def _mtp_num_depths(config: InklingTextConfig) -> int:
     n = getattr(config, "num_nextn_predict_layers", None)
     if n:
         return int(n)
-    return len(getattr(config, "mtp_local_layer_ids", None) or ()) or 1
+    # The ids name WHICH depths are banded, not how many exist
+    # (``is_mtp_local_depth`` treats them as a membership set), so the count
+    # comes from the largest index. The shipped small checkpoint declares 8
+    # depths as [0, 2, 4, 5, 6, 7]: six ids, last one 7, and only ``max + 1``
+    # gets back to 8.
+    ids = getattr(config, "mtp_local_layer_ids", None) or ()
+    return (max(ids) + 1) if ids else 1
 
 
 class InklingMTPHead(nn.Module):

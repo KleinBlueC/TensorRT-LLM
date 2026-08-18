@@ -358,7 +358,14 @@ class InklingConfig(PretrainedConfig):
             # back to on the model side.
             depths = getattr(self.mtp_config, "num_nextn_predict_layers", None)
             if depths is None:
-                depths = len(getattr(self.mtp_config, "local_layer_ids", None) or ()) or None
+                # ``local_layer_ids`` names WHICH depths are banded, not how
+                # many there are -- ``is_mtp_local_depth`` uses it as a
+                # membership set. The shipped small checkpoint declares 8 depths
+                # with ids [0, 2, 4, 5, 6, 7]: the length is 6, the last id is
+                # 7, and only ``max + 1`` recovers the 8. So the count is
+                # derived from the largest index, not from how many are listed.
+                ids = getattr(self.mtp_config, "local_layer_ids", None) or ()
+                depths = (max(ids) + 1) if ids else None
             if depths is not None:
                 self.text_config.num_nextn_predict_layers = int(depths)
                 # And on THIS config as well, because two different framework

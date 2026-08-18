@@ -130,20 +130,27 @@ def test_no_mtp_config_leaves_the_chain_empty():
     assert text.mtp_depth_window(0) is None
 
 
-def test_the_chain_depth_is_mirrored_even_when_only_the_depths_are_listed():
+def test_the_chain_depth_is_recovered_from_the_largest_listed_depth():
     """``MTPForCausalLM`` reads the chain depth with a BARE attribute access.
 
     ``checkpoint_mtp_num_layers = pretrained_config.num_nextn_predict_layers``
     -- no getattr, no default. A checkpoint that describes its chain only by
     naming the banded depths would reach that line with the attribute absent and
     die on an AttributeError from inside framework code, naming neither Inkling
-    nor the field. The listed depths are the same count.
+    nor the field.
+
+    The count comes from the largest index, not from how many are listed:
+    ``local_layer_ids`` says WHICH depths are banded, and
+    ``is_mtp_local_depth`` uses it as a membership set. The shipped small
+    checkpoint is the proof -- it declares 8 depths as [0, 2, 4, 5, 6, 7], so
+    the length is 6 and only ``max + 1`` recovers the 8.
     """
     cfg = InklingConfig(
         text_config={},
-        mtp_config={"local_layer_ids": [0, 2]},
+        mtp_config={"local_layer_ids": [0, 2, 4, 5, 6, 7]},
     )
-    assert cfg.text_config.num_nextn_predict_layers == 2
+    assert cfg.text_config.num_nextn_predict_layers == 8
+    assert cfg.num_nextn_predict_layers == 8
 
 
 def test_a_declared_depth_count_wins_over_the_listed_depths():
