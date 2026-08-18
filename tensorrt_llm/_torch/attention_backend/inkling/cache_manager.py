@@ -35,7 +35,8 @@ from ....runtime.kv_cache_manager_v2 import (BatchDesc, BufferConfig, DataRole,
                                              PageIndexMode, SsmLayerConfig)
 from ....runtime.kv_cache_manager_v2 import \
     KVCacheManagerConfig as KVCacheManagerConfigPy
-from ...pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2
+from ...pyexecutor.kv_cache_manager_v2 import (KVCacheManagerV2,
+                                              ReusableStateSnapshotMixin)
 from .conv_state import InklingConvState, InklingConvStateCache
 
 
@@ -134,7 +135,7 @@ class _InklingConvGeometry:
         return [channels, self.kwin]
 
 
-class InklingHybridCacheManager(KVCacheManagerV2):
+class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
     """Paged KV (V2, per-layer geometry) + the short-conv state pool.
 
     Folding the pool into the cache manager -- the shape
@@ -144,14 +145,13 @@ class InklingHybridCacheManager(KVCacheManagerV2):
     freed by the same call that frees the request's KV blocks, so the two views
     cannot drift apart.
 
-    The cost is that the pool is also allocated for the throwaway manager built
-    during KV-cache size estimation, and freed along with it. That is what makes
-    the pool's bytes show up in the peak-memory reading
-    ``configure_kv_cache_capacity`` takes -- the pool is a plain torch
-    allocation and no V2 byte quota knows about it -- so the budget handed to
-    the serving manager already has one pool's worth subtracted. The accounting
-    holds exactly because both pools are the same fixed size; see
-    :class:`InklingConvStateCache`.
+    The conv state is declared to V2 as SSM cache layers (see
+    :meth:`_build_cache_config`), so its bytes are inside V2's own quota. They
+    used to be a plain torch allocation that no quota knew about, counted
+    against the KV budget only because the throwaway estimation manager held one
+    while ``configure_kv_cache_capacity`` read peak memory -- an identity that
+    held exactly while the estimation pool and the serving pool were the same
+    fixed size, enforced by nothing but a comment.
     """
 
     def __init__(self, *args, pretrained_config, mapping, max_batch_size, **kwargs):
@@ -183,6 +183,16 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             pretrained_config, attn_tp_size, _resolve_conv_dtype(pretrained_config)
         )
         self._conv_num_slots = num_request_slots + 1 + int(mapping.enable_attention_dp)
+        # kv_cache_config is the base's first positional parameter. Kept because
+        # prepare_expect_snapshot_points needs the snapshot interval and the
+        # base stores no reference of its own.
+        #
+        # ``.get``, not ``[...]``: subscripting is precisely the bare-KeyError
+        # failure the comment above this one exists to describe. The base
+        # declares this parameter as required, so a real manager always has it;
+        # absent means a caller that stubbed the base out, and the hook below
+        # reads it defensively rather than making construction fail here.
+        self._kv_cache_config = args[0] if args else kwargs.get("kv_cache_config")
         super().__init__(
             *args,
             pretrained_config=pretrained_config,
@@ -205,6 +215,40 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             f"({num_request_slots} request + reserved), "
             f"{self._conv_cache.conv_state_bytes() / (1 << 20):.1f} MiB"
         )
+
+    # ---- reusable snapshots ------------------------------------------------
+    def prepare_expect_snapshot_points(self, requests) -> None:
+        """Where this batch's requests must snapshot their short-conv window.
+
+        Picked up by ``py_executor`` through ``hasattr``, and consumed by the
+        scheduler, which will not end a context chunk anywhere else. That is the
+        half the bespoke implementation was missing: a snapshot can only be
+        taken where an iteration *ends*, so without a say in where chunks end,
+        capture depends on the operator having chosen a ``max_num_tokens``
+        smaller than the shared prefix -- which nothing states and nothing
+        checks. Measured: at 8192 a 700-token 5-shot prompt prefilled in one
+        chunk and 100 requests produced two snapshots.
+
+        The interval is ``mamba_state_config.periodic_snapshot_interval``. The
+        field is named for Mamba but means "tokens between recurrent-state
+        snapshots", and Inkling's short-conv window is that kind of state, so
+        this reuses it rather than adding a second user-facing knob for the
+        same quantity.
+
+        Interval, not every block, because a snapshot costs the whole model's
+        conv window (~2 MiB on the small checkpoint). One per 32-token block
+        over an 8k prompt would be ~560 MiB for a single request. The cost of
+        the coarser grid is that reuse only lands on multiples of the interval.
+        """
+        state_config = getattr(self._kv_cache_config, "mamba_state_config", None)
+        interval = getattr(state_config, "periodic_snapshot_interval", 0) or 0
+        for request in requests:
+            if not self.enable_block_reuse or not interval:
+                request.expect_snapshot_points = []
+                continue
+            request.expect_snapshot_points = list(
+                range(interval, request.prompt_len + 1, interval)
+            )
 
     # ---- V2 cache layout ---------------------------------------------------
     def _build_cache_config(

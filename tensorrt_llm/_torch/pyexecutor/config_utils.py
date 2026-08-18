@@ -89,6 +89,22 @@ def is_hybrid_linear(config):
         is_kimi_linear(config)
 
 
+def needs_block_aligned_context_chunks(config) -> bool:
+    """True for models that snapshot per-request recurrent state for reuse.
+
+    Named for the property rather than the model family. A reuse hit can only
+    land where a snapshot exists, a snapshot can only be taken where an
+    iteration ends, and only the chunking policy decides where iterations end --
+    so these models need FORCE_CHUNK rather than a chunk size the operator
+    happened to pick. Inkling is here for its short-conv window, which is the
+    same kind of state as a Mamba conv state without being a Mamba model:
+    folding it into ``is_hybrid_linear`` would also route it through
+    ``extract_mamba_kv_cache_params`` and the Mamba conv-state layouts, none of
+    which it can satisfy.
+    """
+    return is_hybrid_linear(config) or is_inkling(config)
+
+
 def is_kimi_linear(config):
     """True for Kimi K3 ("kimi_linear") hybrid KDA + MLA text models.
 
@@ -186,7 +202,8 @@ def reject_unsupported_inkling_kv_cache_features(
         *,
         enable_block_reuse: bool,
         enable_chunked_prefill: bool,
-        enable_cache_transceiver: bool = False):
+        enable_cache_transceiver: bool = False,
+        periodic_snapshot_interval: int = 0):
     """Refuse the features Inkling's context path cannot serve correctly.
 
     What all of these have in common is a *context* request carrying history it
@@ -232,7 +249,7 @@ def reject_unsupported_inkling_kv_cache_features(
     del enable_chunked_prefill  # supported; see the docstring
     if not is_inkling(config):
         return
-    if enable_block_reuse:
+    if enable_block_reuse and not periodic_snapshot_interval:
         raise NotImplementedError(
             "Inkling does not support KV cache block reuse. A reused prefix "
             "leaves a context request with cached history; the prefill "
@@ -243,7 +260,10 @@ def reject_unsupported_inkling_kv_cache_features(
             "it, so there is nothing to restore and the result is silently "
             "wrong output, not a cache miss. Set "
             "kv_cache_config.enable_block_reuse=False (the Inkling model "
-            "default) to run Inkling.")
+            "default), or configure a snapshot policy by setting "
+            "kv_cache_config.mamba_state_config.periodic_snapshot_interval to "
+            "a positive number of tokens, which makes the window part of the "
+            "block lifecycle.")
     if enable_cache_transceiver:
         # The C++ transceiver route is already refused in _util.py for every V2
         # manager. The Python one (KvCacheTransceiverV2) is not, and it would

@@ -1718,3 +1718,101 @@ def test_the_ssm_layer_fake_matches_what_the_constructor_sets():
     assert read == {"_conv_geometry", "_conv_num_slots", "pp_layers"}, (
         f"_build_cache_config reads {read}; the fake in this file sets exactly "
         "those three, so a new one needs adding there too")
+
+
+# ---------------------------------------------------------------------------
+# Reusable snapshot points: where a short-conv window may be captured.
+# ---------------------------------------------------------------------------
+
+
+def _inkling_pretrained_config_stub():
+    """What ``is_inkling`` keys off -- the text tower's model_type."""
+    return SimpleNamespace(model_type="inkling_text")
+
+
+def _snapshot_manager(interval, reuse=True, num_layers=2):
+    mgr = _fake_inkling_manager(num_layers=num_layers)
+    mgr.enable_block_reuse = reuse
+    mgr._kv_cache_config = SimpleNamespace(
+        mamba_state_config=SimpleNamespace(periodic_snapshot_interval=interval))
+    return mgr
+
+
+def _snapshot_reqs(*prompt_lens):
+    return [SimpleNamespace(prompt_len=n, expect_snapshot_points=None)
+            for n in prompt_lens]
+
+
+def test_snapshot_points_land_on_multiples_of_the_interval():
+    mgr = _snapshot_manager(256)
+    reqs = _snapshot_reqs(700)
+    mgr.prepare_expect_snapshot_points(reqs)
+
+    assert reqs[0].expect_snapshot_points == [256, 512]
+
+
+def test_a_snapshot_point_never_exceeds_the_prompt():
+    """Past prompt_len there is no prefix to key a snapshot by, and the
+    scheduler would be asked to end a chunk beyond the request."""
+    mgr = _snapshot_manager(256)
+    reqs = _snapshot_reqs(100, 256, 512)
+    mgr.prepare_expect_snapshot_points(reqs)
+
+    assert reqs[0].expect_snapshot_points == []
+    # Exactly at the prompt length is a real boundary, so it is included.
+    assert reqs[1].expect_snapshot_points == [256]
+    assert reqs[2].expect_snapshot_points == [256, 512]
+
+
+def test_no_snapshot_points_when_reuse_is_off():
+    """The field is still assigned: the scheduler reads it unconditionally, and
+    a leftover list from a previous batch would force chunk boundaries for a
+    feature that is not running."""
+    mgr = _snapshot_manager(256, reuse=False)
+    reqs = _snapshot_reqs(700)
+    mgr.prepare_expect_snapshot_points(reqs)
+
+    assert reqs[0].expect_snapshot_points == []
+
+
+def test_no_snapshot_points_without_a_configured_interval():
+    mgr = _snapshot_manager(0)
+    reqs = _snapshot_reqs(700)
+    mgr.prepare_expect_snapshot_points(reqs)
+
+    assert reqs[0].expect_snapshot_points == []
+
+
+def test_py_executor_finds_the_hook_by_name():
+    """py_executor reaches this through hasattr, so the NAME is the contract --
+    a rename would silently stop forcing chunk boundaries rather than fail."""
+    from tensorrt_llm._torch.attention_backend.inkling import (
+        InklingHybridCacheManager)
+
+    assert hasattr(InklingHybridCacheManager, "prepare_expect_snapshot_points")
+
+
+def test_inkling_needs_block_aligned_chunks_without_being_hybrid_linear():
+    """Folding Inkling into is_hybrid_linear would also route it through
+    extract_mamba_kv_cache_params and the Mamba conv-state layouts, which it
+    cannot satisfy. The predicate names the property instead."""
+    from tensorrt_llm._torch.pyexecutor.config_utils import (
+        is_hybrid_linear, needs_block_aligned_context_chunks)
+
+    cfg = _inkling_pretrained_config_stub()
+    assert needs_block_aligned_context_chunks(cfg)
+    assert not is_hybrid_linear(cfg)
+
+
+def test_block_reuse_is_refused_only_without_a_snapshot_policy():
+    from tensorrt_llm._torch.pyexecutor.config_utils import \
+        reject_unsupported_inkling_kv_cache_features as reject
+
+    cfg = _inkling_pretrained_config_stub()
+    with pytest.raises(NotImplementedError, match="block reuse"):
+        reject(cfg, enable_block_reuse=True, enable_chunked_prefill=True)
+
+    # With a snapshot policy the window is part of the block lifecycle, which
+    # is the thing the refusal was protecting.
+    reject(cfg, enable_block_reuse=True, enable_chunked_prefill=True,
+           periodic_snapshot_interval=256)
