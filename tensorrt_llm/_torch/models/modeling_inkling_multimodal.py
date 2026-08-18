@@ -192,12 +192,29 @@ def _to_pil_rgb(image: Any):
         path = image[len("file://") :] if image.startswith("file://") else image
         with open(path, "rb") as f:
             return Image.open(io.BytesIO(f.read())).convert("RGB")
-    if isinstance(image, torch.Tensor):
-        arr = image.detach().cpu().numpy()
-        arr = arr.astype("uint8") if arr.dtype != np.uint8 else arr
-        return Image.fromarray(arr).convert("RGB")
-    if isinstance(image, np.ndarray):
-        arr = image.astype("uint8") if image.dtype != np.uint8 else image
+    if isinstance(image, (torch.Tensor, np.ndarray)):
+        arr = image.detach().cpu().numpy() if isinstance(image, torch.Tensor) else image
+        # The serve path hands down a decoded image as a CHW float tensor --
+        # measured: `type=Tensor dtype=float32 shape=(3, 237, 733)`. This branch
+        # assumed HWC uint8, so it cast the floats (0..1 collapses to zeros) and
+        # gave PIL a (3, H, W) array, which reports the nonsense shape the
+        # served error quotes: "Cannot handle this data type: (1, 1, 733), |u1".
+        #
+        # 733 there is the image WIDTH, not a byte count. Reading it as a byte
+        # count is what sent me after an "encoded file passed as pixels" theory
+        # for two serve runs; one print of the array's dtype and shape ended it.
+        if arr.ndim == 3 and arr.shape[0] in (1, 3, 4) and arr.shape[0] < arr.shape[-1]:
+            arr = np.transpose(arr, (1, 2, 0))
+        if arr.dtype != np.uint8:
+            # Floats arrive either 0..1 or 0..255 depending on the producer;
+            # scale only the former, and clip so an out-of-range value cannot
+            # wrap around into a different colour.
+            arr = arr.astype(np.float32)
+            if arr.size and arr.max() <= 1.0:
+                arr = arr * 255.0
+            arr = np.clip(arr, 0, 255).astype(np.uint8)
+        if arr.ndim == 3 and arr.shape[-1] == 1:
+            arr = arr[..., 0]
         return Image.fromarray(arr).convert("RGB")
     raise TypeError(f"Unsupported image input type: {type(image)!r}")
 
