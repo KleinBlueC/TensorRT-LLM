@@ -1316,6 +1316,20 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "the Inkling short-conv capture buffers are sized from it, and a "
                 "verify step with nothing captured cannot be rolled back."
             )
+        text_config = getattr(
+            model_config.pretrained_config, "text_config", model_config.pretrained_config
+        )
+        if getattr(text_config, "num_nextn_predict_layers", None) is None:
+            # ``MTPForCausalLM`` reads this as a bare attribute, so its absence
+            # is an AttributeError from inside framework code rather than a
+            # statement about the checkpoint. It is absent exactly when the
+            # checkpoint carries no ``mtp_config`` -- i.e. ships no draft chain
+            # -- which is worth saying in those words.
+            raise ValueError(
+                "This Inkling checkpoint declares no MTP chain (no mtp_config, "
+                "so no draft depths to build). Speculative decoding needs a "
+                "checkpoint that ships one; run without speculative_config."
+            )
         if getattr(model_config, "use_cuda_graph", False):
             # The verify step walks the drafted positions one at a time, writing
             # KV and re-attending per position, which is not capturable; the

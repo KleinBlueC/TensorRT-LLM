@@ -346,7 +346,19 @@ class InklingConfig(PretrainedConfig):
             # ``pretrained_config.num_nextn_predict_layers``; Inkling declares it
             # on mtp_config, so mirror it under the name the framework looks for
             # rather than special-casing Inkling inside the framework.
+            #
+            # Falls back to the listed depths because that read is a BARE
+            # attribute access -- ``checkpoint_mtp_num_layers =
+            # model_config.pretrained_config.num_nextn_predict_layers``, no
+            # getattr and no default. A checkpoint that describes its chain only
+            # by naming the banded depths would otherwise reach it with the
+            # attribute absent and die on a bare AttributeError from inside
+            # framework code, naming neither Inkling nor the field. The listed
+            # depths are the same count, which is what ``_mtp_num_depths`` falls
+            # back to on the model side.
             depths = getattr(self.mtp_config, "num_nextn_predict_layers", None)
+            if depths is None:
+                depths = len(getattr(self.mtp_config, "local_layer_ids", None) or ()) or None
             if depths is not None:
                 self.text_config.num_nextn_predict_layers = int(depths)
 

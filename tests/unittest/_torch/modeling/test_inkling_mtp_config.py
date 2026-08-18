@@ -128,3 +128,38 @@ def test_no_mtp_config_leaves_the_chain_empty():
     assert text.mtp_local_layer_ids == []
     assert text.is_mtp_local_depth(0) is False
     assert text.mtp_depth_window(0) is None
+
+
+def test_the_chain_depth_is_mirrored_even_when_only_the_depths_are_listed():
+    """``MTPForCausalLM`` reads the chain depth with a BARE attribute access.
+
+    ``checkpoint_mtp_num_layers = pretrained_config.num_nextn_predict_layers``
+    -- no getattr, no default. A checkpoint that describes its chain only by
+    naming the banded depths would reach that line with the attribute absent and
+    die on an AttributeError from inside framework code, naming neither Inkling
+    nor the field. The listed depths are the same count.
+    """
+    cfg = InklingConfig(
+        text_config={},
+        mtp_config={"local_layer_ids": [0, 2]},
+    )
+    assert cfg.text_config.num_nextn_predict_layers == 2
+
+
+def test_a_declared_depth_count_wins_over_the_listed_depths():
+    """The explicit field is authoritative; the list is only a fallback."""
+    cfg = InklingConfig(
+        text_config={},
+        mtp_config={"num_nextn_predict_layers": 3, "local_layer_ids": [0, 2]},
+    )
+    assert cfg.text_config.num_nextn_predict_layers == 3
+
+
+def test_no_chain_leaves_the_framework_field_unset():
+    """Nothing is fabricated for a checkpoint that ships no chain.
+
+    The model's own guard turns that into a sentence about the checkpoint;
+    mirroring a made-up 1 here would build a one-deep chain out of nothing.
+    """
+    cfg = InklingConfig(text_config={})
+    assert getattr(cfg.text_config, "num_nextn_predict_layers", None) is None
