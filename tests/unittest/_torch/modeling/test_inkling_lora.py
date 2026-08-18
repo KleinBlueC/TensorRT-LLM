@@ -179,20 +179,22 @@ def test_no_lora_config_is_not_an_error():
 
 
 def test_layer_types_tolerates_a_config_without_architectures():
-    """``get_bindings_model_config`` is only reached on the LoRA path.
+    """``get_layer_types`` is reached from the LoRA path with a nested config.
 
-    Inkling's text sub-config has ``architectures = None`` -- the top-level
-    multimodal config carries it -- so subscripting it raised TypeError the
-    first time LoRA was configured, several minutes into a 4-GPU run and with
-    nothing in the message naming either LoRA or Inkling.
+    ``architectures`` lives on the TOP-LEVEL multimodal config, so it is None on
+    the text sub-config the causal LM is built from, and the method indexed it
+    unguarded -- ``architectures[0]`` on None. Only a model that ran LoRA ever
+    got there, which is why it survived.
+
+    Asserted by calling it. The previous version matched a substring of the
+    source and broke on line wrapping alone, without the behaviour changing.
     """
-    import inspect
-
+    from tensorrt_llm._torch.configs.inkling import InklingTextConfig
     from tensorrt_llm._torch.model_config import ModelConfig
 
-    src = inspect.getsource(ModelConfig.get_layer_types)
-    assert 'getattr(self.pretrained_config, "architectures", None) or []' in src
-
+    text = InklingTextConfig(num_hidden_layers=4)
+    assert getattr(text, "architectures", None) is None
+    assert ModelConfig(pretrained_config=text).get_layer_types() is None
 
 def test_the_causal_lm_forwards_kwargs_to_the_decoder_stack():
     """``lora_params`` arrives in kwargs and is read from there by the stack.

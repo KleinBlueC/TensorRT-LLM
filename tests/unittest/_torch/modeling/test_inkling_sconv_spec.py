@@ -51,7 +51,11 @@ class _Cache:
         self.state_indices = torch.arange(n, dtype=torch.int32)
         self._n = n
 
-    def write_state_indices(self, request_ids, is_graph):
+    def write_state_indices(self, request_ids):
+        # One argument, matching the pool after the move to sparse/inkling:
+        # the graph-pointer check that used to need `is_graph` is now a
+        # fixed-size pool plus a reserved padding row, so there is nothing
+        # per-call to guard.
         return list(range(len(request_ids)))
 
 
@@ -466,7 +470,9 @@ def test_a_shared_draft_kv_cache_is_refused_at_load():
 def test_a_layer_with_no_slot_in_the_manager_says_so():
     """Same condition at runtime, in case the load-time check is bypassed."""
 
-    from tensorrt_llm._torch.models.modeling_inkling import _batch_cache_indices
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        _batch_cache_indices,
+    )
 
     class _Mgr:
         def get_batch_cache_indices(self, request_ids, layer_idx):

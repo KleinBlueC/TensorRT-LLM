@@ -128,6 +128,12 @@ def test_the_manager_raises_the_reservation_over_the_generic_one(monkeypatch):
     class _FakeConvCache:
         num_slots = 5
 
+        # _InklingConvGeometry asks the pool class for its reserved-row count
+        # rather than re-deriving it, so a stand-in has to answer too.
+        @staticmethod
+        def reserved_slot_count(*, reserve_attention_dp_slot):
+            return 1 + int(reserve_attention_dp_slot)
+
         def __init__(self, *args, **kwargs):
             captured["max_draft_len"] = kwargs.get("max_draft_len")
             captured["num_layers"] = kwargs.get("num_layers")
@@ -204,6 +210,12 @@ def test_a_target_manager_sizes_its_conv_pool_from_the_whole_trunk(monkeypatch):
 
     class _FakeConvCache:
         num_slots = 5
+
+        # _InklingConvGeometry asks the pool class for its reserved-row count
+        # rather than re-deriving it, so a stand-in has to answer too.
+        @staticmethod
+        def reserved_slot_count(*, reserve_attention_dp_slot):
+            return 1 + int(reserve_attention_dp_slot)
 
         def __init__(self, *args, **kwargs):
             captured.update(kwargs)
