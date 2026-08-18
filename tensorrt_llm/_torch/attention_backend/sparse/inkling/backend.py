@@ -14,6 +14,7 @@
 # limitations under the License.
 """Inkling attention backend: KV write, page tables, prefill/decode dispatch."""
 
+import os
 from typing import Optional
 
 import torch
@@ -22,12 +23,32 @@ from ...interface import AttentionForwardArgs, merge_attention_forward_args
 from ...trtllm import TrtllmAttention
 from .kernels import (
     build_page_table,
+    inkling_chunked_prefill_attention,
     inkling_decode_attention,
     inkling_prefill_attention,
     write_kv_cache_hnd,
 )
 from .metadata import InklingAttentionMetadata
 from .params import InklingBackendForwardArgs
+
+
+def _needs_chunked_context(num_cached) -> bool:
+    """True when the context path must read cached KV back from the pages.
+
+    Any request carrying cached tokens needs it: a later chunk of a chunked
+    prefill. The packed kernel cannot serve those -- it sees only the tokens of
+    its own call.
+
+    ``INKLING_FORCE_CHUNKED_ATTN=1`` forces the chunked path even for all-fresh
+    requests. Test-only, default off. It exists because comparing the two
+    kernels any other way is impossible on this model: its sampled output is not
+    reproducible run to run, or even between two generate() calls in one
+    process, unless the autotuner is off. The knob makes both kernels reachable
+    in one process against one set of weights (jobs 6046191 / 6046341).
+    """
+    if os.environ.get("INKLING_FORCE_CHUNKED_ATTN", "0") == "1":
+        return True
+    return any(int(c) > 0 for c in num_cached)
 
 
 class InklingTritonAttention(TrtllmAttention):
@@ -181,16 +202,37 @@ class InklingTritonAttention(TrtllmAttention):
         cu = torch.zeros(len(seq_lens) + 1, dtype=torch.int32, device=device)
         cu[1:] = torch.tensor(seq_lens, dtype=torch.int32, device=device).cumsum(0)
         max_seqlen = max(seq_lens)
-        # NOTE: this attends only to the tokens of THIS call. The write above
-        # honours ``num_cached``, but ``inkling_prefill_attention`` takes no
-        # paged-KV argument, so a context request carrying cached history
-        # (chunked prefill, or a reused prefix) would silently drop all of it.
-        # Both are refused up front by
-        # ``reject_unsupported_inkling_kv_cache_features``; adding either one
-        # means giving Inkling a chunked-context prefill path that reads the
-        # pages back while carrying rel_logits and the sliding window across the
-        # boundary. ``num_cached`` is non-zero here only in that unsupported
-        # case, which is why the write path already accounts for it.
+        # A request with cached history -- a later chunk of a chunked prefill --
+        # must attend to tokens it did not bring with it, which the packed
+        # kernel cannot do: it takes no paged-KV argument. Route those to the
+        # chunked-context kernel, which reads every key from the page table. No
+        # gather is needed because the write above already put this chunk's K/V
+        # into the same pages.
+        #
+        # All-fresh keeps the packed kernel: it is the common case and skips the
+        # page indirection. The two must agree exactly at num_cached == 0, which
+        # test_chunked_prefill_parity pins.
+        if _needs_chunked_context(num_cached):
+            max_total = max(int(c) + int(sl) for c, sl in zip(num_cached, seq_lens))
+            max_pages = (max_total + page_size - 1) // page_size
+            page_table = build_page_table(block_ids, max_pages, device)
+            num_cached_dev = torch.tensor(
+                [int(c) for c in num_cached], dtype=torch.int32, device=device
+            )
+            return inkling_chunked_prefill_attention(
+                q,
+                k_cache,
+                v_cache,
+                cu,
+                num_cached_dev,
+                page_table,
+                page_size,
+                max_seqlen,
+                self.sm_scale,
+                rel_logits,
+                self.rel_extent,
+                self.window_left,
+            )
         return inkling_prefill_attention(
             q, k, v, cu, max_seqlen, self.sm_scale, rel_logits, self.rel_extent, self.window_left
         )
