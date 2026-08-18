@@ -464,7 +464,9 @@ class InklingAttention(QKNormRoPEAttention):
         )
         self.local_num_heads = num_heads // tp_size
 
-    def _project(self, hidden_states, conv_pool_kv=None, conv_rt=None):
+    def _project(
+        self, hidden_states, conv_pool_kv=None, conv_rt=None, conv_capture_kv=None, lora_params=None
+    ):
         """Fused qkv projection -> split -> k/v short-conv -> per-head qk RMSNorm.
 
         Returns ``(q, k, v)`` shaped ``[T, local_heads, head_dim]`` /
@@ -477,12 +479,25 @@ class InklingAttention(QKNormRoPEAttention):
         D = self.head_dim
         num_tokens = hidden_states.shape[0]
         qkv = self.qkv_proj(hidden_states)
+        # The base Attention builds splitted_qkv_lora / fused_qkv_lora but
+        # applies them in its own forward, which this class overrides. Without
+        # this the adapter loads, allocates and is never called: a LoRA that
+        # quietly does nothing, which looks exactly like a LoRA that does not
+        # help. Applied to the fused qkv before split_qkv and before the k/v
+        # short-convs, matching where the base adds it and what the adapter was
+        # trained against.
+        if bool(lora_params):
+            for lora in (self.splitted_qkv_lora, self.fused_qkv_lora):
+                delta = lora(hidden_states, lora_params, self.layer_idx)
+                if delta is not None:
+                    qkv = qkv + delta
         q, k, v = self.split_qkv(qkv, None, None)
         # k/v short convolution before the q/k norm (source order).
         if conv_pool_kv is not None:
             pool_k, pool_v = conv_pool_kv
-            k = apply_short_conv(self.k_sconv, k, pool_k, conv_rt)
-            v = apply_short_conv(self.v_sconv, v, pool_v, conv_rt)
+            cap_k, cap_v = conv_capture_kv if conv_capture_kv is not None else (None, None)
+            k = apply_short_conv(self.k_sconv, k, pool_k, conv_rt, cap_k)
+            v = apply_short_conv(self.v_sconv, v, pool_v, conv_rt, cap_v)
         else:
             k = self.k_sconv(k)
             v = self.v_sconv(v)
