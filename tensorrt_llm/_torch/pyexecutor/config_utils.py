@@ -185,83 +185,47 @@ def reject_unsupported_inkling_kv_cache_features(
         config,
         *,
         enable_block_reuse: bool,
-        enable_chunked_prefill: bool,
         enable_cache_transceiver: bool = False):
     """Refuse the features Inkling's context path cannot serve correctly.
 
-    Block reuse and chunked prefill leave a *context* request with history it is
-    supposed to attend to and convolve against -- ``num_cached_tokens_per_seq >
-    0`` on a context request -- and Inkling gets that wrong in two independent
-    places, described below. Disaggregated serving fails a third way: it moves a
-    request between instances without its short-conv state at all.
+    Both leave a request without state it is supposed to have, and neither
+    raises on its own -- they silently emit wrong logits, which is why they are
+    refused here rather than left to the caller.
 
-    None of the three raises today; all three silently emit wrong logits, which
-    is why they are refused here rather than left to the caller.
+    **Block reuse.** The four short-conv windows per layer are per-request state
+    outside the KV cache. On a prefix hit there is no window to restore, because
+    the convs consume activations a reused prefix never computed. Design for
+    lifting this: ``docs/source/developer-guide/inkling-prefix-reuse-design.md``.
 
-    **1. The prefill attention never reads back the cached KV.**
-    ``InklingAttention._run_context`` writes the new K/V into the paged cache at
-    the ``num_cached`` offset, but then calls ``inkling_prefill_attention(q, k,
-    v, cu_seqlens, ...)`` -- a self-contained varlen kernel with no paged-KV
-    argument. It attends only within the tokens of this call. A second prefill
-    chunk, or a chunk following a reused prefix, therefore ignores every
-    preceding token entirely. This is the deeper of the two defects: it is not
-    a state-plumbing bug but a missing capability, and it makes the conv fix
-    below **necessary but not sufficient**.
+    **Disaggregated serving.** The C++ transceiver route is already refused in
+    ``_util.py`` for every V2 manager. The Python one would transfer the paged KV
+    correctly and drop the short-conv windows on the floor: they live in
+    ``InklingConvStateCache``, a plain torch pool with no page table and no entry
+    in the disagg page-table builder, so the generation instance would convolve
+    against zeros.
 
-    **2. The short-conv window is not carried either.** The four depthwise short
-    convolutions per layer hold a ``kernel_size - 1`` window as per-request
-    state outside the KV cache, in ``InklingConvStateCache``.
-    ``InklingConvRuntime.build`` seeds every context request with
-    ``has_initial_state=False``. ``slots_for`` does keep a request's pool row
-    across chunks and ``causal_conv1d_fn`` does write the trailing window into
-    it, so the state is there -- it is simply never declared, and so never
-    consumed. For block reuse the window is additionally absent from the reuse
-    key and lifecycle, so a prefix hit has no window to restore in the first
-    place.
-
-    Supporting either feature is a follow-up feature, not a fix: it needs a
-    chunked-context attention path for Inkling (paged-KV prefill carrying the
-    ``rel_logits`` score_mod and the sliding window across the boundary), and
-    only then the conv work -- ``has_initial_state`` derived per request from
-    ``num_cached_tokens_per_seq`` the way ``Mamba2Metadata`` does, plus, for
-    reuse, conv-window snapshots that participate in the reuse contract.
-
-    Refusing costs nothing on any default path: ``enable_chunked_prefill``
-    defaults to False and is never enabled implicitly, and Inkling's
-    ``get_model_defaults`` already turns block reuse off. Only an explicit
-    opt-in reaches these raises -- and that opt-in is exactly the case that
-    silently produced wrong output before. No-op for non-Inkling configs.
+    Chunked prefill is **not** refused any more. It used to be, for two reasons
+    that no longer hold together: the prefill attention had no paged-KV path, and
+    the conv window carried across a chunk was never declared. Both are fixed --
+    ``InklingAttention._run_context`` routes a request with cached history to
+    ``inkling_chunked_prefill_attention``, which reads every key from the page
+    table at absolute positions, and ``has_initial_state`` is now derived from
+    ``num_cached_tokens_per_seq``. The conv fix alone would have been necessary
+    but not sufficient, which is why they had to land together.
     """
     if not is_inkling(config):
         return
     if enable_block_reuse:
         raise NotImplementedError(
-            "Inkling does not support KV cache block reuse. A reused prefix "
-            "leaves a context request with cached history, and Inkling ignores "
-            "it twice over: the prefill attention "
-            "(inkling_prefill_attention) has no paged-KV path and attends only "
-            "to the new tokens, and the four short-conv windows per layer are "
-            "per-request state outside the KV cache, absent from the reuse key "
-            "and never restored. The result is silently wrong output, not a "
-            "cache miss. Set kv_cache_config.enable_block_reuse=False (the "
-            "Inkling model default) to run Inkling.")
-    if enable_chunked_prefill:
-        raise NotImplementedError(
-            "Inkling does not support chunked prefill. The second and later "
-            "chunks of a prompt drop all preceding context: the prefill "
-            "attention (inkling_prefill_attention) has no paged-KV path, so it "
-            "attends only to the chunk's own tokens, and the short-conv window "
-            "carried from the preceding chunk is never declared via "
-            "has_initial_state and so never consumed. Supporting it needs a "
-            "chunked-context attention path, not just the conv fix. Set "
-            "enable_chunked_prefill=False to run Inkling.")
+            "Inkling does not support KV cache block reuse. The four "
+            "short-conv windows per layer are per-request state outside the KV "
+            "cache; on a prefix hit there is no window to restore, because the "
+            "convs consume activations that a reused prefix never computed. "
+            "The result is silently wrong output, not a cache miss. Set "
+            "kv_cache_config.enable_block_reuse=False (the Inkling model "
+            "default) to run Inkling. Design for lifting this: "
+            "docs/source/developer-guide/inkling-prefix-reuse-design.md")
     if enable_cache_transceiver:
-        # The C++ transceiver route is already refused in _util.py for every V2
-        # manager. The Python one (KvCacheTransceiverV2) is not, and it would
-        # transfer the paged KV correctly and drop the short-conv windows on the
-        # floor: they live in InklingConvStateCache, a plain torch pool with no
-        # page table and no entry in the disagg page-table builder. The decode
-        # instance would then convolve against zeros -- wrong output, no error.
         raise NotImplementedError(
             "Inkling does not support disaggregated serving. The four "
             "short-conv windows per layer are per-request state outside the "

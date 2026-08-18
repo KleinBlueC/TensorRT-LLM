@@ -40,6 +40,7 @@ from .conv_state import (
 )
 from .kernels import (
     build_page_table,
+    inkling_chunked_prefill_attention,
     inkling_decode_attention,
     inkling_prefill_attention,
     write_kv_cache_hnd,
@@ -66,6 +67,7 @@ __all__ = [
     "apply_short_conv",
     "build_page_table",
     "inkling_forward_args",
+    "inkling_chunked_prefill_attention",
     "inkling_decode_attention",
     "inkling_prefill_attention",
     "write_kv_cache_hnd",
