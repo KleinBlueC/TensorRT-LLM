@@ -83,6 +83,7 @@ class InklingConvStateCache:
         *,
         reserve_attention_dp_slot: bool = False,
         max_draft_len: int = 0,
+        layer_states: Optional[List["InklingConvState"]] = None,
     ):
         # Takes the pretrained config + tp_size rather than a ``ModelConfig`` so
         # the KV cache manager can build the pool from what it already has.
@@ -101,16 +102,39 @@ class InklingConvStateCache:
         self.num_slots = num_slots
         self.kwin = kwin
 
-        def buf(channels):
-            return torch.zeros(num_slots, channels, kwin, device=device, dtype=dtype)
+        if layer_states is not None:
+            # Memory owned by the V2 manager's SSM cache layers. Checked rather
+            # than trusted: a shape that disagrees with what this pool computes
+            # would not fault, it would index one layer's window into another's
+            # and produce plausible-but-wrong activations.
+            for i, st in enumerate(layer_states):
+                kv_dim = (config.layer_num_kv_heads(i) * config.layer_head_dim(i)) // tp_size
+                for name, want in (
+                    ("k", kv_dim), ("v", kv_dim),
+                    ("attn", config.hidden_size), ("mlp", config.hidden_size),
+                ):
+                    got = tuple(getattr(st, name).shape)
+                    if got != (num_slots, want, kwin):
+                        raise ValueError(
+                            f"Inkling conv buffer layer {i} '{name}' from the V2 "
+                            f"pool has shape {got}, expected "
+                            f"{(num_slots, want, kwin)}"
+                        )
+            self._layers: List[InklingConvState] = list(layer_states)
+        else:
+            # Standalone allocation. Kept for tests, which build the pool
+            # without a cache manager; serving always goes through V2 so the
+            # bytes land inside its quota.
+            def buf(channels):
+                return torch.zeros(num_slots, channels, kwin, device=device, dtype=dtype)
 
-        self._layers: List[InklingConvState] = []
-        for i in range(config.num_hidden_layers):
-            kv_dim = (config.layer_num_kv_heads(i) * config.layer_head_dim(i)) // tp_size
-            hidden = config.hidden_size
-            self._layers.append(
-                InklingConvState(k=buf(kv_dim), v=buf(kv_dim), attn=buf(hidden), mlp=buf(hidden))
-            )
+            self._layers = []
+            for i in range(config.num_hidden_layers):
+                kv_dim = (config.layer_num_kv_heads(i) * config.layer_head_dim(i)) // tp_size
+                hidden = config.hidden_size
+                self._layers.append(
+                    InklingConvState(k=buf(kv_dim), v=buf(kv_dim), attn=buf(hidden), mlp=buf(hidden))
+                )
         # Stable per-batch-row slot-index buffer, refreshed in place per forward
         # from input preparation (see :meth:`write_state_indices`) so a captured
         # decode graph aliases it and every replay sees the current batch. It is

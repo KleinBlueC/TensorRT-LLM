@@ -1272,7 +1272,7 @@ def test_cache_manager_sizes_the_conv_pool_by_attention_tp(monkeypatch):
     from tensorrt_llm._torch.attention_backend.inkling import cache_manager as cm
 
     seen = _patch_pool(monkeypatch, cm)
-    cfg = SimpleNamespace(torch_dtype=torch.bfloat16)
+    cfg = _conv_config_stub(torch_dtype=torch.bfloat16)
 
     cm.InklingHybridCacheManager(
         pretrained_config=cfg, mapping=_adp_mapping(True), max_batch_size=8
@@ -1301,6 +1301,12 @@ def _patch_pool(monkeypatch, cm):
 
     monkeypatch.setattr(cm.KVCacheManagerV2, "__init__", lambda self, *a, **k: None)
     monkeypatch.setattr(cm, "InklingConvStateCache", _FakePool)
+    # The conv buffers are views onto the V2 pool, which the no-op base __init__
+    # above never builds. Stubbed rather than tolerated in the manager: a
+    # constructor that shrugged off a missing pool would also shrug it off in
+    # production, where the result is a pool of zeros nobody writes.
+    monkeypatch.setattr(cm.InklingHybridCacheManager, "_conv_states_from_v2",
+                        lambda self: [])
     return seen
 
 
@@ -1317,7 +1323,7 @@ def test_cache_manager_sizes_the_conv_pool_for_every_resident_sequence(monkeypat
     from tensorrt_llm._torch.attention_backend.inkling import cache_manager as cm
 
     seen = _patch_pool(monkeypatch, cm)
-    cfg = SimpleNamespace(torch_dtype=torch.bfloat16)
+    cfg = _conv_config_stub(torch_dtype=torch.bfloat16)
 
     cm.InklingHybridCacheManager(
         pretrained_config=cfg,
@@ -1342,7 +1348,7 @@ def test_cache_manager_requires_its_three_pool_arguments_by_name(monkeypatch):
     from tensorrt_llm._torch.attention_backend.inkling import cache_manager as cm
 
     _patch_pool(monkeypatch, cm)
-    cfg = SimpleNamespace(torch_dtype=torch.bfloat16)
+    cfg = _conv_config_stub(torch_dtype=torch.bfloat16)
 
     with pytest.raises(TypeError, match="pretrained_config"):
         cm.InklingHybridCacheManager(mapping=_adp_mapping(False), max_batch_size=8)
@@ -1560,3 +1566,155 @@ def test_attention_still_shards_heads_and_channels_without_attention_dp(no_colle
     )
     assert attn.k_sconv.channels == kv_dim // _ADP_RANKS
     assert attn.k_sconv.channels_full == kv_dim
+
+
+# ---------------------------------------------------------------------------
+# The short-conv state as V2 SSM cache layers.
+#
+# These call ``_build_cache_config`` directly on an instance built with
+# ``object.__new__`` rather than standing up a real manager: the method reads
+# three attributes and returns a new config, so a real manager would add a C++
+# pool, a GPU and several seconds to assert on arithmetic. The risk of the fake
+# is that it drifts from the real constructor, which is what
+# ``test_the_ssm_layer_fake_matches_what_the_constructor_sets`` pins.
+# ---------------------------------------------------------------------------
+
+
+def _conv_config_stub(num_layers=3, hidden=64, kv_heads=2, head_dim=8,
+                      kwin_plus_1=4, **extra):
+    """The subset of the pretrained config the conv geometry reads.
+
+    ``extra`` carries fields only some callers need -- ``torch_dtype`` for the
+    manager-construction tests, which resolve the pool dtype from it.
+    """
+    return SimpleNamespace(
+        sconv_kernel_size=kwin_plus_1,
+        hidden_size=hidden,
+        num_hidden_layers=num_layers,
+        layer_num_kv_heads=lambda i: kv_heads,
+        layer_head_dim=lambda i: head_dim,
+        **extra,
+    )
+
+
+def _fake_inkling_manager(num_layers=3, num_slots=5, **cfg_kwargs):
+    import torch
+
+    from tensorrt_llm._torch.attention_backend.inkling.cache_manager import (
+        InklingHybridCacheManager, _InklingConvGeometry)
+
+    mgr = object.__new__(InklingHybridCacheManager)
+    mgr.pp_layers = list(range(num_layers))
+    mgr._conv_geometry = _InklingConvGeometry(
+        _conv_config_stub(num_layers=num_layers, **cfg_kwargs), 1, torch.float16)
+    mgr._conv_num_slots = num_slots
+    return mgr
+
+
+def _attention_only_config(num_attention_layers=3):
+    from tensorrt_llm.runtime.kv_cache_manager_v2 import (AttentionLayerConfig,
+                                                          BufferConfig,
+                                                          DataRole,
+                                                          GpuCacheTierConfig,
+                                                          KVCacheManagerConfig,
+                                                          LayerId)
+
+    return KVCacheManagerConfig(
+        tokens_per_block=32,
+        cache_tiers=[GpuCacheTierConfig(quota=16 << 20)],
+        layers=[
+            AttentionLayerConfig(
+                layer_id=LayerId(i),
+                buffers=[BufferConfig(role=DataRole("k"), size=1024)],
+            )
+            for i in range(num_attention_layers)
+        ],
+    )
+
+
+def test_conv_layers_are_appended_leaving_every_kv_layer_id_alone():
+    """The whole point of appending rather than substituting: a K/V layer_id is
+    what ``ink_page_table`` and ``get_batch_cache_indices`` are keyed by, and
+    renumbering them would silently repoint the attention side."""
+    from tensorrt_llm.runtime.kv_cache_manager_v2 import SsmLayerConfig
+
+    mgr = _fake_inkling_manager(num_layers=3)
+    before = _attention_only_config(3)
+    after = mgr._build_cache_config(before)
+
+    ssm = [l for l in after.layers if isinstance(l, SsmLayerConfig)]
+    attention = [l for l in after.layers if not isinstance(l, SsmLayerConfig)]
+
+    assert [l.layer_id for l in attention] == [l.layer_id for l in before.layers]
+    assert len(ssm) == 3
+    # conv_layer_id = num_attention_layers + local_layer_idx, no mapping table.
+    assert [int(l.layer_id) for l in ssm] == [3, 4, 5]
+
+
+def test_each_conv_layer_declares_four_roles_at_two_widths():
+    mgr = _fake_inkling_manager(num_layers=2, hidden=64, kv_heads=2, head_dim=8,
+                                kwin_plus_1=4)
+    from tensorrt_llm.runtime.kv_cache_manager_v2 import SsmLayerConfig
+
+    after = mgr._build_cache_config(_attention_only_config(2))
+    ssm = [l for l in after.layers if isinstance(l, SsmLayerConfig)]
+
+    for layer in ssm:
+        roles = [b.role for b in layer.buffers]
+        assert len(set(roles)) == 4, "SsmLayerConfig rejects duplicate roles"
+        by_role = {str(b.role): b.size for b in layer.buffers}
+        # kv width 2*8=16, hidden 64, kwin 3, fp16 -> 2 bytes
+        assert by_role["inkling_conv_k"] == 16 * 3 * 2
+        assert by_role["inkling_conv_v"] == 16 * 3 * 2
+        assert by_role["inkling_conv_attn"] == 64 * 3 * 2
+        assert by_role["inkling_conv_mlp"] == 64 * 3 * 2
+
+
+def test_registering_ssm_layers_forces_commit_min_snapshot():
+    """Not a preference: KVCacheManagerConfig.__post_init__ asserts it whenever
+    an SSM layer is present, so omitting it makes the manager unconstructible."""
+    mgr = _fake_inkling_manager()
+    before = _attention_only_config()
+    assert not before.commit_min_snapshot
+    assert mgr._build_cache_config(before).commit_min_snapshot
+
+
+def test_a_conv_slot_floor_is_added_because_length_cannot_express_it():
+    """An SSM slot is fixed-size per sequence, so the base config's
+    length-derived constraints cannot bound the conv pool. The floor is stated
+    as zero-capacity requests: no attention page, one conv slot each."""
+    mgr = _fake_inkling_manager(num_slots=7)
+    before = _attention_only_config()
+    after = mgr._build_cache_config(before)
+
+    assert len(after.constraints) == len(before.constraints) + 1
+    floor = after.constraints[-1]
+    assert len(floor.kv_caches) == 7
+    assert all(desc.capacity == 0 for desc in floor.kv_caches)
+
+
+def test_the_built_config_survives_its_own_validation():
+    """__post_init__ is where the SSM/commit_min_snapshot invariant lives, and
+    ``replace`` re-runs it -- so this asserts the result is constructible, not
+    merely well-shaped."""
+    from dataclasses import replace
+
+    mgr = _fake_inkling_manager()
+    after = mgr._build_cache_config(_attention_only_config())
+    replace(after)  # raises if any invariant is violated
+
+
+def test_the_ssm_layer_fake_matches_what_the_constructor_sets():
+    """The fake above sets three attributes by hand. If the constructor grows a
+    fourth that ``_build_cache_config`` reads, these tests would keep passing
+    against a manager that can no longer be built."""
+    import inspect
+
+    from tensorrt_llm._torch.attention_backend.inkling import cache_manager as csm
+
+    src = inspect.getsource(csm.InklingHybridCacheManager._build_cache_config)
+    read = {n for n in ("_conv_geometry", "_conv_num_slots", "pp_layers")
+            if f"self.{n}" in src}
+    assert read == {"_conv_geometry", "_conv_num_slots", "pp_layers"}, (
+        f"_build_cache_config reads {read}; the fake in this file sets exactly "
+        "those three, so a new one needs adding there too")
