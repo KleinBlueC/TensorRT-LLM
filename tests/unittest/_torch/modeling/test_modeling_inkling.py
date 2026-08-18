@@ -1005,8 +1005,13 @@ def _decoder_layer_stub(is_moe: bool):
     else:
 
         class _Dense:
-            def __call__(self, hidden_states):
+            # Mirrors InklingDenseMLP.forward, which grew lora_params when the
+            # dense MLP became a LoRA target: the routed experts cannot serve an
+            # adapter on NVFP4 weights, so the dense path is the only one that
+            # can, and _run_mlp forwards it there.
+            def __call__(self, hidden_states, lora_params=None):
                 seen["called"] = True
+                seen["lora_params"] = lora_params
                 return hidden_states
 
         layer.mlp = _Dense()
@@ -1025,13 +1030,21 @@ def test_moe_layers_receive_the_per_rank_token_counts():
 
 
 def test_dense_layers_are_not_handed_the_token_counts():
-    """Layers 0 and 1 are InklingDenseMLP, whose forward takes activations only;
-    passing the DP list would be a TypeError."""
-    layer, seen = _decoder_layer_stub(is_moe=False)
+    """Layers 0 and 1 are InklingDenseMLP, whose forward takes no DP list.
 
-    layer._run_mlp("H", [4, 7, 4, 5])
+    It does take ``lora_params``, and asserting that here is the point: the
+    routed experts cannot serve an adapter on NVFP4 weights, so the dense MLP is
+    the only MLP path that can, and a dropped adapter is not an error -- the
+    model runs and answers as the base model.
+    """
+    layer, seen = _decoder_layer_stub(is_moe=False)
+    sentinel = {"adapter": 1}
+
+    layer._run_mlp("H", [4, 7, 4, 5], sentinel)
 
     assert seen.get("called") is True
+    assert "arnt" not in seen, "the DP token counts must not reach the dense MLP"
+    assert seen["lora_params"] is sentinel
 
 
 def test_non_dp_passes_none_and_keeps_the_old_call_shape():
