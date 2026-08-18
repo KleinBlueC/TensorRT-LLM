@@ -595,3 +595,167 @@ def test_the_draft_chains_warmup_underflow_is_clamped_not_refused():
     assert re.search(r"base\s*=\s*\[max\(0,", src), (
         "the verify base must clamp the framework's post-rewind underflow"
     )
+
+
+# --- who the commit actually writes to -------------------------------------
+# accepted_window's arithmetic is covered above. The layer that applies it was
+# not covered at all: which pool rows it touches, which slice of the batch's
+# acceptance counts it uses, and when it must do nothing. Every one of those is
+# silent when wrong -- the windows are the right shape either way.
+
+
+class _ConvCfg:
+    """Smallest config the pool reads: two layers, one banded and one global."""
+
+    sconv_kernel_size = 4
+    num_hidden_layers = 2
+    hidden_size = 8
+
+    @staticmethod
+    def layer_num_kv_heads(idx):
+        return 2 if idx == 0 else 1
+
+    @staticmethod
+    def layer_head_dim(_idx):
+        return 4
+
+
+def _cpu_pool(num_request_slots=4, max_draft_len=3):
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import (
+        InklingConvStateCache,
+    )
+
+    return InklingConvStateCache(
+        _ConvCfg(),
+        tp_size=1,
+        num_request_slots=num_request_slots,
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+        max_draft_len=max_draft_len,
+    )
+
+
+def _stage_capture(pool, rows, steps):
+    """Put a known window + known inputs into every conv of every layer."""
+    for layer_idx in range(_ConvCfg.num_hidden_layers):
+        for cap, buf in zip(pool.layer_capture(layer_idx), pool.layer_state(layer_idx)):
+            channels = buf.shape[1]
+            init = torch.randn(len(rows), channels, pool.kwin)
+            x = torch.randn(len(rows), steps, channels)
+            cap.init[: len(rows)].copy_(init)
+            cap.x[: len(rows), :steps].copy_(x)
+            cap.steps_used = steps
+
+
+def test_the_commit_writes_the_accepted_window_to_the_generation_rows():
+    """Every conv of every layer, at the rows the verify step advanced."""
+    pool = _cpu_pool()
+    rows = torch.tensor([2, 0], dtype=torch.int64)  # deliberately not sorted
+    steps = 4
+    _stage_capture(pool, rows, steps)
+    num_accepted = torch.tensor([2, 1], dtype=torch.int64)
+
+    expected = {}
+    for layer_idx in range(_ConvCfg.num_hidden_layers):
+        for j, cap in enumerate(pool.layer_capture(layer_idx)):
+            expected[(layer_idx, j)] = cap.accepted_window(num_accepted, pool.kwin).clone()
+
+    pool.commit_after_verify(num_accepted, rows)
+
+    for layer_idx in range(_ConvCfg.num_hidden_layers):
+        for j, buf in enumerate(pool.layer_state(layer_idx)):
+            want = expected[(layer_idx, j)]
+            for i, row in enumerate(rows.tolist()):
+                assert torch.allclose(buf[row], want[i]), (
+                    f"layer {layer_idx} conv {j} row {row} did not get its own window"
+                )
+
+
+def test_the_commit_leaves_every_other_row_alone():
+    """A context request sharing the batch must not have its window rewritten."""
+    pool = _cpu_pool()
+    untouched_row = 3
+    for layer_idx in range(_ConvCfg.num_hidden_layers):
+        for buf in pool.layer_state(layer_idx):
+            buf[untouched_row].fill_(1.25)
+
+    rows = torch.tensor([0, 1], dtype=torch.int64)
+    _stage_capture(pool, rows, 4)
+    pool.commit_after_verify(torch.tensor([1, 1], dtype=torch.int64), rows)
+
+    for layer_idx in range(_ConvCfg.num_hidden_layers):
+        for buf in pool.layer_state(layer_idx):
+            assert torch.all(buf[untouched_row] == 1.25)
+
+
+def test_a_pool_built_without_speculation_refuses_to_commit():
+    """With no captures there is nothing to replay from, so it must not pretend."""
+    pool = _cpu_pool(max_draft_len=0)
+    with pytest.raises(RuntimeError, match="not built for speculative decoding"):
+        pool.commit_after_verify(
+            torch.tensor([1], dtype=torch.int64), torch.tensor([0], dtype=torch.int64)
+        )
+
+
+def test_the_manager_takes_the_generation_tail_of_the_batch():
+    """``num_accepted`` covers the whole batch; the conv rows cover only the tail.
+
+    The packed batch is contexts first, then generations, so the acceptance
+    counts have to be indexed from the END. Slicing from the front would apply a
+    context request's count to a generation request's window -- right shape,
+    wrong history, no error.
+    """
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
+        InklingHybridCacheManager,
+    )
+
+    pool = _cpu_pool()
+    rows = torch.tensor([0, 1], dtype=torch.int64)
+    _stage_capture(pool, rows, 4)
+
+    seen = {}
+
+    class _Pool:
+        def commit_after_verify(self, num_accepted, gen_rows):
+            seen["num_accepted"] = num_accepted.clone()
+            seen["rows"] = gen_rows.clone()
+
+    class _Rt:
+        gen_indices = rows
+        gen_tokens_per_seq = 4
+
+    class _Mgr:
+        _last_conv_rt = _Rt()
+        _conv_cache = _Pool()
+
+    # Two contexts ahead of the two generation requests.
+    batch = torch.tensor([9, 9, 2, 3], dtype=torch.int64)
+    InklingHybridCacheManager.commit_conv_state_after_verify(_Mgr(), batch)
+    assert torch.equal(seen["num_accepted"], torch.tensor([2, 3], dtype=torch.int64))
+    assert torch.equal(seen["rows"], rows)
+
+
+def test_an_ordinary_decode_step_commits_nothing():
+    """One token per request is not a verify step; rolling back would corrupt it."""
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
+        InklingHybridCacheManager,
+    )
+
+    called = []
+
+    class _Pool:
+        def commit_after_verify(self, *_a):
+            called.append(1)
+
+    class _Rt:
+        gen_indices = torch.tensor([0], dtype=torch.int64)
+        gen_tokens_per_seq = 1  # ordinary decode
+
+    class _Mgr:
+        _last_conv_rt = _Rt()
+        _conv_cache = _Pool()
+
+    InklingHybridCacheManager.commit_conv_state_after_verify(
+        _Mgr(), torch.tensor([1], dtype=torch.int64)
+    )
+    assert not called, "an ordinary decode step must not roll the windows back"
