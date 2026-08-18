@@ -150,6 +150,13 @@ class InklingAttentionMetadata(TrtllmAttentionMetadata):
             return
         self.ink_conv_cache = cache
         self.ink_conv_rt = InklingConvRuntime.build(self, cache)
+        # Hand the split to the manager as well. The post-verify conv commit
+        # runs from the spec worker, after the forward context has exited, so it
+        # cannot rebuild the split and must commit against the same rows this
+        # step's forward advanced.
+        note = getattr(self.kv_cache_manager, "note_conv_runtime", None)
+        if note is not None:
+            note(self.ink_conv_rt)
 
     def _prepare_inkling_decode(self) -> None:
         # Publishes nothing -- the accessors read buffers the base refreshes each

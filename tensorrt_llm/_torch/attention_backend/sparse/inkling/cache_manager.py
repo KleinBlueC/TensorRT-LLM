@@ -159,6 +159,17 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             max_batch_size,
             spec_config=kwargs.get("spec_config"),
         )
+        # A draft manager covers only the chain's layers, and addresses them by
+        # the GLOBAL layer index its KV layer offsets already use. Sizing its
+        # conv pool by the trunk's layer count would allocate 42 rows to hold 3
+        # and then index past them.
+        is_draft = bool(kwargs.get("is_draft"))
+        conv_num_layers = None
+        conv_layer_offset = 0
+        if is_draft:
+            conv_num_layers = int(kwargs.get("num_layers") or 0) or None
+            text_config = getattr(pretrained_config, "text_config", pretrained_config)
+            conv_layer_offset = int(getattr(text_config, "num_hidden_layers", 0))
         super().__init__(
             *args,
             pretrained_config=pretrained_config,
@@ -167,6 +178,31 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             **kwargs,
         )
         geo = self._conv_geometry
+        if geo.max_draft_len:
+            # The first verify step of a request needs KV room for all
+            # ``1 + max_draft_len`` positions it writes, and the context phase
+            # is what has to have reserved it: capacity there is
+            # ``prompt + num_extra_kv_tokens``, and the generic one-engine
+            # reserve is ``max_draft_len - 1``. Measured on a real run
+            # (job 6026096): prompt 669, capacity 671, first verify step writing
+            # positions 669..672 -- two short. It only surfaces when that last
+            # position lands on a page boundary, which is why short-prompt runs
+            # never caught it and a 5-shot GSM8K prompt did.
+            #
+            # From the second step on the scheduler's per-step growth
+            # (+1 + draft) takes over and the margin is 6, so this is a
+            # context-phase reservation, not a per-step one.
+            self.num_extra_kv_tokens = max(self.num_extra_kv_tokens, geo.max_draft_len + 1)
+            # ``num_extra_kv_tokens`` is set inside super().__init__() from the
+            # spec config, so it can only be raised afterwards -- and
+            # ``max_blocks_per_seq`` was derived from the old value. Re-derive it
+            # with the base's own formula rather than leaving a per-sequence
+            # block bound that is short by exactly the tokens just reserved.
+            max_seq_capacity = (
+                self.max_seq_len + self.num_extra_kv_tokens + self._kv_reserve_draft_tokens + 1
+            )
+            blocks = -(-max_seq_capacity // self.tokens_per_block)
+            self.max_blocks_per_seq = ((blocks + 3) // 4) * 4
         self._conv_cache = InklingConvStateCache(
             pretrained_config,
             geo.tp_size,
@@ -175,8 +211,13 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             geo.dtype,
             reserve_attention_dp_slot=geo.reserve_attention_dp_slot,
             max_draft_len=geo.max_draft_len,
+            num_layers=conv_num_layers,
+            layer_offset=conv_layer_offset,
             allocate=self._conv_state_buffer,
         )
+        # Retained for the post-verify conv commit, which runs from the spec
+        # worker after the forward context has exited and so cannot rebuild it.
+        self._last_conv_rt = None
         logger.info(
             f"Inkling short-conv state pool: {self._conv_cache.num_slots} rows "
             f"({geo.num_request_slots} request + {geo.num_reserved_slots} reserved), "
@@ -311,9 +352,34 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         """
         return self._conv_cache.layer_state(layer_idx)
 
+    def get_conv_captures(self, layer_idx: int) -> InklingConvState:
+        """``layer_idx``'s verify-step captures; the four entries are None when
+        speculative decoding is off."""
+        return self._conv_cache.layer_capture(layer_idx)
+
     def get_state_indices(self) -> torch.Tensor:
         """Pool rows of the current batch, in packed batch order."""
         return self._conv_cache.state_indices
+
+    def note_conv_runtime(self, rt) -> None:
+        """Record this step's context/generation split for the post-verify commit."""
+        self._last_conv_rt = rt
+
+    def commit_conv_state_after_verify(self, num_accepted) -> None:
+        """Roll the conv windows back to each request's last accepted token.
+
+        The pool rows come from the runtime built for the verify step, so this
+        commits against the same rows the forward advanced -- not whatever the
+        next batch happens to occupy.
+        """
+        rt = self._last_conv_rt
+        if rt is None or rt.gen_indices is None or rt.gen_tokens_per_seq < 2:
+            return
+        # ``num_accepted`` covers the whole batch; the conv rows cover only the
+        # generation slice, so it is indexed from the END. A verify step's
+        # requests are the batch's tail by construction.
+        rows = rt.gen_indices.to(torch.int64)
+        self._conv_cache.commit_after_verify(num_accepted[-rows.shape[0] :], rows)
 
     def free_conv_state(self, request_ids) -> None:
         self._conv_cache.free(list(request_ids))
