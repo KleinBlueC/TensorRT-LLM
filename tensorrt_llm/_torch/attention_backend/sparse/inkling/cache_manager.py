@@ -361,9 +361,23 @@ class InklingHybridCacheManager(KVCacheManagerV2):
         """Pool rows of the current batch, in packed batch order."""
         return self._conv_cache.state_indices
 
-    def note_conv_runtime(self, rt) -> None:
-        """Record this step's context/generation split for the post-verify commit."""
+    def prepare_conv_runtime(self, attn_metadata):
+        """Build this step's context/generation split against THIS manager's pool.
+
+        The metadata publishes one split during ``prepare()``, from whichever
+        manager was in play then -- the target's. A draft forward runs inside the
+        draft KV cache context with the manager swapped underneath, and the
+        chain has its own pool, so it has to ask again rather than reuse that.
+
+        The result is retained because the post-verify conv commit runs from the
+        spec worker, after the forward context has exited, and must commit
+        against the same rows this step's forward advanced.
+        """
+        from .conv_state import InklingConvRuntime
+
+        rt = InklingConvRuntime.build(attn_metadata, self._conv_cache)
         self._last_conv_rt = rt
+        return self._conv_cache, rt
 
     def commit_conv_state_after_verify(self, num_accepted) -> None:
         """Roll the conv windows back to each request's last accepted token.
