@@ -510,3 +510,91 @@ def test_padding_rows_do_not_reach_the_spec_worker():
     assert call["input_ids"].shape[0] == 5
     assert call["position_ids"].shape[-1] == 5
     assert call["hidden_states"].shape[0] == 5
+
+
+# --- the speculative-decoding guard, called rather than read ----------------
+# It has four raises and had only source-text coverage. Each one stands for a
+# failure that is otherwise silent or lands far from its cause, and the first
+# thing it must do is stay out of the way of a server that is not speculating.
+
+
+def _spec_guard_config(*, depths=8, draft_len=3, cuda_graph=False, vanilla=True):
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    text = InklingConfig(
+        text_config={"num_hidden_layers": 42},
+        mtp_config=({"num_nextn_predict_layers": depths, "local_layer_ids": [0, 2]}
+                    if depths else None),
+    ).text_config
+    spec_config = MTPDecodingConfig(max_draft_len=draft_len)
+    # What the resolver would have set; done by hand so each case is explicit.
+    spec_config.num_nextn_predict_layers = depths if vanilla else 1
+    spec_config.use_mtp_vanilla = bool(vanilla)
+
+    class _Cfg:
+        pretrained_config = text
+        use_cuda_graph = cuda_graph
+
+    cfg = _Cfg()
+    cfg.spec_config = spec_config
+    return cfg
+
+
+def test_the_spec_guard_is_a_no_op_without_speculation():
+    """An ordinary server must not be refused by any of this."""
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    class _Cfg:
+        pretrained_config = InklingConfig(text_config={}).text_config
+        spec_config = None
+        use_cuda_graph = True  # irrelevant when not speculating
+
+    assert InklingForCausalLM._assert_inkling_spec_conv_state(_Cfg()) is None
+
+
+def test_a_valid_speculative_setup_passes_the_guard():
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    assert InklingForCausalLM._assert_inkling_spec_conv_state(_spec_guard_config()) is None
+
+
+def test_a_checkpoint_without_a_chain_is_named_as_such():
+    """The framework reads the depth as a bare attribute; absent is an
+    AttributeError from inside it, which says nothing about the checkpoint."""
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    with pytest.raises(ValueError, match="declares no MTP chain"):
+        InklingForCausalLM._assert_inkling_spec_conv_state(_spec_guard_config(depths=None))
+
+
+def test_a_non_vanilla_mode_is_refused():
+    """EAGLE builds one block and replays it; Inkling's depths are distinct."""
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    cfg = _spec_guard_config(vanilla=False)
+    with pytest.raises(ValueError, match="needs vanilla MTP"):
+        InklingForCausalLM._assert_inkling_spec_conv_state(cfg)
+
+
+def test_cuda_graphs_are_refused_at_construction():
+    """The verify step walks drafted positions one at a time and cannot be
+    captured; the backend's own raise lands inside warmup, minutes later."""
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    with pytest.raises(ValueError, match="cannot run with CUDA graphs"):
+        InklingForCausalLM._assert_inkling_spec_conv_state(_spec_guard_config(cuda_graph=True))
+
+
+def test_a_zero_draft_length_is_refused_by_the_config_not_here():
+    """The invariant lives on MTPDecodingConfig, which is closer to the user.
+
+    Inkling carried its own ``max_draft_len < 1`` check -- the conv capture
+    buffers are sized from it -- but it is unreachable: the Pydantic validator
+    rejects the value at construction, before any model exists, and says so in
+    better words. Pinning where the check actually lives so the duplicate is not
+    reintroduced.
+    """
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    with pytest.raises(ValueError, match="max_draft_len must be > 0"):
+        MTPDecodingConfig(max_draft_len=0)

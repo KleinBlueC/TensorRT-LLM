@@ -1343,13 +1343,6 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "share its cache, and they are addressed by the global layer "
                 "index the separate manager is keyed by."
             )
-        draft_len = int(getattr(spec_config, "max_draft_len", 0) or 0)
-        if draft_len < 1:
-            raise ValueError(
-                f"Speculative decoding needs max_draft_len >= 1 (got {draft_len}); "
-                "the Inkling short-conv capture buffers are sized from it, and a "
-                "verify step with nothing captured cannot be rolled back."
-            )
         text_config = getattr(
             model_config.pretrained_config, "text_config", model_config.pretrained_config
         )
