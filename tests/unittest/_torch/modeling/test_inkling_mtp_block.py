@@ -235,3 +235,111 @@ def test_draft_conv_pool_widths_come_from_the_chain_not_the_trunk():
             assert trunk_answer == 8
         else:
             assert chain_heads == 8
+
+
+# --- the chain as MTPForCausalLM actually builds it -------------------------
+# Everything above asserts the config's answers. This builds the blocks through
+# the framework's own constructor and asks each one which depth it thinks it is
+# -- the step that was wrong, and the only one nothing was checking. Real chain
+# SHAPE (42 trunk over 8 depths, so trunk % depths == 2), tiny dimensions, no
+# weights.
+
+
+def _tiny_mtp_model_config(max_draft_len):
+    import copy as _copy
+
+    from tensorrt_llm._torch.model_config import ModelConfig
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    text = InklingConfig(
+        text_config={
+            "num_hidden_layers": 42,  # the shipped small checkpoint's trunk
+            "hidden_size": 64,
+            "num_attention_heads": 4,
+            "num_key_value_heads": 2,
+            "head_dim": 16,
+            "swa_num_attention_heads": 4,
+            "swa_num_key_value_heads": 4,
+            "swa_head_dim": 16,
+            "intermediate_size": 32,
+            "dense_intermediate_size": 32,
+            "d_rel": 4,
+            "rel_extent": 16,
+            "vocab_size": 128,
+            "unpadded_vocab_size": 128,
+            "n_routed_experts": 8,
+            "num_experts_per_tok": 2,
+        },
+        mtp_config=dict(_CKPT_MTP),
+    ).text_config
+
+    spec_config = MTPDecodingConfig(max_draft_len=max_draft_len)
+    from tensorrt_llm._torch.speculative.utils import update_spec_config_from_model_config
+
+    update_spec_config_from_model_config(spec_config, text)
+    model_config = ModelConfig(pretrained_config=text)
+    model_config = _copy.copy(model_config)
+    model_config.spec_config = spec_config
+    return model_config, text
+
+
+@pytest.mark.parametrize("max_draft_len", [1, 3, 5])
+def test_each_built_block_knows_its_own_depth(max_draft_len):
+    """42 % 8 == 2, so a modulo puts block b on depth b + 2.
+
+    It survived at max_draft_len 3 because the banded set [0, 2, 4, 5, 6, 7]
+    gives 0,1,2 and 2,3,4 the same banded/global pattern. 5 is past that: block
+    3 wants depth 3 (global) and a modulo hands it depth 5 (banded), which is a
+    different KV-head count from the one the conv pool sizes that layer with.
+    """
+    import torch.nn as nn
+
+    from tensorrt_llm._torch.models.modeling_speculative import MTPForCausalLM
+
+    model_config, text = _tiny_mtp_model_config(max_draft_len)
+
+    class _Model(nn.Module):
+        aux_stream_dict: dict = {}
+
+        def __init__(self):
+            super().__init__()
+            self.embed_tokens = nn.Embedding(8, 8)
+
+    chain = MTPForCausalLM(model_config, text.num_hidden_layers, nn.Identity(), _Model())
+
+    assert len(chain.mtp_layers) == min(max_draft_len, _CKPT_MTP["num_nextn_predict_layers"])
+    for expected, block in enumerate(chain.mtp_layers):
+        assert block.depth == expected, (
+            f"block {expected} thinks it is depth {block.depth}; a modulo over "
+            f"{_CKPT_MTP['num_nextn_predict_layers']} depths under a "
+            f"{text.num_hidden_layers}-layer trunk gives {expected + 2}"
+        )
+        assert block.transformer_block.layer_idx == text.num_hidden_layers + expected
+
+
+def test_the_chain_is_not_one_replayed_block():
+    """Vanilla MTP builds one block per depth; EAGLE builds one and replays it.
+
+    Both shipped releases resolved to EAGLE, so this is the assertion that the
+    chain has distinct blocks at all -- distinct objects, distinct parameters.
+    """
+    import torch.nn as nn
+
+    from tensorrt_llm._torch.models.modeling_speculative import MTPForCausalLM
+
+    model_config, text = _tiny_mtp_model_config(3)
+    assert model_config.spec_config.spec_dec_mode.is_mtp_vanilla()
+
+    class _Model(nn.Module):
+        aux_stream_dict: dict = {}
+
+        def __init__(self):
+            super().__init__()
+            self.embed_tokens = nn.Embedding(8, 8)
+
+    chain = MTPForCausalLM(model_config, text.num_hidden_layers, nn.Identity(), _Model())
+    assert len({id(b) for b in chain.mtp_layers}) == 3
+    first = dict(chain.mtp_layers[0].named_parameters())
+    second = dict(chain.mtp_layers[1].named_parameters())
+    shared = [k for k in first if first[k] is second.get(k)]
+    assert not shared, f"depths share parameters: {shared[:3]}"
