@@ -14,7 +14,7 @@
 # limitations under the License.
 """The short-conv under a multi-token generation step.
 
-Ordinary decode feeds one token per generation request, and ``_apply_sconv``
+Ordinary decode feeds one token per generation request, and ``apply_short_conv``
 sends the whole post-context slice through ``causal_conv1d_update`` with one
 cache index per request. Speculative decoding breaks that assumption: the
 target verifies ``1 + max_draft_len`` tokens per request in a single step.
@@ -188,7 +188,7 @@ def test_a_draft_length_the_capture_cannot_hold_is_rejected():
 
 
 def _capture(n, channels, kwin, steps, init, x):
-    from tensorrt_llm._torch.models.modeling_inkling import _ConvVerifyCapture
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import _ConvVerifyCapture
 
     cap = _ConvVerifyCapture(n, channels, kwin, steps, torch.device("cpu"), torch.float32)
     cap.init[:n].copy_(init)
@@ -266,7 +266,7 @@ def test_capture_is_only_allocated_when_speculating():
     """An ordinary server must not pay for buffers it never reads."""
     import inspect
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingConvStateCache
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import InklingConvStateCache
 
     src = inspect.getsource(InklingConvStateCache.__init__)
     assert "verify_steps" in src and "if self.verify_steps < 2" in src
@@ -289,9 +289,11 @@ def test_verify_attention_is_not_routed_through_the_context_path():
     """
     import inspect
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        InklingTritonAttention,
+    )
 
-    src = inspect.getsource(InklingAttention._run_verify)
+    src = inspect.getsource(InklingTritonAttention._run_verify)
     # The docstring explains why the prefill kernel is wrong here, so check the
     # body rather than the whole source.
     quote = '"' * 3
@@ -310,9 +312,11 @@ def test_verify_walks_positions_in_order_so_causality_is_structural():
     """
     import inspect
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        InklingTritonAttention,
+    )
 
-    src = inspect.getsource(InklingAttention._run_verify)
+    src = inspect.getsource(InklingTritonAttention._run_verify)
     write_at = src.index("write_kv_cache_hnd")
     attend_at = src.index("inkling_decode_attention")
     assert write_at < attend_at, "each position's KV must be written before it attends"
@@ -351,9 +355,11 @@ def test_capture_under_cuda_graph_is_refused_with_a_reason():
     """
     import inspect
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        InklingTritonAttention,
+    )
 
-    src = inspect.getsource(InklingAttention._run_verify)
+    src = inspect.getsource(InklingTritonAttention._run_verify)
     assert "is_cuda_graph" in src and "RuntimeError" in src
 
 
@@ -372,7 +378,7 @@ def test_the_draft_pool_is_addressed_by_global_index():
     """
     import inspect
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingConvStateCache
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import InklingConvStateCache
 
     src = inspect.getsource(InklingConvStateCache.__init__)
     assert "layer_offset" in src and "num_layers" in src
@@ -434,7 +440,7 @@ def test_a_shorter_step_than_the_buffer_holds_is_recorded_as_such():
 
 def test_more_steps_than_the_buffer_holds_is_an_error_not_a_truncation():
     """Sized from max_draft_len, so overflow means the sizing assumption broke."""
-    from tensorrt_llm._torch.models.modeling_inkling import _ConvVerifyCapture
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import _ConvVerifyCapture
 
     cap = _ConvVerifyCapture(2, 3, 2, 2, torch.device("cpu"), torch.float32)
     with pytest.raises(ValueError, match="max_draft_len"):
@@ -471,19 +477,34 @@ def test_a_layer_with_no_slot_in_the_manager_says_so():
 
 
 def test_a_draft_layer_falls_back_off_the_published_page_table():
-    """``ink_page_table`` is published for the TARGET's layers only.
+    """The published page table covers the TARGET's layers only.
 
-    A draft block's global index is not a key in it, and the lookup raises a
-    bare KeyError from inside a dict -- the same shape of failure as reading the
-    published conv cache. Both come from the draft chain running against
-    metadata prepared for the target.
+    ``ink_gen_page_table`` indexes ``self._ink_pt_rows[layer]``, which the
+    metadata fills for the layers it was prepared for. A draft block's global
+    index is not a key there, and the lookup raises a bare KeyError from inside
+    a dict -- the same shape of failure as reading the published conv cache, and
+    from the same cause: the chain runs against metadata prepared for the
+    target.
+
+    What keeps the chain away from it is the routing, not a lookup guard: a
+    chain forward presents more than one query token per request, so it lands in
+    ``_run_verify``, which builds its own table from the manager in play. Pin
+    that, since it is the property that makes the KeyError unreachable.
     """
     import inspect
 
-    from tensorrt_llm._torch.models.modeling_inkling import InklingAttention
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        InklingTritonAttention,
+    )
 
-    src = inspect.getsource(InklingAttention._run_generation)
-    assert "cache_layer in published" in src
+    src = inspect.getsource(InklingTritonAttention._run_verify)
+    assert "_batch_cache_indices(mgr" in src, (
+        "the verify path must resolve pages through the manager in play"
+    )
+    assert "build_page_table(block_ids" in src
+    assert "ink_gen_page_table" not in src, (
+        "the verify path must not read the target's published page table"
+    )
 
 
 # --- where a verify step's KV actually goes ---------------------------------
@@ -504,7 +525,9 @@ def test_verify_writes_after_the_existing_history_not_at_zero():
     from the history to ``history + steps - 1``, and asking for that room
     succeeds when the pages cover it.
     """
-    from tensorrt_llm._torch.models.modeling_inkling import check_verify_write_room
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        check_verify_write_room,
+    )
 
     page_size, history, steps = 32, 669, 4
     pages = list(range(history // page_size + 2))  # covers 0 .. history + steps
@@ -537,7 +560,9 @@ def test_a_negative_write_base_is_refused():
     It is a backstop, not the handler for the one negative base that legitimately
     occurs -- see the warmup clamp below.
     """
-    from tensorrt_llm._torch.models.modeling_inkling import check_verify_write_room
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        check_verify_write_room,
+    )
 
     with pytest.raises(RuntimeError, match="negative KV write base"):
         check_verify_write_room(-3, 4, 32, list(range(24)))
@@ -558,9 +583,9 @@ def test_the_draft_chains_warmup_underflow_is_clamped_not_refused():
     """
     import re
 
-    import tensorrt_llm._torch.models.modeling_inkling as mi
+    from tensorrt_llm._torch.attention_backend.sparse.inkling import backend as ink_backend
 
-    src = inspect.getsource(mi.InklingAttention._run_verify)
+    src = inspect.getsource(ink_backend.InklingTritonAttention._run_verify)
     assert re.search(r"base\s*=\s*\[max\(0,", src), (
         "the verify base must clamp the framework's post-rewind underflow"
     )

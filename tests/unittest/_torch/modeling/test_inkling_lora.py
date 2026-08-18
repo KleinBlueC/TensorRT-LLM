@@ -58,7 +58,7 @@ def test_qkv_lora_is_added_before_the_split_and_the_short_convs():
 
     src = _src(InklingAttention._project)
     assert src.index("fused_qkv_lora") < src.index("split_qkv")
-    assert src.index("fused_qkv_lora") < src.index("_apply_sconv")
+    assert src.index("fused_qkv_lora") < src.index("apply_short_conv")
 
 
 def test_o_proj_receives_lora_params():

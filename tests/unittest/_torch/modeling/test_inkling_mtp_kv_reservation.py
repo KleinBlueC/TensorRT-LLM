@@ -102,32 +102,61 @@ def test_the_manager_raises_the_reservation_over_the_generic_one(monkeypatch):
     Asserted through the constructor rather than by re-deriving the number,
     because the bug was that the generic value reached the context phase
     unchanged.
+
+    ``num_extra_kv_tokens`` is set inside the base ``__init__`` from the spec
+    config, so it can only be raised afterwards -- and ``max_blocks_per_seq``
+    was already derived from the old value. Re-deriving it is asserted here
+    too: without that, the per-sequence block bound is short by exactly the
+    tokens just reserved, and only at page alignments (the padding to a
+    multiple of four blocks hides it the rest of the time), which is the same
+    intermittent shape as the bug this reservation exists to fix.
     """
-    from tensorrt_llm._torch.attention_backend.inkling import cache_manager as cm
+    from tensorrt_llm._torch.attention_backend.sparse.inkling import cache_manager as cm
 
     captured = {}
 
     def _fake_super_init(self, *args, **kwargs):
         self.num_extra_kv_tokens = get_num_extra_kv_tokens(kwargs.get("spec_config"))
         captured["generic"] = self.num_extra_kv_tokens
+        # What the real base derives from it, and what the override re-derives.
+        self.max_seq_len = 1024
+        self.tokens_per_block = 32
+        self._kv_reserve_draft_tokens = 3
+        self.max_blocks_per_seq = 0  # deliberately wrong; the override must fix it
+        self.num_local_layers = 66
 
     class _FakeConvCache:
+        num_slots = 5
+
         def __init__(self, *args, **kwargs):
-            captured["verify_steps"] = kwargs.get("verify_steps")
+            captured["max_draft_len"] = kwargs.get("max_draft_len")
+            captured["num_layers"] = kwargs.get("num_layers")
+            captured["layer_offset"] = kwargs.get("layer_offset")
+
+        def conv_state_bytes(self):
+            return 0
 
     monkeypatch.setattr(cm.KVCacheManagerV2, "__init__", _fake_super_init)
-    monkeypatch.setattr(
-        "tensorrt_llm._torch.models.modeling_inkling.InklingConvStateCache",
-        _FakeConvCache,
-    )
+    monkeypatch.setattr(cm, "InklingConvStateCache", _FakeConvCache)
 
     class _Mapping:
         enable_attention_dp = False
         tp_size = 1
+        pp_size = 1
 
     class _Text:
         num_hidden_layers = 66
-        torch_dtype = None
+        torch_dtype = "bfloat16"
+        sconv_kernel_size = 4
+        hidden_size = 4096
+
+        @staticmethod
+        def layer_num_kv_heads(_i):
+            return 8
+
+        @staticmethod
+        def layer_head_dim(_i):
+            return 128
 
     class _Pretrained:
         text_config = _Text()
@@ -144,11 +173,88 @@ def test_the_manager_raises_the_reservation_over_the_generic_one(monkeypatch):
     )
 
     assert captured["generic"] == 2  # max_draft_len - 1, the generic reserve
-    assert captured["verify_steps"] == 4  # 1 + max_draft_len, what a step writes
-    assert mgr.num_extra_kv_tokens == 4
+    assert mgr.num_extra_kv_tokens == 4  # 1 + max_draft_len, what a step writes
+    # The pool derives its capture depth from the same number rather than being
+    # told separately, so max_draft_len is what has to reach it.
+    assert captured["max_draft_len"] == 3
+    # Re-derived with the base's own formula: ceil(1024 + 4 + 3 + 1 / 32) = 33,
+    # rounded up to a multiple of four blocks.
+    assert mgr.max_blocks_per_seq == 36
 
 
-def test_the_media_towers_are_built_in_dtype_not_converted_into_it():
+def test_a_target_manager_sizes_its_conv_pool_from_the_whole_trunk(monkeypatch):
+    """Only a DRAFT manager narrows the pool to the chain's layers.
+
+    The draft manager covers the chain alone and addresses it by global layer
+    index; the target's covers the trunk and starts at zero. Passing the draft
+    narrowing on the target would allocate a pool of the wrong depth and index
+    past it -- so the two are pinned apart here.
+    """
+    from tensorrt_llm._torch.attention_backend.sparse.inkling import cache_manager as cm
+
+    captured = {}
+
+    def _fake_super_init(self, *args, **kwargs):
+        self.num_extra_kv_tokens = 0
+        self.max_seq_len = 1024
+        self.tokens_per_block = 32
+        self._kv_reserve_draft_tokens = 0
+        self.max_blocks_per_seq = 0
+        self.num_local_layers = 66
+
+    class _FakeConvCache:
+        num_slots = 5
+
+        def __init__(self, *args, **kwargs):
+            captured.update(kwargs)
+
+        def conv_state_bytes(self):
+            return 0
+
+    monkeypatch.setattr(cm.KVCacheManagerV2, "__init__", _fake_super_init)
+    monkeypatch.setattr(cm, "InklingConvStateCache", _FakeConvCache)
+
+    class _Mapping:
+        enable_attention_dp = False
+        tp_size = 1
+        pp_size = 1
+
+    class _Text:
+        num_hidden_layers = 66
+        torch_dtype = "bfloat16"
+        sconv_kernel_size = 4
+        hidden_size = 4096
+
+        @staticmethod
+        def layer_num_kv_heads(_i):
+            return 8
+
+        @staticmethod
+        def layer_head_dim(_i):
+            return 128
+
+    class _Pretrained:
+        text_config = _Text()
+
+    cm.InklingHybridCacheManager(
+        pretrained_config=_Pretrained(), mapping=_Mapping(), max_batch_size=4
+    )
+    assert captured["num_layers"] is None  # the whole trunk
+    assert captured["layer_offset"] == 0  # addressed from zero
+
+    captured.clear()
+    cm.InklingHybridCacheManager(
+        pretrained_config=_Pretrained(),
+        mapping=_Mapping(),
+        max_batch_size=4,
+        is_draft=True,
+        num_layers=3,
+    )
+    assert captured["num_layers"] == 3  # the chain's depths only
+    assert captured["layer_offset"] == 66  # addressed past the trunk
+
+
+def test_the_media_towers_do_not_abort_meta_init(monkeypatch):
     """Meta init has to survive the vision and audio towers.
 
     ``Module(...).to(bfloat16)`` lowers to ``aten._to_copy``, which a meta
@@ -157,29 +263,40 @@ def test_the_media_towers_are_built_in_dtype_not_converted_into_it():
     that is ~950B parameters built the slow way before a weight is read -- 30
     minutes at 100% CPU with idle GPUs, twice mistaken for a hang.
 
-    The assertable property is the one the fix turns on: the parameters come
-    out in the target dtype with no conversion step at all. That `.to(dtype)`
-    is what meta init refuses is not asserted here -- eager torch allows it on
-    a meta tensor, and the refusal happens inside TRT-LLM's meta-init mode,
-    which needs a model to enter. The evidence for it is the fallback the
-    server logged.
+    The mechanism that avoids it is deferral: under meta init the tower is not
+    built at all, and its config is handed back for ``load_weights`` to rebuild
+    from. So the assertable property is that a tower which cannot be converted
+    yields a deferral rather than propagating the exception.
     """
+    from tensorrt_llm._torch.models import modeling_inkling as mi
+
+    class _Cfg:
+        decoder_dmodel = 64
+
+    class _RaisesOnConstruct:
+        def __init__(self, _config):
+            raise mi.MetaInitException("meta init refuses _to_copy")
+
+    cfg = _Cfg()
+    tower, deferred = mi._build_replicated_bf16_tower(_RaisesOnConstruct, cfg)
+    assert tower is None, "a tower that cannot be built must not be returned"
+    assert deferred is cfg, "the config must come back so load_weights can rebuild"
+
+    # A tower left holding meta parameters is deferred too: constructing can
+    # succeed and only the conversion afterwards would raise.
     import torch
 
-    from tensorrt_llm._torch.models.modeling_inkling import _default_dtype
+    class _LeavesMetaParams:
+        def __init__(self, _config):
+            with torch.device("meta"):
+                self._p = torch.nn.Linear(4, 4)
 
-    with torch.device("meta"):
-        with _default_dtype(torch.bfloat16):
-            built = torch.nn.Linear(8, 8)
-        assert built.weight.dtype == torch.bfloat16
-        assert built.weight.is_meta  # never left the meta device
+        def parameters(self):
+            return self._p.parameters()
 
-        default = torch.nn.Linear(8, 8)
-        assert default.weight.dtype == torch.get_default_dtype()
+    tower, deferred = mi._build_replicated_bf16_tower(_LeavesMetaParams, cfg)
+    assert tower is None
+    assert deferred is cfg
 
-    # The default dtype is restored even though the body raised.
-    before = torch.get_default_dtype()
-    with pytest.raises(ValueError):
-        with _default_dtype(torch.float16):
-            raise ValueError("body")
-    assert torch.get_default_dtype() == before
+    # No tower configured at all is not a deferral -- there is nothing to build.
+    assert mi._build_replicated_bf16_tower(_RaisesOnConstruct, None) == (None, None)
