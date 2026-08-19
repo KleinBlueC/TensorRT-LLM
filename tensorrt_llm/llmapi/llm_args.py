@@ -1938,6 +1938,21 @@ class DecodingBaseConfig(StrictBaseModel):
             # Avoid ValueError during nested re-validation when only max_concurrency is set and draft_len_schedule is translated from max_concurrency
             if self._translated_from_max_concurrency:
                 return self
+            # ...but that flag is a PrivateAttr, so it does NOT survive being
+            # serialized to an MPI worker. The worker re-validates a config
+            # carrying BOTH fields with the flag back at its default, and
+            # rejects a combination the framework produced itself -- so
+            # max_concurrency was unusable on any one-engine speculative model
+            # whenever the config crossed a process boundary, i.e. any TP>1 run.
+            # Seen as a TorchLlmArgs ValidationError raised from worker.py.
+            #
+            # Recognising the translation by its VALUE rather than by the flag
+            # makes the validator idempotent, which is what re-validation needs.
+            if self.max_draft_len is not None and self.draft_len_schedule == {
+                    int(self.max_concurrency): int(self.max_draft_len)
+            }:
+                self._translated_from_max_concurrency = True
+                return self
             raise ValueError(
                 "max_concurrency and draft_len_schedule are mutually exclusive. "
                 "Use max_concurrency for a simple speculation cutoff, or "
