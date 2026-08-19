@@ -237,16 +237,19 @@ def reject_unsupported_inkling_speculation(config, *, is_speculating: bool,
                                            overlap_scheduler_enabled: bool):
     """Refuse Inkling speculative decoding with the overlap scheduler.
 
-    The post-verify conv rollback commits against ``_last_conv_rt`` -- a SINGLE
-    retained slot on the cache manager, written by every ``prepare_conv_runtime``
-    and read afterwards by ``commit_conv_state_after_verify``, which runs from
-    the spec worker once the forward context has already exited. The overlap
-    scheduler exists to start the next step's forward before the previous step
-    finishes being processed, so that next forward overwrites the slot and the
-    commit rolls back the wrong pool rows -- in the TARGET, which is the
-    direction that corrupts the logits deciding acceptance.
+    The combination is refused on MEASUREMENT. The mechanism is not established,
+    and this docstring deliberately does not guess at one -- an earlier revision
+    of it did, confidently and wrongly, which is worse than saying nothing.
 
-    Measured rather than argued (job 6315700, Inkling-Small-NVFP4, TP=4,
+    (What was ruled out, so nobody re-runs it: the rollback reads a single
+    retained ``_last_conv_rt`` on the manager, which looks like a cross-step
+    clobber. It is not. ``attn_metadata.prepare()`` writes that slot and
+    ``commit_conv_state_after_verify`` reads it within the SAME synchronous
+    ``_forward_step`` call -- prepare, forward, spec worker, commit -- so the
+    next iteration cannot interleave into the middle of it. Whatever breaks,
+    it is not that.)
+
+    Measured (job 6315700, Inkling-Small-NVFP4, TP=4,
     max_draft_len=3, temperature 0). Turning the overlap scheduler on with MTP:
 
     * acceptance fell to 0.156 / 0.265 / 0.333 from 0.323 / 0.429 / 0.421 --
@@ -263,6 +266,10 @@ def reject_unsupported_inkling_speculation(config, *, is_speculating: bool,
     Refused rather than silently accepted for the usual reason: nothing raises
     today, the output is merely worse, and the one test that would have caught
     it passes ``disable_overlap_scheduler=True`` without saying why.
+
+    Refusing is not fixing, and the fix is not designable until the mechanism
+    is known. See the workspace's OVERLAP_SCHEDULER_DEFECT.md for the raw
+    numbers and the candidates still open.
     """
     if not is_inkling(config) or not is_speculating:
         return

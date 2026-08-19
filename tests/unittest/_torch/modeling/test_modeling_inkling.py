@@ -159,14 +159,17 @@ def test_disaggregated_serving_is_rejected():
 
 
 def test_speculation_with_the_overlap_scheduler_is_rejected():
-    """Measured, not argued: job 6315700.
+    """Refused on measurement, not on a mechanism: job 6315700.
 
-    The post-verify conv rollback commits against a single retained runtime
-    slot, and the overlap scheduler starts the next forward before that commit
-    runs -- so it rolls back the wrong pool rows, in the target. Acceptance fell
-    to 0.156 (through ``test_nvfp4_mtp_ar``'s own 0.2 floor) and the output
-    degraded visibly. The no-speculation control (6315948) was clean, so this
-    belongs to speculation rather than to Inkling.
+    Acceptance fell to 0.156 -- through ``test_nvfp4_mtp_ar``'s own 0.2 floor --
+    and the output degraded visibly. The no-speculation control (6315948) was
+    clean, so this belongs to speculation rather than to Inkling, which is why
+    the guard is scoped to fire only when speculating.
+
+    Why the mechanism is not stated here: the obvious candidate (the rollback's
+    single retained ``_last_conv_rt`` being clobbered by the next step) was
+    checked and refuted -- prepare and commit happen inside the same synchronous
+    ``_forward_step``. The refusal rests on the numbers alone.
     """
     from tensorrt_llm._torch.pyexecutor.config_utils import (
         reject_unsupported_inkling_speculation,

@@ -8480,13 +8480,12 @@ class TestInkling_Small_NVFP4(TestInkling_NVFP4):
         The model raises at construction if both are set.
 
         ``disable_overlap_scheduler=True`` is required too, and sat here for a
-        long time without saying so. The post-verify short-conv rollback commits
-        against a single retained runtime slot, and the overlap scheduler starts
-        the next forward before that commit runs -- so it rolls back the wrong
-        pool rows in the target, corrupting the logits that decide acceptance.
-        Measured at 0.156 acceptance, under this test's own floor, with visibly
-        degraded output. It is refused at load now, so deleting this line raises
-        rather than quietly lowering the number this test reports.
+        long time without saying so. With the overlap scheduler on, acceptance
+        was measured at 0.156 -- under this test's own floor -- with visibly
+        degraded output, while the same run without speculation was clean. Why
+        that happens is not established; the refusal rests on the measurement.
+        It is refused at load now, so deleting this line raises rather than
+        quietly lowering the number this test reports.
         """
         max_draft_len = 3
         mtp_config = MTPDecodingConfig(max_draft_len=max_draft_len)
