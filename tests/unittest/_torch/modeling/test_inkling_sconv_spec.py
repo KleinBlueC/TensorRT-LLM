@@ -576,15 +576,33 @@ def test_the_draft_chains_warmup_underflow_is_clamped_not_refused():
     reads.
 
     So the model clamps it, and a run must not abort at startup over it.
+
+    Asserted by CALLING the base derivation, not by grepping its source. The
+    previous version matched the literal ``base = [max(0,`` and broke the moment
+    that expression moved into a helper -- while the clamp it exists to protect
+    was still there and still working. A test that fails on a refactor it was
+    not measuring is worse than no test.
     """
-    import re
+    import torch
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling import backend as ink_backend
-
-    src = inspect.getsource(ink_backend.InklingTritonAttention._run_verify)
-    assert re.search(r"base\s*=\s*\[max\(0,", src), (
-        "the verify base must clamp the framework's post-rewind underflow"
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        _verify_write_base,
     )
+
+    class _WarmupMD:
+        num_contexts = 0
+        # A KV length shorter than the step presents: exactly the underflow.
+        kv_lens_cuda = torch.tensor([1], dtype=torch.int32)
+
+    assert _verify_write_base(_WarmupMD(), [0], 1, 3) == [0]
+
+    # And through the fallback path, where the framework's own rewind has
+    # already driven the CPU list negative.
+    class _NoKvLens:
+        num_contexts = 0
+        kv_lens_cuda = None
+
+    assert _verify_write_base(_NoKvLens(), [-3], 1, 3) == [0]
 
 
 # --- who the commit actually writes to -------------------------------------
