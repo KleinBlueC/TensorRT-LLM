@@ -100,6 +100,43 @@ def check_verify_write_room(
         )
 
 
+def _verify_write_base(attn_metadata, num_cached, num_gen, steps):
+    """Where a verify step's ``steps`` tokens start in each request's cache.
+
+    Prefers ``kv_lens_cuda - steps`` over ``num_cached_tokens_per_seq``. The two
+    agree except under the overlap scheduler, where only the first is right.
+
+    ``kv_lens_cuda`` is provisioned optimistically for the drafted tokens and
+    then corrected in-forward by ``model_engine._preprocess_inputs`` (it adds
+    ``accepted - provisioned``, a negative number), so by the time attention
+    runs it holds the true KV length. The CPU list gets no such correction: its
+    rewind lives in ``mtp.py``'s ``change_attn_metadata``, which under overlap
+    has not run for the previous step yet. Measured 26 against a true 23.
+
+    Taking the optimistic base does not corrupt the step that takes it -- reads
+    and writes both derive from ``base`` and stay consistent -- it skips over
+    the previous step's REJECTED draft positions and leaves them in the cache,
+    so every later step attends over tokens the model never emitted.
+
+    Falls back to the CPU list when there is no ``kv_lens_cuda`` (the CPU-only
+    unit tests build metadata without one), which is also the pre-existing
+    behaviour, so nothing outside the overlap path changes.
+
+    The ``max(0, ...)`` clamp is kept from that pre-existing code and is not
+    decoration: generation-step warmup presents tiny dummy sequences whose base
+    underflows, and torch indexes a negative offset from the end of the page.
+    """
+    kv_lens = getattr(attn_metadata, "kv_lens_cuda", None)
+    if kv_lens is None:
+        return [max(0, int(x)) for x in list(num_cached)[:num_gen]]
+    # One D2H copy per verify step. Affordable here specifically: Inkling
+    # refuses CUDA graphs together with speculation, so this path is already
+    # eager, and the block-id bookkeeping below is host-side regardless.
+    start = attn_metadata.num_contexts
+    lens = kv_lens[start:start + num_gen].tolist()
+    return [max(0, int(x) - steps) for x in lens]
+
+
 def _batch_cache_indices(mgr, request_ids, cache_layer):
     """``mgr.get_batch_cache_indices`` with the layer-not-in-this-manager case named.
 
@@ -390,7 +427,22 @@ class InklingTritonAttention(TrtllmAttention):
         # ``kv_lens_cuda`` in the same place and for the same reason, and says so
         # in a comment -- it just does not clamp this CPU list, which is the one
         # Inkling reads. So clamp it here, on the same grounds.
-        base = [max(0, int(x)) for x in list(num_cached)[:num_gen]]
+        #
+        # ...and under the OVERLAP SCHEDULER that rewind has not happened yet
+        # when this runs, so the list is optimistic by ``max_draft_len``: it
+        # counts every drafted token of the previous step as accepted. Measured
+        # 26 against a true 23 (job 6320803). Writing at 26 does not corrupt
+        # this step -- reads and writes both use ``base`` and stay consistent --
+        # it leaves positions 23..25, the previous step's REJECTED drafts, in
+        # the cache unoverwritten, and every later step attends over tokens the
+        # model never emitted. That is the overlap defect.
+        #
+        # ``kv_lens_cuda`` does not have the problem: the engine corrects it
+        # in-forward (``_preprocess_inputs``, by ``accepted - provisioned``,
+        # which is negative), so by the time this runs it holds the true length.
+        # Derive the base from it instead -- ``kv_len - steps`` -- which is the
+        # same 23 in both modes. The clamp stays for the warmup sequences.
+        base = _verify_write_base(attn_metadata, num_cached, num_gen, steps)
         block_ids = _batch_cache_indices(mgr, request_ids, cache_layer)
         # A verify step writes positions ``base .. base + steps - 1``, so it
         # needs the page holding the LAST of them. The manager grows a
