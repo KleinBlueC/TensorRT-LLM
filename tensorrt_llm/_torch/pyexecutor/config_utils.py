@@ -233,6 +233,51 @@ def reject_unsupported_inkling_kv_cache_features(
             "cache_transceiver_config to run Inkling.")
 
 
+def reject_unsupported_inkling_speculation(config, *, is_speculating: bool,
+                                           overlap_scheduler_enabled: bool):
+    """Refuse Inkling speculative decoding with the overlap scheduler.
+
+    The post-verify conv rollback commits against ``_last_conv_rt`` -- a SINGLE
+    retained slot on the cache manager, written by every ``prepare_conv_runtime``
+    and read afterwards by ``commit_conv_state_after_verify``, which runs from
+    the spec worker once the forward context has already exited. The overlap
+    scheduler exists to start the next step's forward before the previous step
+    finishes being processed, so that next forward overwrites the slot and the
+    commit rolls back the wrong pool rows -- in the TARGET, which is the
+    direction that corrupts the logits deciding acceptance.
+
+    Measured rather than argued (job 6315700, Inkling-Small-NVFP4, TP=4,
+    max_draft_len=3, temperature 0). Turning the overlap scheduler on with MTP:
+
+    * acceptance fell to 0.156 / 0.265 / 0.333 from 0.323 / 0.429 / 0.421 --
+      through the 0.2 floor ``test_nvfp4_mtp_ar`` asserts;
+    * the output changed and visibly degraded, e.g. "sort 5, 2, 9, 9? Wait
+      list: 5, 2,2, 1? Wait", and lengths moved 48 -> 88 and 95 -> 128 tokens.
+
+    The control (job 6315948, same two arms with speculation off) rules out the
+    obvious alternative: without MTP the overlap scheduler is clean -- same
+    lengths, coherent text, differing only by this model's ordinary run-to-run
+    nondeterminism. So this is speculation's defect, not Inkling's, and the
+    support matrix's "Overlap Scheduler: Yes" stays true for everything else.
+
+    Refused rather than silently accepted for the usual reason: nothing raises
+    today, the output is merely worse, and the one test that would have caught
+    it passes ``disable_overlap_scheduler=True`` without saying why.
+    """
+    if not is_inkling(config) or not is_speculating:
+        return
+    if overlap_scheduler_enabled:
+        raise NotImplementedError(
+            "Inkling speculative decoding cannot run with the overlap "
+            "scheduler. The post-verify short-conv rollback commits against a "
+            "single retained runtime slot, and the overlap scheduler starts the "
+            "next forward before that commit runs -- so it rolls back the wrong "
+            "pool rows in the target, corrupting the logits that decide "
+            "acceptance. Measured: acceptance through the floor and visibly "
+            "degraded output. Set disable_overlap_scheduler=True when enabling "
+            "MTP on Inkling.")
+
+
 def _coerce_torch_dtype(dtype):
     """Normalize dtype values from HF configs into torch dtype objects.
 

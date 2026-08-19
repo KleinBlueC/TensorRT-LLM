@@ -158,6 +158,53 @@ def test_disaggregated_serving_is_rejected():
     reject_unsupported_inkling_kv_cache_features(InklingConfig(), enable_block_reuse=False)
 
 
+def test_speculation_with_the_overlap_scheduler_is_rejected():
+    """Measured, not argued: job 6315700.
+
+    The post-verify conv rollback commits against a single retained runtime
+    slot, and the overlap scheduler starts the next forward before that commit
+    runs -- so it rolls back the wrong pool rows, in the target. Acceptance fell
+    to 0.156 (through ``test_nvfp4_mtp_ar``'s own 0.2 floor) and the output
+    degraded visibly. The no-speculation control (6315948) was clean, so this
+    belongs to speculation rather than to Inkling.
+    """
+    from tensorrt_llm._torch.pyexecutor.config_utils import (
+        reject_unsupported_inkling_speculation,
+    )
+
+    with pytest.raises(NotImplementedError, match="overlap scheduler"):
+        reject_unsupported_inkling_speculation(
+            InklingConfig(), is_speculating=True, overlap_scheduler_enabled=True
+        )
+
+
+def test_the_overlap_scheduler_is_untouched_without_speculation():
+    """The refusal above must not cost an ordinary Inkling server anything.
+
+    Overlap is on by default and the support matrix lists it as Yes; the
+    control run confirmed it is clean without speculation. A guard that fired
+    here would turn a measured, speculation-only defect into a global
+    regression.
+    """
+    from tensorrt_llm._torch.pyexecutor.config_utils import (
+        reject_unsupported_inkling_speculation,
+    )
+
+    assert (
+        reject_unsupported_inkling_speculation(
+            InklingConfig(), is_speculating=False, overlap_scheduler_enabled=True
+        )
+        is None
+    )
+    # And speculation with overlap off -- the supported combination.
+    assert (
+        reject_unsupported_inkling_speculation(
+            InklingConfig(), is_speculating=True, overlap_scheduler_enabled=False
+        )
+        is None
+    )
+
+
 def test_the_supported_configuration_is_accepted():
     """Both off -- what every Inkling accuracy run measured -- must stay silent,
     including on the text sub-config the KV cache is sized from."""
