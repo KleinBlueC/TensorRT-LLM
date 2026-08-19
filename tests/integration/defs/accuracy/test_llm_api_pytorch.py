@@ -8479,13 +8479,15 @@ class TestInkling_Small_NVFP4(TestInkling_NVFP4):
         step walks the drafted positions one at a time and cannot be captured.
         The model raises at construction if both are set.
 
-        ``disable_overlap_scheduler=True`` is required too, and sat here for a
-        long time without saying so. With the overlap scheduler on, acceptance
-        was measured at 0.156 -- under this test's own floor -- with visibly
-        degraded output, while the same run without speculation was clean. Why
-        that happens is not established; the refusal rests on the measurement.
-        It is refused at load now, so deleting this line raises rather than
-        quietly lowering the number this test reports.
+        ``disable_overlap_scheduler=True`` is no longer required -- it is kept
+        so this test measures one thing. The overlap scheduler used to corrupt
+        the output here (acceptance 0.156, under this test's own floor) because
+        the verify step took its KV write offset from a CPU cached-token list
+        that the engine's in-forward correction does not touch, skipping over
+        the previous step's rejected drafts and leaving them in the cache. The
+        base now comes from the corrected ``kv_lens``; with overlap on,
+        acceptance and token counts match this configuration across
+        ``max_draft_len`` 1-4.
         """
         max_draft_len = 3
         mtp_config = MTPDecodingConfig(max_draft_len=max_draft_len)

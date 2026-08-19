@@ -158,56 +158,6 @@ def test_disaggregated_serving_is_rejected():
     reject_unsupported_inkling_kv_cache_features(InklingConfig(), enable_block_reuse=False)
 
 
-def test_speculation_with_the_overlap_scheduler_is_rejected():
-    """Refused on measurement, not on a mechanism: job 6315700.
-
-    Acceptance fell to 0.156 -- through ``test_nvfp4_mtp_ar``'s own 0.2 floor --
-    and the output degraded visibly. The no-speculation control (6315948) was
-    clean, so this belongs to speculation rather than to Inkling, which is why
-    the guard is scoped to fire only when speculating.
-
-    Why the mechanism is not stated here: the obvious candidate (the rollback's
-    single retained ``_last_conv_rt`` being clobbered by the next step) was
-    checked and refuted -- prepare and commit happen inside the same synchronous
-    ``_forward_step``. The refusal rests on the numbers alone.
-    """
-    from tensorrt_llm._torch.pyexecutor.config_utils import (
-        reject_unsupported_inkling_speculation,
-    )
-
-    with pytest.raises(NotImplementedError, match="overlap scheduler"):
-        reject_unsupported_inkling_speculation(
-            InklingConfig(), is_speculating=True, overlap_scheduler_enabled=True
-        )
-
-
-def test_the_overlap_scheduler_is_untouched_without_speculation():
-    """The refusal above must not cost an ordinary Inkling server anything.
-
-    Overlap is on by default and the support matrix lists it as Yes; the
-    control run confirmed it is clean without speculation. A guard that fired
-    here would turn a measured, speculation-only defect into a global
-    regression.
-    """
-    from tensorrt_llm._torch.pyexecutor.config_utils import (
-        reject_unsupported_inkling_speculation,
-    )
-
-    assert (
-        reject_unsupported_inkling_speculation(
-            InklingConfig(), is_speculating=False, overlap_scheduler_enabled=True
-        )
-        is None
-    )
-    # And speculation with overlap off -- the supported combination.
-    assert (
-        reject_unsupported_inkling_speculation(
-            InklingConfig(), is_speculating=True, overlap_scheduler_enabled=False
-        )
-        is None
-    )
-
-
 def test_the_supported_configuration_is_accepted():
     """Both off -- what every Inkling accuracy run measured -- must stay silent,
     including on the text sub-config the KV cache is sized from."""
@@ -586,6 +536,60 @@ def test_metadata_stages_nothing_and_asks_the_manager_for_nothing():
     assert md.kv_cache_manager.calls == []
     assert not hasattr(md, "_ink_pt_host")
     assert not hasattr(md, "ink_page_table")
+
+
+def test_verify_write_base_prefers_the_corrected_kv_lens():
+    """Where a verify step writes must not come from the CPU cached-token list.
+
+    Under the overlap scheduler that list is optimistic by ``max_draft_len`` --
+    the engine corrects the over-provisioned drafts on ``kv_lens_cuda`` and
+    ``position_ids`` in-forward, and nothing corrects the CPU list before the
+    target's verify attention reads it. Measured 26 against a true 23.
+
+    Taking 26 does not corrupt that step (reads and writes both derive from the
+    base) -- it skips over the previous step's REJECTED draft positions and
+    leaves them in the cache, so later steps attend across tokens the model
+    never emitted. ``kv_len - steps`` is the true base in both modes.
+    """
+    import torch
+
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        _verify_write_base,
+    )
+
+    class _MD:
+        num_contexts = 0
+        # 23 real cached tokens + this step's 4 query tokens.
+        kv_lens_cuda = torch.tensor([27], dtype=torch.int32)
+
+    # The optimistic list says 26; the corrected kv_len says 23. Take 23.
+    assert _verify_write_base(_MD(), [26], 1, 4) == [23]
+
+
+def test_verify_write_base_falls_back_and_clamps():
+    """Without kv_lens_cuda, keep the previous behaviour; never go negative.
+
+    The CPU-only metadata fakes carry no ``kv_lens_cuda``, and generation-step
+    warmup presents dummy sequences whose base underflows -- torch indexes a
+    negative offset from the end of the page rather than raising.
+    """
+    import torch
+
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
+        _verify_write_base,
+    )
+
+    class _NoKvLens:
+        num_contexts = 0
+        kv_lens_cuda = None
+
+    assert _verify_write_base(_NoKvLens(), [5, 0], 2, 4) == [5, 0]
+
+    class _Tiny:
+        num_contexts = 0
+        kv_lens_cuda = torch.tensor([2], dtype=torch.int32)  # shorter than steps
+
+    assert _verify_write_base(_Tiny(), [0], 1, 4) == [0]
 
 
 def test_metadata_rows_follow_the_manager_that_is_swapped_in():

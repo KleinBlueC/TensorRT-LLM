@@ -53,7 +53,6 @@ from .config_utils import (MambaKVCacheParams, extract_mamba_kv_cache_params,
                            is_hybrid_linear, is_inkling, is_kimi_linear, is_mla,
                            is_nemotron_hybrid, is_qwen3_hybrid,
                            reject_unsupported_inkling_kv_cache_features,
-                           reject_unsupported_inkling_speculation,
                            uses_vswa_kv_cache_layout)
 from .connectors.kv_cache_connector import KvCacheConnectorManager
 from .dwdp import DwdpManager
@@ -644,16 +643,6 @@ class KvCacheCreator:
             enable_cache_transceiver=(self._cache_transceiver_config is not None
                                       and self._cache_transceiver_config.backend
                                       is not None))
-        # Checked here rather than in the model's own speculative guard because
-        # ModelConfig carries use_cuda_graph but nothing about the overlap
-        # scheduler; llm_args is the nearest thing that sees both it and the
-        # resolved speculative config.
-        reject_unsupported_inkling_speculation(
-            model_config.pretrained_config,
-            is_speculating=getattr(self._llm_args, "speculative_config", None)
-            is not None,
-            overlap_scheduler_enabled=not bool(
-                getattr(self._llm_args, "disable_overlap_scheduler", False)))
         cls = get_kv_cache_manager_cls(
             model_config,
             kv_cache_config,
