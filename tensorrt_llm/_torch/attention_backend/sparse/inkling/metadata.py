@@ -52,8 +52,22 @@ class InklingAttentionMetadata(TrtllmAttentionMetadata):
     def __post_init__(self) -> None:
         super().__post_init__()
         self.kv_layout = "HND"
-        # Layer -> row of kv_cache_block_offsets. Static, so built once.
-        self._ink_pt_rows: Dict[int, int] = {}
+        # Layer -> row of kv_cache_block_offsets, PER MANAGER.
+        #
+        # Not "static, built once", which is what this was and what made
+        # max_draft_len=1 fail. A one-engine speculative step runs the draft
+        # chain inside ``prepare_attn_metadata_for_draft_replay``, which swaps
+        # ``kv_cache_manager`` AND ``kv_cache_block_offsets`` to the draft
+        # manager's. That helper is generic and cannot know about this cache,
+        # so a single map built from the target survives the swap and is then
+        # read against the draft's offsets tensor: the chain's own layers are
+        # missing from it (the visible failure), and any layer present in both
+        # would resolve to a row derived from the wrong manager (the silent one).
+        #
+        # Keyed by ``id(manager)`` with the manager itself kept alongside, so an
+        # id cannot be recycled onto another manager's rows while the entry
+        # lives. There are two managers in practice, so this never grows.
+        self._ink_pt_rows_cache: Dict[int, tuple] = {}
         # Short-conv pool and this forward's context/generation split: per-step
         # host work that must land in stable buffers before graph capture.
         self.ink_conv_cache = None
@@ -63,6 +77,25 @@ class InklingAttentionMetadata(TrtllmAttentionMetadata):
         """Global decoder-layer indices this rank owns (``pp_layers`` is already
         the local slice; the cache is addressed by global index)."""
         return list(getattr(self.kv_cache_manager, "pp_layers", []))
+
+    @property
+    def _ink_pt_rows(self) -> Dict[int, int]:
+        """The row map for the manager currently attached.
+
+        Resolved here rather than at ``prepare()`` because the draft swap
+        happens *after* prepare has run: ``prepare()`` only ever sees the
+        target, so a map cached there is the wrong one for every draft forward.
+        """
+        mgr = self.kv_cache_manager
+        if mgr is None:
+            return {}
+        key = id(mgr)
+        entry = self._ink_pt_rows_cache.get(key)
+        if entry is not None and entry[0] is mgr:
+            return entry[1]
+        rows = self._ink_build_pt_rows(self._ink_layers())
+        self._ink_pt_rows_cache[key] = (mgr, rows)
+        return rows
 
     def _ink_build_pt_rows(self, layers: List[int]) -> Dict[int, int]:
         """Map each owned layer to its row in ``kv_cache_block_offsets``.
@@ -212,9 +245,9 @@ class InklingAttentionMetadata(TrtllmAttentionMetadata):
                 "cache manager is attached, so this means prepare() ran "
                 "against a metadata object built without one."
             )
-        if not self._ink_pt_rows:
-            self._ink_pt_rows = self._ink_build_pt_rows(layers)
-        max_row = max(self._ink_pt_rows.values())
+        # Reading the property builds and caches this manager's map if needed.
+        rows = self._ink_pt_rows
+        max_row = max(rows.values())
         if max_row >= offsets.shape[0]:
             raise RuntimeError(
                 f"Inkling needs row {max_row} of kv_cache_block_offsets but it "
@@ -303,8 +336,11 @@ class InklingAttentionMetadata(TrtllmAttentionMetadata):
         # No private buffers to re-point: this is a shallow copy, and both
         # tensors the decode path reads are the base's, which already hands the
         # graph metadata its own capture-pool copies. Only short-conv state is
-        # reset; _ink_pt_rows is rebuilt because the manager may differ.
+        # reset; the row map now keys itself by manager, so the shallow-copied
+        # cache cannot serve another manager's rows and needs no clearing --
+        # but it is given a fresh dict anyway so the copy does not mutate the
+        # original's cache.
         md.ink_conv_cache = None
         md.ink_conv_rt = None
-        md._ink_pt_rows = {}
+        md._ink_pt_rows_cache = {}
         return md

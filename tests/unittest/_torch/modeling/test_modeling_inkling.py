@@ -497,7 +497,8 @@ def _ink_metadata(
     from tensorrt_llm._torch.attention_backend.sparse.inkling import InklingAttentionMetadata
 
     md = object.__new__(InklingAttentionMetadata)
-    md._ink_pt_rows = {}
+    # The row map is a property keyed by manager now; this is its backing store.
+    md._ink_pt_rows_cache = {}
     md.is_cuda_graph = False
     md.request_ids = list(request_ids)
     md._num_contexts = num_contexts
@@ -585,6 +586,42 @@ def test_metadata_stages_nothing_and_asks_the_manager_for_nothing():
     assert md.kv_cache_manager.calls == []
     assert not hasattr(md, "_ink_pt_host")
     assert not hasattr(md, "ink_page_table")
+
+
+def test_metadata_rows_follow_the_manager_that_is_swapped_in():
+    """The draft swap must not be served the target's row map.
+
+    A one-engine speculative step runs the draft chain inside
+    ``prepare_attn_metadata_for_draft_replay``, which reassigns
+    ``kv_cache_manager`` and ``kv_cache_block_offsets`` to the draft manager's.
+    That helper is generic and knows nothing about this cache, so while the map
+    was built once and kept, every draft forward read the TARGET's rows against
+    the DRAFT's offsets tensor.
+
+    Measured consequence: ``max_draft_len=1`` died on the chain's own first
+    layer (``no page-table row for decoder layer 42``, job 6318099), because at
+    that draft length the chain's forward is one token per sequence and takes
+    the generation path. At longer draft lengths it does not, which is the only
+    reason this was survivable -- and any layer present in both maps would have
+    resolved to a row derived from the wrong manager without saying anything.
+    """
+    target = _FakeKvManager(pp_layers=(0, 1), layer_pools={0: 0, 1: 0})
+    md = _ink_metadata(pp_layers=(0, 1), mgr=target)
+    md._prepare_inkling_decode()
+    assert md._ink_pt_rows == {0: 0, 1: 0}
+
+    # The chain's layers sit above the trunk and belong to a different manager.
+    draft = _FakeKvManager(pp_layers=(2, 3), layer_pools={2: 0, 3: 0})
+    md.kv_cache_manager = draft
+
+    rows = md._ink_pt_rows
+    assert rows == {2: 0, 3: 0}, "row map did not follow the swapped-in manager"
+    assert 0 not in rows and 1 not in rows, "target rows leaked into the draft map"
+
+    # And swapping back returns the target's map rather than rebuilding a wrong
+    # one -- the two alternate every step, so both have to stay correct.
+    md.kv_cache_manager = target
+    assert md._ink_pt_rows == {0: 0, 1: 0}
 
 
 def test_metadata_shares_one_page_table_row_per_kv_geometry():
