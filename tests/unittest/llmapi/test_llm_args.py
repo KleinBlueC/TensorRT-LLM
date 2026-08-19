@@ -4232,3 +4232,57 @@ class TestDeepseekRuntimePreferences:
         cfg = self._pretrained_config(["DeepseekV3ForCausalLM"], "deepseek_v3")
         _resolve_transceiver_runtime_auto(args, DeepseekV3ForCausalLM, cfg)
         assert args.cache_transceiver_config.transceiver_runtime == "PYTHON"
+
+
+class TestMaxConcurrencyRevalidation:
+    """max_concurrency must survive the trip to an MPI worker.
+
+    The validator translates ``max_concurrency`` into ``draft_len_schedule``
+    and records having done so in ``_translated_from_max_concurrency`` -- a
+    PrivateAttr, which pydantic does not serialize. The worker re-validates the
+    config from its serialized form, sees BOTH fields with the flag back at its
+    default, and used to reject a combination the framework had produced itself:
+
+        TorchLlmArgs validation error, speculative_config.MTP
+        max_concurrency and draft_len_schedule are mutually exclusive
+
+    on a config where the user set only ``max_concurrency``. It needs a process
+    boundary to appear, so it reproduces on any TP>1 run and on every
+    ``spec_dec_mode`` whose ``support_dynamic_draft_len()`` is true -- i.e. all
+    the one-engine speculative models, not one of them.
+    """
+
+    def test_translation_happens(self) -> None:
+        cfg = MTPDecodingConfig(max_draft_len=3, max_concurrency=1)
+        assert cfg.draft_len_schedule == {1: 3}
+
+    def test_revalidation_from_a_dump_does_not_raise(self) -> None:
+        """The regression. A dump drops the PrivateAttr, exactly as the worker
+        sees it, so re-validation must recognise the translation by its value."""
+        cfg = MTPDecodingConfig(max_draft_len=3, max_concurrency=1)
+        dumped = cfg.model_dump()
+        assert "_translated_from_max_concurrency" not in dumped, (
+            "if the flag ever starts serializing, this test is measuring nothing"
+        )
+        again = MTPDecodingConfig(**dumped)
+        assert again.draft_len_schedule == {1: 3}
+        assert again.max_concurrency == 1
+
+    def test_a_real_conflict_still_raises(self) -> None:
+        """Recognising the translation must not swallow a user's own conflict:
+        a schedule that is NOT what max_concurrency would have produced.
+
+        The schedule has to be independently VALID, or a different validator
+        rejects it first and this test measures that one instead. A separate
+        rule requires the smallest batch-size key to map to max_draft_len, so
+        the obvious choice ``{4: 2}`` never reaches the check under test.
+        ``{2: 3, 8: 1}`` satisfies that rule while still differing from the
+        ``{1: 3}`` that max_concurrency=1 translates to.
+        """
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            MTPDecodingConfig(max_draft_len=3,
+                              max_concurrency=1,
+                              draft_len_schedule={
+                                  2: 3,
+                                  8: 1
+                              })
