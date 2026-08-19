@@ -65,7 +65,8 @@ from tensorrt_llm.runtime.kv_cache_manager_v2 import (
 )
 
 from .....logger import logger
-from ....pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2
+from ....pyexecutor.kv_cache_manager_v2 import (KVCacheManagerV2,
+                                               ReusableStateSnapshotMixin)
 from .conv_state import CONV_ROLES, InklingConvState, InklingConvStateCache
 
 
@@ -138,7 +139,7 @@ class _InklingConvGeometry:
         return [c * self.kwin * itemsize for c in self.channels(global_layer_idx)]
 
 
-class InklingHybridCacheManager(KVCacheManagerV2):
+class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
     """Paged KV (V2, per-layer geometry) + the short-conv state pool.
 
     Folding the pool into the manager -- ``CppMambaHybridCacheManager``'s shape
@@ -159,6 +160,11 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             max_batch_size,
             spec_config=kwargs.get("spec_config"),
         )
+        # kv_cache_config is the base's first positional parameter. Kept
+        # because prepare_expect_snapshot_points needs the snapshot interval and
+        # the base keeps no reference of its own. ``.get``, not subscripting:
+        # the latter is the bare-KeyError failure the comment above describes.
+        self._kv_cache_config = args[0] if args else kwargs.get("kv_cache_config")
         super().__init__(
             *args,
             pretrained_config=pretrained_config,
@@ -183,6 +189,66 @@ class InklingHybridCacheManager(KVCacheManagerV2):
             f"{self._conv_cache.conv_state_bytes() / (1 << 20):.1f} MiB, "
             "backed by V2 SSM layers"
         )
+
+    # ---- reusable snapshots -----------------------------------------------
+    def prepare_expect_snapshot_points(self, requests) -> None:
+        """Where this batch's requests may snapshot their short-conv window.
+
+        Found by ``py_executor`` through ``hasattr`` and consumed by the
+        scheduler, which will not end a context chunk anywhere else. That is the
+        half a model cannot do for itself: a snapshot can only be taken where an
+        iteration *ends*, so without a say in where chunks end, capture depends
+        on the operator having picked a ``max_num_tokens`` smaller than the
+        shared prefix. Measured at 8192, a 700-token 5-shot prompt prefilled in
+        one chunk and 100 requests produced two snapshots.
+
+        The interval is ``mamba_state_config.periodic_snapshot_interval``. The
+        field is named for Mamba but means "tokens between recurrent-state
+        snapshots", and a short-conv window is that kind of state, so this
+        reuses it rather than adding a second knob for the same quantity.
+
+        Coarse on purpose: a snapshot costs the whole model's conv window, so
+        one per block over an 8k prompt would be hundreds of MiB for a single
+        request. The cost is that reuse only lands on multiples of the interval.
+        """
+        state_config = getattr(self._kv_cache_config, "mamba_state_config", None)
+        interval = getattr(state_config, "periodic_snapshot_interval", 0) or 0
+        for request in requests:
+            if not self.enable_block_reuse or not interval:
+                request.expect_snapshot_points = []
+                continue
+            request.expect_snapshot_points = list(
+                range(interval, request.prompt_len + 1, interval)
+            )
+
+    def prepare_context(self, req):
+        """Observation only: count how much prefix each request actually reused.
+
+        ``get_kv_cache_stats`` cannot serve here -- measured, it reports
+        reused/missed/alloc all zero for this configuration, so it reads the
+        same whether reuse works or never runs. Only the FIRST context chunk is
+        counted: a continuation chunk also arrives with
+        ``context_current_position > 0`` (its own earlier chunks), and counting
+        those made a reuse-disabled arm report 221 hits.
+        """
+        first = bool(getattr(req, "is_first_context_chunk", True))
+        ok = super().prepare_context(req)
+        if not first:
+            return ok
+        d = getattr(self, "_reuse_dbg", None)
+        if d is None:
+            d = self._reuse_dbg = {"n": 0, "hits": 0, "best": 0, "total": 0}
+        d["n"] += 1
+        pos = int(getattr(req, "context_current_position", 0) or 0)
+        if pos > 0:
+            d["hits"] += 1
+            d["total"] += pos
+            d["best"] = max(d["best"], pos)
+        if d["n"] % 64 == 0:
+            logger.info(
+                f"Inkling prefix reuse: {d['hits']}/{d['n']} requests, "
+                f"longest={d['best']} tokens, total={d['total']}")
+        return ok
 
     # ---- V2 configuration -------------------------------------------------
     def _conv_layer_id(self, local_layer_idx: int) -> LayerId:

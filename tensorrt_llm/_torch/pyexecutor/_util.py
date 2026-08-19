@@ -642,7 +642,9 @@ class KvCacheCreator:
             enable_block_reuse=kv_cache_config.enable_block_reuse,
             enable_cache_transceiver=(self._cache_transceiver_config is not None
                                       and self._cache_transceiver_config.backend
-                                      is not None))
+                                      is not None),
+            periodic_snapshot_interval=(
+                kv_cache_config.mamba_state_config.periodic_snapshot_interval))
         cls = get_kv_cache_manager_cls(
             model_config,
             kv_cache_config,

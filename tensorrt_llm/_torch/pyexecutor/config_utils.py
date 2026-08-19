@@ -89,6 +89,21 @@ def is_hybrid_linear(config):
         is_kimi_linear(config)
 
 
+def needs_block_aligned_context_chunks(config) -> bool:
+    """True for models that snapshot per-request recurrent state for reuse.
+
+    Named for the property, not the model family. A reuse hit can only land
+    where a snapshot exists, a snapshot can only be taken where an iteration
+    ends, and only the chunking policy decides where iterations end -- so these
+    models need FORCE_CHUNK rather than whatever chunk size the operator picked.
+    Inkling qualifies through its short-conv window without being a Mamba model:
+    folding it into ``is_hybrid_linear`` would also route it through
+    ``extract_mamba_kv_cache_params`` and the Mamba conv-state layouts, neither
+    of which it can satisfy.
+    """
+    return is_hybrid_linear(config) or is_inkling(config)
+
+
 def is_kimi_linear(config):
     """True for Kimi K3 ("kimi_linear") hybrid KDA + MLA text models.
 
@@ -185,7 +200,8 @@ def reject_unsupported_inkling_kv_cache_features(
         config,
         *,
         enable_block_reuse: bool,
-        enable_cache_transceiver: bool = False):
+        enable_cache_transceiver: bool = False,
+        periodic_snapshot_interval: int = 0):
     """Refuse the features Inkling's context path cannot serve correctly.
 
     Both leave a request without state it is supposed to have, and neither
@@ -214,7 +230,7 @@ def reject_unsupported_inkling_kv_cache_features(
     """
     if not is_inkling(config):
         return
-    if enable_block_reuse:
+    if enable_block_reuse and not periodic_snapshot_interval:
         raise NotImplementedError(
             "Inkling does not support KV cache block reuse. The four "
             "short-conv windows per layer are per-request state outside the KV "
@@ -222,7 +238,10 @@ def reject_unsupported_inkling_kv_cache_features(
             "convs consume activations that a reused prefix never computed. "
             "The result is silently wrong output, not a cache miss. Set "
             "kv_cache_config.enable_block_reuse=False (the Inkling model "
-            "default) to run Inkling.")
+            "default), or configure a snapshot policy by setting "
+            "kv_cache_config.mamba_state_config.periodic_snapshot_interval to "
+            "a positive number of tokens, which puts the window in the block "
+            "lifecycle and makes the hit servable.")
     if enable_cache_transceiver:
         raise NotImplementedError(
             "Inkling does not support disaggregated serving. The four "
