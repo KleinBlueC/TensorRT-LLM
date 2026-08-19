@@ -204,13 +204,16 @@ def reject_unsupported_inkling_kv_cache_features(
         periodic_snapshot_interval: int = 0):
     """Refuse the features Inkling's context path cannot serve correctly.
 
-    Both leave a request without state it is supposed to have, and neither
-    raises on its own -- they silently emit wrong logits, which is why they are
-    refused here rather than left to the caller.
+    Each of these leaves a request without state it is supposed to have, and
+    none of them raises on its own -- they silently emit wrong logits, which is
+    why they are refused here rather than left to the caller.
 
-    **Block reuse.** The four short-conv windows per layer are per-request state
-    outside the KV cache. On a prefix hit there is no window to restore, because
-    the convs consume activations a reused prefix never computed.
+    **Block reuse without a snapshot policy.** The four short-conv windows per
+    layer are per-request state outside the KV cache. On a prefix hit there is
+    no window to restore, because the convs consume activations a reused prefix
+    never computed. Configuring ``periodic_snapshot_interval`` commits that
+    window with the block at the snapshot ordinals, so the hit becomes
+    servable; reuse is refused only when no such policy is set.
 
     **Disaggregated serving.** The C++ transceiver route is already refused in
     ``_util.py`` for every V2 manager. The Python one would transfer the paged KV
