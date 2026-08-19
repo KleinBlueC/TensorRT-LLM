@@ -85,11 +85,32 @@ def test_head_norm_is_built_only_when_the_checkpoint_declares_it():
 
     Building the norm unconditionally would create a parameter with no
     checkpoint tensor behind it, which the loader then has to explain away.
+
+    Built and inspected rather than grepped: the head is cheap to construct on
+    CPU (an optional RMSNorm over a hidden-width vector), so there is no reason
+    to assert on its source. The block half of this contract -- that it passes
+    the checkpoint's flag down -- stays a source assertion below, because
+    constructing a block means constructing a whole decoder layer.
     """
-    src = inspect.getsource(InklingMTPHead.__init__)
-    assert "use_norm" in src
-    src_block = inspect.getsource(InklingMTPBlock.__init__)
-    assert "chain_hidden_post_norm" in src_block
+    from types import SimpleNamespace
+
+    import torch
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingMTPHead
+
+    cfg = SimpleNamespace(
+        pretrained_config=SimpleNamespace(
+            hidden_size=16, rms_norm_eps=1e-5, torch_dtype=torch.float32
+        )
+    )
+    assert InklingMTPHead(cfg, use_norm=False).norm is None, (
+        "a checkpoint that does not declare chain_hidden_post_norm must not get a norm"
+    )
+    assert InklingMTPHead(cfg, use_norm=True).norm is not None
+
+    # Not convertible without building a decoder layer: that the block reads the
+    # checkpoint flag and hands it to the head as use_norm.
+    assert "chain_hidden_post_norm" in inspect.getsource(InklingMTPBlock.__init__)
 
 
 # --- how MTPForCausalLM constructs the chain -------------------------------
