@@ -115,7 +115,18 @@ def _assert_draft_chain_loaded(mtp_layers) -> None:
     proposals to see it.
 
     So the invariant is checked where it is cheap: once, at load.
+
+    The chain's shape is logged alongside it. How many blocks get built and
+    which depth each one carries is decided by two config readers that
+    disagreed once already -- the top-level multimodal config carries no
+    ``num_nextn_predict_layers``, the depth fell back to 1, and MTP resolved to
+    EAGLE mode. By this point the chain exists, and this is the only place its
+    real shape is visible.
     """
+    # An f-string, not %-args: this logger concatenates its arguments rather
+    # than interpolating them, so the lazy form prints the format string.
+    depths = [getattr(b, "depth", None) for b in mtp_layers]
+    logger.info(f"MTP: draft chain loaded with {len(mtp_layers)} block(s), depths {depths}")
     for depth, block in enumerate(mtp_layers):
         for name, param in block.named_parameters():
             # Norms legitimately load as all-ones; a weight MATRIX does not
