@@ -127,15 +127,120 @@ def test_model_defaults_pin_v2_and_disable_block_reuse():
 # and InklingConvRuntime.build seeds every context request with
 # has_initial_state=False. Neither raises on its own -- both emit wrong logits.
 # ---------------------------------------------------------------------------
-def test_block_reuse_is_rejected_not_merely_defaulted_off():
+def test_block_reuse_is_rejected_without_a_snapshot_policy():
     """An explicit enable_block_reuse=True wins the deep-merge over the model
-    default, so the default alone cannot be the guarantee."""
+    default, so the default alone cannot be the guarantee.
+
+    Reuse is servable only once a snapshot policy puts the short-conv window in
+    the block lifecycle; without one there is still nothing to restore on a
+    prefix hit, which is what this refusal protects against."""
     from tensorrt_llm._torch.pyexecutor.config_utils import (
         reject_unsupported_inkling_kv_cache_features,
     )
 
     with pytest.raises(NotImplementedError, match="block reuse"):
         reject_unsupported_inkling_kv_cache_features(InklingConfig(), enable_block_reuse=True)
+
+
+def test_block_reuse_is_allowed_once_snapshots_are_configured():
+    from tensorrt_llm._torch.pyexecutor.config_utils import (
+        reject_unsupported_inkling_kv_cache_features,
+    )
+
+    reject_unsupported_inkling_kv_cache_features(
+        InklingConfig(), enable_block_reuse=True, periodic_snapshot_interval=256)
+
+
+def test_inkling_needs_block_aligned_chunks_without_being_hybrid_linear():
+    """Folding Inkling into is_hybrid_linear would also route it through
+    extract_mamba_kv_cache_params and the Mamba conv-state layouts, neither of
+    which it can satisfy. The predicate names the property instead."""
+    from tensorrt_llm._torch.pyexecutor.config_utils import (
+        is_hybrid_linear, needs_block_aligned_context_chunks)
+
+    cfg = InklingConfig()
+    assert needs_block_aligned_context_chunks(cfg)
+    assert not is_hybrid_linear(cfg)
+
+
+# ---------------------------------------------------------------------------
+# Snapshot points: where a short-conv window may be captured, and therefore
+# where a reuse hit may land.
+# ---------------------------------------------------------------------------
+def _snapshot_manager(interval, reuse=True):
+    """A manager stub for prepare_expect_snapshot_points.
+
+    Built with object.__new__ rather than a real manager: the method reads two
+    attributes and writes one field per request, so standing up a C++ pool and
+    a GPU would test the framework, not this policy.
+    """
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
+        InklingHybridCacheManager)
+
+    mgr = object.__new__(InklingHybridCacheManager)
+    mgr.enable_block_reuse = reuse
+    mgr._kv_cache_config = SimpleNamespace(
+        mamba_state_config=SimpleNamespace(periodic_snapshot_interval=interval))
+    return mgr
+
+
+def _snapshot_reqs(*prompt_lens):
+    return [SimpleNamespace(prompt_len=n, expect_snapshot_points=None)
+            for n in prompt_lens]
+
+
+def test_snapshot_points_land_on_multiples_of_the_interval():
+    reqs = _snapshot_reqs(700)
+    _snapshot_manager(256).prepare_expect_snapshot_points(reqs)
+    assert reqs[0].expect_snapshot_points == [256, 512]
+
+
+def test_a_snapshot_point_never_exceeds_the_prompt():
+    """Past prompt_len there is no prefix to key a snapshot by, and the
+    scheduler would be asked to end a chunk beyond the request."""
+    reqs = _snapshot_reqs(100, 256, 512)
+    _snapshot_manager(256).prepare_expect_snapshot_points(reqs)
+    assert reqs[0].expect_snapshot_points == []
+    assert reqs[1].expect_snapshot_points == [256]
+    assert reqs[2].expect_snapshot_points == [256, 512]
+
+
+@pytest.mark.parametrize("interval,reuse", [(256, False), (0, True)])
+def test_no_snapshot_points_when_reuse_cannot_run(interval, reuse):
+    """The field is still assigned: the scheduler reads it unconditionally, and
+    a leftover list from a previous batch would force chunk boundaries for a
+    feature that is not running."""
+    reqs = _snapshot_reqs(700)
+    _snapshot_manager(interval, reuse=reuse).prepare_expect_snapshot_points(reqs)
+    assert reqs[0].expect_snapshot_points == []
+
+
+def test_py_executor_finds_the_snapshot_hook_by_name():
+    """py_executor reaches this through hasattr, so the NAME is the contract --
+    a rename would silently stop forcing chunk boundaries rather than fail."""
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
+        InklingHybridCacheManager)
+
+    assert hasattr(InklingHybridCacheManager, "prepare_expect_snapshot_points")
+
+
+def test_the_snapshot_commit_behaviour_is_shared_with_mamba():
+    """The three commit-at-snapshot-points methods were lifted out of
+    MambaHybridCacheManagerV2; both managers must inherit the one copy, or
+    Inkling silently commits nothing at its snapshot points."""
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
+        InklingHybridCacheManager)
+    from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import (
+        ReusableStateSnapshotMixin)
+    from tensorrt_llm._torch.pyexecutor.mamba_cache_manager import (
+        MambaHybridCacheManagerV2)
+
+    assert issubclass(InklingHybridCacheManager, ReusableStateSnapshotMixin)
+    assert issubclass(MambaHybridCacheManagerV2, ReusableStateSnapshotMixin)
+    for name in ("try_commit_blocks", "update_context_resources",
+                 "_mark_context_position_as_history"):
+        assert getattr(InklingHybridCacheManager, name) is getattr(
+            MambaHybridCacheManagerV2, name), f"{name} is not the shared copy"
 
 
 def test_disaggregated_serving_is_rejected():
