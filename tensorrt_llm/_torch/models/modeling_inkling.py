@@ -1399,6 +1399,32 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "set use_mtp_vanilla=True on MTPDecodingConfig if the checkpoint "
                 "genuinely declares one depth."
             )
+        if getattr(spec_config, "use_relaxed_acceptance_for_thinking", False):
+            # Relaxed acceptance is LOSSY by design -- it takes a draft that
+            # matches any of the target's top-K instead of its top-1 -- and it
+            # buys that back by applying only inside the thinking phase, which
+            # it locates with ``begin_thinking_phase_token`` /
+            # ``end_thinking_phase_token``. Those default to 128798/128799,
+            # DeepSeek-R1's ``<think>``/``</think>``. In Inkling's vocabulary
+            # they are not special tokens at all; its thinking run is opened by
+            # ``<|content_thinking|>`` (200008) and closed by the NEXT channel
+            # marker rather than by a matching end token, so the paired-token
+            # shape cannot express it however the ids are set.
+            #
+            # Left alone this does not raise. The phase is simply never entered
+            # where it should be, and is entered wherever those two ordinary
+            # token ids happen to fall -- relaxing acceptance outside the
+            # thinking text, which is the one place the mode is not meant to be
+            # lossy. Nothing in the output says so.
+            raise ValueError(
+                "Inkling MTP does not support relaxed acceptance for thinking. "
+                "It is gated on begin/end_thinking_phase_token, a paired "
+                "<think>/</think> shape; Inkling opens thinking with "
+                "<|content_thinking|> and ends it by switching channel, so "
+                "there is no end token to name. Enabling it would relax "
+                "acceptance -- which is lossy -- outside the thinking phase. "
+                "Set use_relaxed_acceptance_for_thinking=False."
+            )
         if getattr(model_config, "use_cuda_graph", False):
             # The verify step walks the drafted positions one at a time, writing
             # KV and re-attending per position, which is not capturable; the

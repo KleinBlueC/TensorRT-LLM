@@ -508,12 +508,14 @@ def test_padding_rows_do_not_reach_the_spec_worker():
 
 
 # --- the speculative-decoding guard, called rather than read ----------------
-# It has four raises and had only source-text coverage. Each one stands for a
+# It has five raises and had only source-text coverage. Each one stands for a
 # failure that is otherwise silent or lands far from its cause, and the first
 # thing it must do is stay out of the way of a server that is not speculating.
 
 
-def _spec_guard_config(*, depths=8, draft_len=3, cuda_graph=False, vanilla=True):
+def _spec_guard_config(
+    *, depths=8, draft_len=3, cuda_graph=False, vanilla=True, relaxed_thinking=False
+):
     from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
 
     text = InklingConfig(
@@ -522,7 +524,10 @@ def _spec_guard_config(*, depths=8, draft_len=3, cuda_graph=False, vanilla=True)
             {"num_nextn_predict_layers": depths, "local_layer_ids": [0, 2]} if depths else None
         ),
     ).text_config
-    spec_config = MTPDecodingConfig(max_draft_len=draft_len)
+    spec_config = MTPDecodingConfig(
+        max_draft_len=draft_len,
+        use_relaxed_acceptance_for_thinking=relaxed_thinking,
+    )
     # What the resolver would have set; done by hand so each case is explicit.
     spec_config.num_nextn_predict_layers = depths if vanilla else 1
     spec_config.use_mtp_vanilla = bool(vanilla)
@@ -570,6 +575,41 @@ def test_a_non_vanilla_mode_is_refused():
     cfg = _spec_guard_config(vanilla=False)
     with pytest.raises(ValueError, match="needs vanilla MTP"):
         InklingForCausalLM._assert_inkling_spec_conv_state(cfg)
+
+
+def test_relaxed_acceptance_for_thinking_is_refused():
+    """It is lossy, and it is gated on tokens Inkling does not have.
+
+    ``begin/end_thinking_phase_token`` default to DeepSeek-R1's 128798/128799.
+    Those are the ids relaxed acceptance uses to decide where it may relax, and
+    in Inkling's vocabulary they are ordinary tokens -- so left alone the mode
+    relaxes acceptance in the wrong places and never says so.
+    """
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    with pytest.raises(ValueError, match="relaxed acceptance"):
+        InklingForCausalLM._assert_inkling_spec_conv_state(
+            _spec_guard_config(relaxed_thinking=True)
+        )
+
+
+def test_the_thinking_phase_defaults_are_not_inkling_tokens():
+    """Why the refusal above exists, pinned against the shipped defaults.
+
+    If a future release makes these configurable per model -- or Inkling's
+    tokenizer grows a paired think/end-think -- this is the test that should
+    fail and prompt revisiting the refusal rather than leaving it in place.
+    """
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    cfg = MTPDecodingConfig(max_draft_len=3)
+    # DeepSeek-R1's <think>/</think>, carried as the framework-wide default.
+    assert (cfg.begin_thinking_phase_token, cfg.end_thinking_phase_token) == (128798, 128799)
+    # Inkling opens thinking with <|content_thinking|> and closes it by
+    # switching channel, so neither id names anything in its alphabet.
+    from tensorrt_llm.llmapi.inkling_tokens import INKLING_CONTENT_THINKING
+
+    assert INKLING_CONTENT_THINKING == "<|content_thinking|>"
 
 
 def test_cuda_graphs_are_refused_at_construction():
