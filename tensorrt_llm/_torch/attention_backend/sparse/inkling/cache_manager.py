@@ -48,6 +48,7 @@ cannot express four convs at two widths. Widen that hook if a second short-conv
 model appears.
 """
 
+import hashlib
 from dataclasses import replace
 from typing import List
 
@@ -65,8 +66,7 @@ from tensorrt_llm.runtime.kv_cache_manager_v2 import (
 )
 
 from .....logger import logger
-from ....pyexecutor.kv_cache_manager_v2 import (KVCacheManagerV2,
-                                               ReusableStateSnapshotMixin)
+from ....pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2, ReusableStateSnapshotMixin
 from .conv_state import CONV_ROLES, InklingConvState, InklingConvStateCache
 
 
@@ -165,6 +165,9 @@ class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
         # the base keeps no reference of its own. ``.get``, not subscripting:
         # the latter is the bare-KeyError failure the comment above describes.
         self._kv_cache_config = args[0] if args else kwargs.get("kv_cache_config")
+        # One warning per manager, not per request: the condition is a property
+        # of the model, so a multimodal workload would emit it thousands of times.
+        self._warned_multimodal_reuse = False
         super().__init__(
             *args,
             pretrained_config=pretrained_config,
@@ -217,9 +220,58 @@ class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
             if not self.enable_block_reuse or not interval:
                 request.expect_snapshot_points = []
                 continue
-            request.expect_snapshot_points = list(
-                range(interval, request.prompt_len + 1, interval)
+            request.expect_snapshot_points = list(range(interval, request.prompt_len + 1, interval))
+
+    def _augment_tokens_for_block_reuse(self, tokens, req, start=0, end=None):
+        """Keep multimodal requests out of the shared radix tree.
+
+        The base method rewrites each multimodal token span into cache-key
+        tokens carrying the item's content digest, precisely because a
+        placeholder token id is the same whatever image is behind it. It can
+        only do that when the request carries ``multimodal_hashes``, and for a
+        request that has none it returns the raw ids -- so two prompts holding
+        DIFFERENT images look like the same prefix and one is served the other's
+        keys and values.
+
+        Inkling's input processor does not produce those hashes (the docs record
+        multimodal-hash prefix caching as unsupported), so that is the case
+        here, not a corner of it. Measured on MMMU over the same 32 items,
+        `Inkling-small-NVFP4`: 81.3% with reuse off, 31.3% with reuse on
+        (jobs 6310792 / 6310791). Nothing errors; the answers are simply wrong.
+
+        Salting position 0 with the request id gives such a request a private
+        chain in the tree: it matches nothing and nothing matches it, so reuse
+        turns itself off exactly where it cannot be correct while text requests
+        keep it. A blanket refusal for the model would be wrong -- Inkling is
+        always multimodal-capable, and the text path is measured good.
+        """
+        augmented = super()._augment_tokens_for_block_reuse(tokens, req, start, end)
+        if not self.enable_block_reuse:
+            return augmented
+        if getattr(req, "multimodal_hashes", None) is not None:
+            return augmented
+        if getattr(req, "py_multimodal_data", None) is None:
+            return augmented
+        # Only the chunk containing position 0 needs poisoning: the radix tree
+        # chains a block's key through its parent, so a private first block
+        # makes every continuation of this request private too.
+        if start != 0 or not len(augmented):
+            return augmented
+        if not self._warned_multimodal_reuse:
+            self._warned_multimodal_reuse = True
+            logger.warning(
+                "Inkling: KV cache block reuse is disabled for multimodal "
+                "requests. Their image/video/audio spans carry no content "
+                "digest, so a shared prefix would be matched on placeholder "
+                "token ids alone and serve one item's KV for another's. Text "
+                "requests are unaffected."
             )
+        salt = hashlib.sha256(
+            b"inkling-multimodal-no-digest-%d" % int(getattr(req, "request_id", 0))
+        ).digest()
+        poisoned = list(augmented)
+        poisoned[0] = salt
+        return poisoned
 
     def prepare_context(self, req):
         """Observation only: count how much prefix each request actually reused.
@@ -247,7 +299,8 @@ class InklingHybridCacheManager(ReusableStateSnapshotMixin, KVCacheManagerV2):
         if d["n"] % 64 == 0:
             logger.info(
                 f"Inkling prefix reuse: {d['hits']}/{d['n']} requests, "
-                f"longest={d['best']} tokens, total={d['total']}")
+                f"longest={d['best']} tokens, total={d['total']}"
+            )
         return ok
 
     # ---- V2 configuration -------------------------------------------------

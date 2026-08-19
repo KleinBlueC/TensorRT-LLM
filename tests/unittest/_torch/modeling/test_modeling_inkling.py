@@ -148,7 +148,8 @@ def test_block_reuse_is_allowed_once_snapshots_are_configured():
     )
 
     reject_unsupported_inkling_kv_cache_features(
-        InklingConfig(), enable_block_reuse=True, periodic_snapshot_interval=256)
+        InklingConfig(), enable_block_reuse=True, periodic_snapshot_interval=256
+    )
 
 
 def test_inkling_needs_block_aligned_chunks_without_being_hybrid_linear():
@@ -156,7 +157,9 @@ def test_inkling_needs_block_aligned_chunks_without_being_hybrid_linear():
     extract_mamba_kv_cache_params and the Mamba conv-state layouts, neither of
     which it can satisfy. The predicate names the property instead."""
     from tensorrt_llm._torch.pyexecutor.config_utils import (
-        is_hybrid_linear, needs_block_aligned_context_chunks)
+        is_hybrid_linear,
+        needs_block_aligned_context_chunks,
+    )
 
     cfg = InklingConfig()
     assert needs_block_aligned_context_chunks(cfg)
@@ -175,18 +178,19 @@ def _snapshot_manager(interval, reuse=True):
     a GPU would test the framework, not this policy.
     """
     from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
-        InklingHybridCacheManager)
+        InklingHybridCacheManager,
+    )
 
     mgr = object.__new__(InklingHybridCacheManager)
     mgr.enable_block_reuse = reuse
     mgr._kv_cache_config = SimpleNamespace(
-        mamba_state_config=SimpleNamespace(periodic_snapshot_interval=interval))
+        mamba_state_config=SimpleNamespace(periodic_snapshot_interval=interval)
+    )
     return mgr
 
 
 def _snapshot_reqs(*prompt_lens):
-    return [SimpleNamespace(prompt_len=n, expect_snapshot_points=None)
-            for n in prompt_lens]
+    return [SimpleNamespace(prompt_len=n, expect_snapshot_points=None) for n in prompt_lens]
 
 
 def test_snapshot_points_land_on_multiples_of_the_interval():
@@ -219,7 +223,8 @@ def test_py_executor_finds_the_snapshot_hook_by_name():
     """py_executor reaches this through hasattr, so the NAME is the contract --
     a rename would silently stop forcing chunk boundaries rather than fail."""
     from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
-        InklingHybridCacheManager)
+        InklingHybridCacheManager,
+    )
 
     assert hasattr(InklingHybridCacheManager, "prepare_expect_snapshot_points")
 
@@ -229,18 +234,128 @@ def test_the_snapshot_commit_behaviour_is_shared_with_mamba():
     MambaHybridCacheManagerV2; both managers must inherit the one copy, or
     Inkling silently commits nothing at its snapshot points."""
     from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
-        InklingHybridCacheManager)
-    from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import (
-        ReusableStateSnapshotMixin)
-    from tensorrt_llm._torch.pyexecutor.mamba_cache_manager import (
-        MambaHybridCacheManagerV2)
+        InklingHybridCacheManager,
+    )
+    from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import ReusableStateSnapshotMixin
+    from tensorrt_llm._torch.pyexecutor.mamba_cache_manager import MambaHybridCacheManagerV2
 
     assert issubclass(InklingHybridCacheManager, ReusableStateSnapshotMixin)
     assert issubclass(MambaHybridCacheManagerV2, ReusableStateSnapshotMixin)
-    for name in ("try_commit_blocks", "update_context_resources",
-                 "_mark_context_position_as_history"):
+    for name in (
+        "try_commit_blocks",
+        "update_context_resources",
+        "_mark_context_position_as_history",
+    ):
         assert getattr(InklingHybridCacheManager, name) is getattr(
-            MambaHybridCacheManagerV2, name), f"{name} is not the shared copy"
+            MambaHybridCacheManagerV2, name
+        ), f"{name} is not the shared copy"
+
+
+# ---------------------------------------------------------------------------
+# Multimodal requests must not share the radix tree. Their image spans carry no
+# content digest, so a shared prefix would be matched on placeholder token ids
+# alone -- measured as MMMU 81.3% -> 31.3% over the same 32 items with reuse on.
+# ---------------------------------------------------------------------------
+def _reuse_manager(reuse=True):
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.cache_manager import (
+        InklingHybridCacheManager,
+    )
+
+    mgr = object.__new__(InklingHybridCacheManager)
+    mgr.enable_block_reuse = reuse
+    mgr._warned_multimodal_reuse = False
+    return mgr
+
+
+def _mm_request(hashes=None, mm_data=None, request_id=7):
+    return SimpleNamespace(
+        multimodal_hashes=hashes, py_multimodal_data=mm_data, request_id=request_id
+    )
+
+
+@pytest.fixture
+def passthrough_base(monkeypatch):
+    """Make the base augmentation the identity, so what these assert on is the
+    Inkling override alone rather than the multimodal rewrite underneath it."""
+    from tensorrt_llm._torch.pyexecutor.kv_cache_manager_v2 import KVCacheManagerV2
+
+    monkeypatch.setattr(
+        KVCacheManagerV2,
+        "_augment_tokens_for_block_reuse",
+        lambda self, tokens, req, start=0, end=None: list(tokens),
+    )
+
+
+def test_multimodal_request_without_digests_gets_a_private_chain(passthrough_base):
+    tokens = [1, 2, 3, 4]
+    out = _reuse_manager()._augment_tokens_for_block_reuse(
+        tokens, _mm_request(mm_data={"image": object()})
+    )
+
+    assert isinstance(out[0], bytes), "position 0 must stop matching real ids"
+    assert out[1:] == tokens[1:], "only the first key token is salted"
+
+
+def test_two_multimodal_requests_do_not_match_each_other(passthrough_base):
+    """The failure this prevents is one image being served another's KV, so it
+    is not enough that the chain is private -- two requests must differ."""
+    mgr = _reuse_manager()
+    first = mgr._augment_tokens_for_block_reuse(
+        [1, 2, 3], _mm_request(mm_data={"image": object()}, request_id=1)
+    )
+    second = mgr._augment_tokens_for_block_reuse(
+        [1, 2, 3], _mm_request(mm_data={"image": object()}, request_id=2)
+    )
+
+    assert first[0] != second[0]
+    # ...and a continuation chunk of the SAME request keys the same way, or the
+    # request could not reuse its own committed blocks.
+    again = mgr._augment_tokens_for_block_reuse(
+        [1, 2, 3], _mm_request(mm_data={"image": object()}, request_id=1)
+    )
+    assert again[0] == first[0]
+
+
+def test_text_requests_keep_reuse(passthrough_base):
+    """The negative control. Text is the path the end-to-end runs measured as
+    good, and a salt applied there would silently switch the feature off."""
+    tokens = [1, 2, 3]
+    assert _reuse_manager()._augment_tokens_for_block_reuse(tokens, _mm_request()) == tokens
+
+
+def test_multimodal_request_with_digests_is_left_to_the_base(passthrough_base):
+    """Once hashes exist the base rewrite distinguishes items by content, which
+    is strictly better than no reuse -- so the override must step aside."""
+    tokens = [1, 2, 3]
+    assert (
+        _reuse_manager()._augment_tokens_for_block_reuse(
+            tokens, _mm_request(hashes=[[1, 2, 3, 4]], mm_data={"image": object()})
+        )
+        == tokens
+    )
+
+
+def test_continuation_chunks_are_not_salted(passthrough_base):
+    """Only the chunk holding position 0 needs it: the radix tree chains a
+    block's key through its parent, so salting every chunk would be redundant
+    and would change keys the first chunk already committed."""
+    tokens = [5, 6, 7]
+    assert (
+        _reuse_manager()._augment_tokens_for_block_reuse(
+            tokens, _mm_request(mm_data={"image": object()}), start=256
+        )
+        == tokens
+    )
+
+
+def test_nothing_is_salted_when_reuse_is_off(passthrough_base):
+    tokens = [1, 2, 3]
+    assert (
+        _reuse_manager(reuse=False)._augment_tokens_for_block_reuse(
+            tokens, _mm_request(mm_data={"image": object()})
+        )
+        == tokens
+    )
 
 
 def test_disaggregated_serving_is_rejected():
