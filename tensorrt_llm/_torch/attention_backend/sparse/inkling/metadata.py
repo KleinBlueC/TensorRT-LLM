@@ -106,7 +106,26 @@ class InklingAttentionMetadata(TrtllmAttentionMetadata):
         :attr:`ink_page_div`. A captured graph reads a fixed offset here because
         :meth:`_prepare_inkling_decode` refuses a graph batch with contexts.
         """
-        row = self._ink_pt_rows[layer]
+        try:
+            row = self._ink_pt_rows[layer]
+        except KeyError:
+            # A bare KeyError here says only "42", from inside a generation
+            # forward, several frames below anything that names speculation --
+            # which is how max_draft_len=1 presented. The row map is built from
+            # the manager's own pp_layers, so a miss means the manager in play
+            # does not own the layer being attended on, and the useful facts are
+            # which manager and which layers.
+            known = sorted(self._ink_pt_rows)
+            raise RuntimeError(
+                f"Inkling has no page-table row for decoder layer {layer}. The "
+                f"row map was built from {type(self.kv_cache_manager).__name__}"
+                f".pp_layers and covers "
+                f"{known[:4]}{'...' if len(known) > 4 else ''}"
+                f"{known[-2:] if len(known) > 6 else ''} "
+                f"({len(known)} layers). A draft-chain layer missing here means "
+                "the draft KV cache manager was sized from a different depth "
+                "than the chain the model built."
+            ) from None
         start = self.num_contexts
         return self.kv_cache_block_offsets[row, start : start + self.num_generations, 0]
 
