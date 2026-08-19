@@ -1185,9 +1185,21 @@ class InklingMTPBlock(nn.Module):
         #
         # Closing it is not mechanical: the chain consumes ``runtime_draft_len``
         # tokens at step N whose acceptance is not decided until step N+1, so
-        # the rollback has to be deferred a step rather than mirrored. Measure
-        # first -- ``test_nvfp4_mtp_ar`` is the instrument that would show
-        # whether it costs anything.
+        # the rollback has to be deferred a step rather than mirrored.
+        #
+        # It was measured before being built, and it is not worth building. The
+        # experiment bounded the gap from above -- zeroing the chain's windows
+        # on every forward, so the chain carries NO history, a strictly worse
+        # corruption than the drift a rejected draft leaves -- and acceptance
+        # did not move: 0.389 against 0.387 over two A/B pairs at
+        # max_draft_len=3. Repeating the SAME arm moved it by 0.073, so the
+        # effect sits well under the run-to-run noise. What reaches this block
+        # through ``input_proj`` is the target's hidden state, fresh and correct
+        # every step, and that evidently dominates the draft.
+        #
+        # Bounds on that: draft length 3, three short prompts, acceptance only.
+        # Raw numbers and the re-run recipe are in the workspace's
+        # CHAIN_CONV_GAP_MEASURED.md.
         conv_state = conv_capture = conv_rt = None
         mgr = getattr(attn_metadata, "kv_cache_manager", None)
         prepare = getattr(mgr, "prepare_conv_runtime", None)
