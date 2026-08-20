@@ -245,6 +245,22 @@ def reject_unsupported_inkling_kv_cache_features(
             "kv_cache_config.mamba_state_config.periodic_snapshot_interval to "
             "a positive number of tokens, which puts the window in the block "
             "lifecycle and makes the hit servable.")
+    if enable_block_reuse and periodic_snapshot_interval:
+        # Said once at startup, from the resolved config, because the equivalent
+        # warning in InklingHybridCacheManager only fires when a multimodal
+        # request actually arrives -- and it rides on the same
+        # ``py_multimodal_data`` probe as the rule it describes, so if that
+        # detection ever breaks the warning goes quiet with it. This one depends
+        # on nothing but the two settings the operator typed. ``is_inkling``
+        # keys on a nested ``inkling_text`` config, i.e. the multimodal wrapper,
+        # so reaching here already means images/audio/video are servable.
+        logger.warning(
+            "Inkling: KV cache block reuse is enabled, and applies to text "
+            "prompts only. A request carrying image, video or audio input gets "
+            "a private chain in the reuse tree and never reuses, because "
+            "Inkling produces no multimodal content hashes and a prefix matched "
+            "on placeholder token ids alone would serve one item's KV for "
+            "another's. Such requests still run, uncached.")
     if enable_cache_transceiver:
         raise NotImplementedError(
             "Inkling does not support disaggregated serving. The four "

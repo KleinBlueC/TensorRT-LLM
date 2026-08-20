@@ -152,6 +152,46 @@ def test_block_reuse_is_allowed_once_snapshots_are_configured():
     )
 
 
+def _warnings_from_guard(**kwargs):
+    """Run the guard and return what it warned.
+
+    The warnings are captured off tensorrt_llm's logger rather than with caplog:
+    that logger sets propagate=False, so nothing reaches pytest's root handler
+    and a caplog-based assertion would pass while asserting nothing.
+    """
+    from tensorrt_llm._torch.pyexecutor import config_utils
+
+    said = []
+    with mock.patch.object(config_utils.logger, "warning", said.append):
+        config_utils.reject_unsupported_inkling_kv_cache_features(InklingConfig(), **kwargs)
+    return " ".join(said)
+
+
+def test_enabling_reuse_warns_that_it_is_text_only():
+    """Said at startup from the resolved config, because the per-request warning
+    in the cache manager needs a multimodal request to arrive first, and rides
+    on the same py_multimodal_data probe as the rule it describes."""
+    assert "text prompts only" in _warnings_from_guard(
+        enable_block_reuse=True, periodic_snapshot_interval=256
+    )
+
+
+def test_no_text_only_warning_when_reuse_is_off():
+    """The negative control. A warning on every deployment, including the ones
+    that never asked for reuse, is a warning operators learn to skip."""
+    assert "text prompts only" not in _warnings_from_guard(enable_block_reuse=False)
+
+
+def test_the_multimodal_probe_field_still_exists():
+    """The reuse guard reaches py_multimodal_data through getattr, so the NAME
+    is the contract: a rename makes the probe return None, every multimodal
+    request look like a text one, and reuse go back to serving one image's KV
+    for another's -- silently, with nothing else failing."""
+    from tensorrt_llm._torch.pyexecutor.llm_request import LlmRequest
+
+    assert "py_multimodal_data" in inspect.getsource(LlmRequest.__init__)
+
+
 def test_inkling_needs_block_aligned_chunks_without_being_hybrid_linear():
     """Folding Inkling into is_hybrid_linear would also route it through
     extract_mamba_kv_cache_params and the Mamba conv-state layouts, neither of
