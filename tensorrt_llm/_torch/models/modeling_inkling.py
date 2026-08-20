@@ -1400,34 +1400,36 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "genuinely declares one depth."
             )
         if getattr(getattr(model_config, "mapping", None), "enable_attention_dp", False):
-            # Measured, not inferred: attention DP alone works and MTP alone
-            # works, but together the engine dies building the TARGET KV cache
-            # manager on
-            #     assert len(num_kv_heads) == self.num_layers
-            # -- a bare assertion three frames inside KVCacheManagerV2, naming
-            # neither number. Reproduced on Inkling-Small-NVFP4, TP=4 (job
-            # 6339819 arm C, again in 6340465 and 6340809; the arms with either
-            # feature alone passed in the same allocation).
+            # Inkling MTP requires a separate draft KV cache; attention DP
+            # refuses to provide one. Both sides say so in as many words:
+            # _util._should_create_separate_draft_kv_cache returns False under
+            # attention DP ("separate draft KV cache is not supported"), and the
+            # guard above this one requires it. Incompatible by construction.
             #
-            # The per-layer KV-head list and the layer count reach that manager
-            # from different places -- num_kv_heads_per_layer() on the text
-            # config, and the caller's speculative layer_mask -- and attention
-            # DP changes the head geometry (tp_size collapses to 1) without the
-            # mask knowing. Exactly which of the two ends up wrong is NOT yet
-            # established: instrumenting the constructor caught only the
-            # estimation-phase build, which is well-formed, and not the one that
-            # fails.
+            # What that produces, measured (jobs 6339819 / 6342820 / 6343043):
+            # with no separate cache the chain's layers fold into the TARGET
+            # manager, get_pp_layers grows its layer count by
+            # get_num_spec_layers -- the checkpoint's 8 depths, NOT
+            # max_draft_len -- and V2 asserts len(num_kv_heads)=42 against
+            # num_layers=50. Inkling supplies a per-layer LIST, which skips the
+            # extension a scalar gets. Extending it clears the assertion and the
+            # run then dies in the conv pool instead: layer_state(42) on a pool
+            # built for layers 0..41, because conv_num_layers and
+            # conv_layer_offset are set only when is_draft.
             #
-            # Refused rather than left, because the combination cannot run today
-            # either way: this only replaces the bare assertion with a statement
-            # of what is unsupported. Diagnosing it is the follow-up, and
-            # removing this raise is how that work starts.
+            # So this is not a patchable mismatch. The conv pool's sizing, its
+            # layer offset and the draft-context manager swap all assume the
+            # chain has its own manager. Supporting the combination needs either
+            # the framework to allow a separate draft cache under attention DP,
+            # or Inkling's global-layer addressing to work inside the target
+            # manager. Refused until one of those is chosen; full write-up in
+            # the workspace's BUG_ATTENTION_DP_MTP.md.
             raise ValueError(
-                "Inkling MTP does not support attention DP. The two work "
-                "separately; together the target KV cache manager is built with "
-                "a per-layer KV-head list and a layer count derived from "
-                "different places, and asserts. Set enable_attention_dp=False "
-                "when enabling MTP on Inkling."
+                "Inkling MTP does not support attention DP. MTP needs a "
+                "separate draft KV cache and attention DP does not provide "
+                "one, so the draft chain's layers fold into the target "
+                "manager, which is sized and addressed for the trunk alone. "
+                "Set enable_attention_dp=False when enabling MTP on Inkling."
             )
         if getattr(spec_config, "use_relaxed_acceptance_for_thinking", False):
             # Relaxed acceptance is LOSSY by design -- it takes a draft that
