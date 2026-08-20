@@ -1399,6 +1399,36 @@ class InklingForCausalLM(SpecDecOneEngineForCausalLM[InklingModel, InklingTextCo
                 "set use_mtp_vanilla=True on MTPDecodingConfig if the checkpoint "
                 "genuinely declares one depth."
             )
+        if getattr(getattr(model_config, "mapping", None), "enable_attention_dp", False):
+            # Measured, not inferred: attention DP alone works and MTP alone
+            # works, but together the engine dies building the TARGET KV cache
+            # manager on
+            #     assert len(num_kv_heads) == self.num_layers
+            # -- a bare assertion three frames inside KVCacheManagerV2, naming
+            # neither number. Reproduced on Inkling-Small-NVFP4, TP=4 (job
+            # 6339819 arm C, again in 6340465 and 6340809; the arms with either
+            # feature alone passed in the same allocation).
+            #
+            # The per-layer KV-head list and the layer count reach that manager
+            # from different places -- num_kv_heads_per_layer() on the text
+            # config, and the caller's speculative layer_mask -- and attention
+            # DP changes the head geometry (tp_size collapses to 1) without the
+            # mask knowing. Exactly which of the two ends up wrong is NOT yet
+            # established: instrumenting the constructor caught only the
+            # estimation-phase build, which is well-formed, and not the one that
+            # fails.
+            #
+            # Refused rather than left, because the combination cannot run today
+            # either way: this only replaces the bare assertion with a statement
+            # of what is unsupported. Diagnosing it is the follow-up, and
+            # removing this raise is how that work starts.
+            raise ValueError(
+                "Inkling MTP does not support attention DP. The two work "
+                "separately; together the target KV cache manager is built with "
+                "a per-layer KV-head list and a layer count derived from "
+                "different places, and asserts. Set enable_attention_dp=False "
+                "when enabling MTP on Inkling."
+            )
         if getattr(spec_config, "use_relaxed_acceptance_for_thinking", False):
             # Relaxed acceptance is LOSSY by design -- it takes a draft that
             # matches any of the target's top-K instead of its top-1 -- and it

@@ -598,6 +598,41 @@ def test_a_non_vanilla_mode_is_refused():
         InklingForCausalLM._assert_inkling_spec_conv_state(cfg)
 
 
+def test_attention_dp_with_speculation_is_refused():
+    """Measured: either feature alone works, together the engine asserts.
+
+    ``assert len(num_kv_heads) == self.num_layers`` three frames inside
+    KVCacheManagerV2, naming neither number, while building the TARGET manager
+    (jobs 6339819/6340465/6340809, with single-feature arms passing in the same
+    allocation). The refusal replaces that with a statement; it does not fix the
+    underlying mismatch, which is not yet diagnosed.
+    """
+    from types import SimpleNamespace
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    cfg = _spec_guard_config()
+    cfg.mapping = SimpleNamespace(enable_attention_dp=True)
+    with pytest.raises(ValueError, match="attention DP"):
+        InklingForCausalLM._assert_inkling_spec_conv_state(cfg)
+
+
+def test_attention_dp_alone_is_untouched():
+    """The guard must fire only when speculating; attention DP on its own is
+    supported and was measured working in the same job."""
+    from types import SimpleNamespace
+
+    from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
+
+    class _Cfg:
+        pretrained_config = InklingConfig(text_config={}).text_config
+        spec_config = None
+        use_cuda_graph = False
+        mapping = SimpleNamespace(enable_attention_dp=True)
+
+    assert InklingForCausalLM._assert_inkling_spec_conv_state(_Cfg()) is None
+
+
 def test_relaxed_acceptance_for_thinking_is_refused():
     """It is lossy, and it is gated on tokens Inkling does not have.
 
