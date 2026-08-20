@@ -214,6 +214,19 @@ def test_the_shipped_config_resolves_to_vanilla_mtp(ckpt):
     assert spec_config.spec_dec_mode.is_mtp_vanilla(), (
         f"{ckpt} resolved to {spec_config.spec_dec_mode}"
     )
-    # What MTPForCausalLM will build, and what the draft KV cache is sized for.
-    assert min(spec_config.max_draft_len, cfg.text_config.num_nextn_predict_layers) == 3
-    assert get_num_spec_layers(spec_config) == declared
+    # What MTPForCausalLM will build...
+    built = min(spec_config.max_draft_len, cfg.text_config.num_nextn_predict_layers)
+    assert built == 3
+    # ...and what the draft KV cache is sized for, which must now be the SAME.
+    #
+    # These used to differ, and this assertion pinned the difference as if it
+    # were intended: get_num_spec_layers returned the checkpoint's declared 8
+    # while the model built 3, so five depths of draft KV were allocated and
+    # never written. The engine's own split reported draft=12.69 GiB against
+    # target=66.64 GiB; right-sizing it moved 7.40 GiB back to the target
+    # (74.04 GiB), about 11% of the budget, with acceptance unchanged.
+    #
+    # The invariant this test exists for -- that the resolver saw eight depths
+    # and did not fall back to one -- is the num_nextn_predict_layers assertion
+    # above, and is untouched.
+    assert get_num_spec_layers(spec_config) == built

@@ -699,7 +699,23 @@ def get_num_spec_layers(spec_config):
     if spec_config.spec_dec_mode.is_mtp_eagle_one_model():
         return 1
     if spec_config.spec_dec_mode.is_mtp_vanilla():
-        return spec_config.num_nextn_predict_layers
+        # The CHAIN the model actually builds, not the depth the checkpoint
+        # declares. MTPForCausalLM builds min(max_draft_len, declared depths)
+        # blocks -- Inkling logs "built 3 of the checkpoint's 8 draft depths" --
+        # but this count sizes the draft KV cache manager, so the untouched
+        # depths were still allocated.
+        #
+        # Measured on Inkling-Small-NVFP4 TP=4 at max_draft_len=3: the engine's
+        # own split reported draft=12.69 GiB (8192 bytes/token) against
+        # target=66.64 GiB (43008 bytes/token over 42 layers, i.e. ~1024
+        # bytes/token/layer) -- 8 layers' worth for 3 layers of chain. About
+        # 7.9 GiB of a 79.33 GiB budget, allocated and never written, taken
+        # straight out of the target's capacity.
+        declared = spec_config.num_nextn_predict_layers
+        max_draft_len = getattr(spec_config, "max_draft_len", None)
+        if declared is not None and max_draft_len:
+            return min(declared, max_draft_len)
+        return declared
     if spec_config.spec_dec_mode.is_eagle3_one_model():
         num_draft_hidden_layers = spec_config._num_draft_hidden_layers
         return num_draft_hidden_layers if num_draft_hidden_layers is not None else 1

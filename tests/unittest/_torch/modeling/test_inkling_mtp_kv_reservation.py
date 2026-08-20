@@ -312,3 +312,34 @@ def test_the_media_towers_do_not_abort_meta_init(monkeypatch):
 
     # No tower configured at all is not a deferral -- there is nothing to build.
     assert mi._build_replicated_bf16_tower(_RaisesOnConstruct, None) == (None, None)
+
+
+def test_draft_kv_layers_follow_the_built_chain_not_the_declared_depth():
+    """The draft KV cache must be sized for the chain the model BUILDS.
+
+    MTPForCausalLM builds ``min(max_draft_len, declared depths)`` blocks --
+    Inkling logs "built 3 of the checkpoint's 8 draft depths" -- but
+    ``get_num_spec_layers`` sized the draft KV cache manager from the declared
+    depth, so the untouched depths were allocated anyway.
+
+    Measured on Inkling-Small-NVFP4 TP=4 at max_draft_len=3, from the engine's
+    own split: draft went 12.69 GiB -> 5.29 GiB (8192 -> 3072 bytes/token,
+    i.e. 8 layers -> 3) and the TARGET gained 66.64 -> 74.04 GiB. About 11% of
+    the KV budget, previously allocated and never written.
+    """
+    from tensorrt_llm._torch.speculative.utils import get_num_spec_layers
+    from tensorrt_llm.llmapi.llm_args import MTPDecodingConfig
+
+    cfg = MTPDecodingConfig(max_draft_len=3)
+    cfg.num_nextn_predict_layers = 8
+    cfg.use_mtp_vanilla = True
+    assert get_num_spec_layers(cfg) == 3, (
+        "the draft cache must cover the built chain, not the checkpoint's depth"
+    )
+
+    # A draft length at or beyond the declared depth is capped by the depth,
+    # which is what the model does when it builds the blocks.
+    cfg_deep = MTPDecodingConfig(max_draft_len=12)
+    cfg_deep.num_nextn_predict_layers = 8
+    cfg_deep.use_mtp_vanilla = True
+    assert get_num_spec_layers(cfg_deep) == 8
