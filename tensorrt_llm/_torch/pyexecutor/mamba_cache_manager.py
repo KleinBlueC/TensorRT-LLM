@@ -44,9 +44,8 @@ from tensorrt_llm.bindings.internal.batch_manager import (
 from tensorrt_llm.llmapi.llm_args import KvCacheConfig
 from tensorrt_llm.logger import logger
 from tensorrt_llm.mapping import Mapping
-from tensorrt_llm.runtime.kv_cache_manager_v2 import (BatchDesc,
-                                                      BufferConfig, DataRole,
-                                                      KVCacheDesc)
+from tensorrt_llm.runtime.kv_cache_manager_v2 import (BatchDesc, BufferConfig,
+                                                      DataRole, KVCacheDesc)
 from tensorrt_llm.runtime.kv_cache_manager_v2 import \
     KVCacheManagerConfig as KVCacheManagerConfigPy
 from tensorrt_llm.runtime.kv_cache_manager_v2 import (LayerId, PageIndexMode,
