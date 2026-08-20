@@ -177,7 +177,6 @@ def test_a_draft_length_the_capture_cannot_hold_is_rejected():
     precondition is checked at load rather than discovered as quietly worse
     output later. max_draft_len < 1 means nothing was sized at all.
     """
-    import inspect
 
     from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
 
@@ -268,7 +267,6 @@ def test_single_acceptance_discards_the_rejected_tokens():
 
 def test_capture_is_only_allocated_when_speculating():
     """An ordinary server must not pay for buffers it never reads."""
-    import inspect
 
     from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import (
         InklingConvStateCache,
@@ -293,7 +291,6 @@ def test_verify_attention_is_not_routed_through_the_context_path():
     conversation and still produce fluent text. Cheapest-looking route, worst
     failure mode, so it is worth pinning that it was not taken.
     """
-    import inspect
 
     from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
@@ -314,7 +311,6 @@ def test_verify_walks_positions_in_order_so_causality_is_structural():
     wrote all KV up front would let position 0 attend to drafted tokens that,
     at that point in the sequence, do not exist.
     """
-    import inspect
 
     from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
@@ -355,7 +351,6 @@ def test_capture_under_cuda_graph_is_refused_with_a_reason():
     Better to say so at the point of use than to let a captured graph replay
     stale per-step writes.
     """
-    import inspect
 
     from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
@@ -376,7 +371,6 @@ def test_the_draft_pool_is_addressed_by_global_index():
     3 -- no error, just a pool that is mostly waste and whose banded pattern
     comes from the wrong layers.
     """
-    import inspect
 
     from tensorrt_llm._torch.attention_backend.sparse.inkling.conv_state import (
         InklingConvStateCache,
@@ -396,7 +390,6 @@ def test_the_draft_block_does_not_take_the_stateless_branch():
     the chain would keep no conv history between steps. Neither shows up as an
     error.
     """
-    import inspect
 
     from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock
 
@@ -411,7 +404,6 @@ def test_the_draft_conv_state_comes_from_the_manager_in_play():
     swapped underneath, so reading the published field would hand the chain the
     trunk's pool rows: a real pool, real rows, wrong history.
     """
-    import inspect
 
     from tensorrt_llm._torch.models.modeling_inkling import InklingMTPBlock
 
@@ -457,7 +449,6 @@ def test_a_shared_draft_kv_cache_is_refused_at_load():
     manager instead produced a bare `KeyError: 42` inside the draft loop,
     minutes into a 4-GPU run, naming nothing.
     """
-    import inspect
 
     from tensorrt_llm._torch.models.modeling_inkling import InklingForCausalLM
 
@@ -493,7 +484,6 @@ def test_a_draft_layer_falls_back_off_the_published_page_table():
     ``_run_verify``, which builds its own table from the manager in play. Pin
     that, since it is the property that makes the KeyError unreachable.
     """
-    import inspect
 
     from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import InklingTritonAttention
 
@@ -585,9 +575,7 @@ def test_the_draft_chains_warmup_underflow_is_clamped_not_refused():
     """
     import torch
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        _verify_write_base,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import _verify_write_base
 
     class _WarmupMD:
         num_contexts = 0

@@ -553,9 +553,7 @@ def test_verify_write_base_prefers_the_corrected_kv_lens():
     """
     import torch
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        _verify_write_base,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import _verify_write_base
 
     class _MD:
         num_contexts = 0
@@ -575,9 +573,7 @@ def test_verify_write_base_falls_back_and_clamps():
     """
     import torch
 
-    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import (
-        _verify_write_base,
-    )
+    from tensorrt_llm._torch.attention_backend.sparse.inkling.backend import _verify_write_base
 
     class _NoKvLens:
         num_contexts = 0

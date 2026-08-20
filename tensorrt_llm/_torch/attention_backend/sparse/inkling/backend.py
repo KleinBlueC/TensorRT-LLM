@@ -133,7 +133,7 @@ def _verify_write_base(attn_metadata, num_cached, num_gen, steps):
     # refuses CUDA graphs together with speculation, so this path is already
     # eager, and the block-id bookkeeping below is host-side regardless.
     start = attn_metadata.num_contexts
-    lens = kv_lens[start:start + num_gen].tolist()
+    lens = kv_lens[start : start + num_gen].tolist()
     return [max(0, int(x) - steps) for x in lens]
 
 

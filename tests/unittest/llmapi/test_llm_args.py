@@ -4257,8 +4257,11 @@ class TestMaxConcurrencyRevalidation:
         assert cfg.draft_len_schedule == {1: 3}
 
     def test_revalidation_from_a_dump_does_not_raise(self) -> None:
-        """The regression. A dump drops the PrivateAttr, exactly as the worker
-        sees it, so re-validation must recognise the translation by its value."""
+        """Re-validate a config built from this config's own dump.
+
+        The regression: a dump drops the PrivateAttr, exactly as the MPI worker
+        sees it, so re-validation must recognise the translation by its value.
+        """
         cfg = MTPDecodingConfig(max_draft_len=3, max_concurrency=1)
         dumped = cfg.model_dump()
         assert "_translated_from_max_concurrency" not in dumped, (
@@ -4269,8 +4272,10 @@ class TestMaxConcurrencyRevalidation:
         assert again.max_concurrency == 1
 
     def test_a_real_conflict_still_raises(self) -> None:
-        """Recognising the translation must not swallow a user's own conflict:
-        a schedule that is NOT what max_concurrency would have produced.
+        """A user's own conflicting schedule must still be rejected.
+
+        Recognising the translation must not swallow a schedule that is NOT what
+        max_concurrency would have produced.
 
         The schedule has to be independently VALID, or a different validator
         rejects it first and this test measures that one instead. A separate
